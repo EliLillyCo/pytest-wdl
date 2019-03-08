@@ -15,9 +15,6 @@ import delegator
 import pytest
 
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))
-
-
 class DataFile:
     """
     A data file, which may be located locally, remotely, or represented as a string.
@@ -55,7 +52,6 @@ class DataFile:
     @property
     def path(self):
         if not os.path.exists(self._path):
-            print(self._path)
             self._persist()
         return self._path
 
@@ -193,7 +189,7 @@ class Data:
         http_headers: Http(s) headers.
         proxies: Http(s) proxies.
     """
-    def __init__(self, data_dir, data_file, http_headers=None, proxies=None):
+    def __init__(self, data_dir, data_file, http_headers, proxies):
         self.data_dir = data_dir
         self.http_headers = http_headers
         self.proxies = proxies
@@ -223,23 +219,28 @@ class CromwellHarness:
     Class that manages the running of WDL workflows using Cromwell.
 
     Args:
-        import_paths_file:
+        project_root: The root path to which non-absolute WDL script paths are
+            relative.
+        import_paths_file: File that contains relative or absolute paths to
+            directories containing WDL scripts that should be available as
+            imports (one per line).
 
     Env:
         JAVA_HOME: path containing the bin dir that contains the java executable.
         CROMWELL_JAR: path to the cromwell JAR file.
     """
-    def __init__(self, import_paths_file=None):
-        self.java_bin = os.path.join(
-            os.path.abspath(os.environ.get("JAVA_HOME", "/usr")),
-            "bin", "java"
-        )
-        self.cromwell_jar = os.environ.get("CROMWELL_JAR", "cromwell.jar")
+    def __init__(
+        self, project_root, import_paths_file=None, java_bin="/usr/bin/java",
+        cromwell_jar_file="cromwell.jar"
+    ):
+        self.java_bin = java_bin
+        self.cromwell_jar = cromwell_jar_file
+        self.project_root = os.path.abspath(project_root)
         self.import_paths = None
         if import_paths_file:
             with open(import_paths_file, "rt") as inp:
                 self.import_paths = [
-                    os.path.join(PROJECT_ROOT, import_path)
+                    self._get_path(import_path)
                     for import_path in inp.read().splitlines(keepends=False)
                 ]
 
@@ -260,12 +261,12 @@ class CromwellHarness:
         with open(inputs_file, "wt") as out:
             json.dump(cromwell_inputs, out)
 
-        wdl_path = os.path.join(PROJECT_ROOT, wdl_script)
+        wdl_path = self._get_path(wdl_script)
 
         imports_zip_arg = ""
         if self.import_paths:
             imports = " ".join(
-                os.path.join(PROJECT_ROOT, path, "*.wdl")
+                os.path.join(self.project_root, path, "*.wdl")
                 for path in self.import_paths
             )
             delegator.run(f"zip -j imports.zip {imports}", block=True)
@@ -296,6 +297,11 @@ class CromwellHarness:
             else:
                 assert expected_value == outputs[key]
 
+    def _get_path(self, path):
+        if not os.path.isabs(path):
+            path = os.path.join(self.project_root, path)
+        return path
+
     @staticmethod
     def get_cromwell_outputs(output):
         lines = output.splitlines(keepends=False)
@@ -320,8 +326,42 @@ def _tempdir():
         shutil.rmtree(temp)
 
 
+@pytest.fixture(scope="module")
+def project_root(request):
+    return os.path.abspath(os.path.join(os.path.dirname(request.fspath), ".."))
+
+
+@pytest.fixture(scope="module")
+def test_data_file():
+    return "tests/test_data.json"
+
+
+@pytest.fixture(scope="module")
+def test_data_dir(project_root):
+    test_data_dir = os.environ.get("TEST_DATA_DIR", None)
+    cleanup = False
+    if not test_data_dir:
+        test_data_dir = tempfile.mkdtemp()
+        cleanup = True
+    else:
+        if not os.path.isabs(test_data_dir):
+            test_data_dir = os.path.abspath(os.path.join(project_root, test_data_dir))
+        if not os.path.exists(test_data_dir):
+            os.makedirs(test_data_dir, exist_ok=True)
+    try:
+        yield test_data_dir
+    finally:
+        if cleanup:
+            shutil.rmtree(test_data_dir)
+
+
 @pytest.fixture(scope="session")
-def http_headers(default_env=None):
+def default_env():
+    return None
+
+
+@pytest.fixture(scope="session")
+def http_headers(default_env):
     headers = copy.copy(default_env) if default_env else {}
     for name, ev in {"X-JFrog-Art-Api": "TOKEN"}.items():
         value = os.environ.get(ev, None)
@@ -331,7 +371,7 @@ def http_headers(default_env=None):
 
 
 @pytest.fixture(scope="session")
-def proxies(default_env=None):
+def proxies(default_env):
     proxies = copy.copy(default_env) if default_env else {}
     for name, ev in {"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}.items():
         proxy = os.environ.get(ev, None)
@@ -341,40 +381,64 @@ def proxies(default_env=None):
 
 
 @pytest.fixture(scope="session")
-def test_data(test_data_file, http_headers, proxies):
+def import_paths():
+    return None
+
+
+@pytest.fixture(scope="session")
+def java_bin():
+    return os.path.join(
+        os.path.abspath(os.environ.get("JAVA_HOME", "/usr")),
+        "bin", "java"
+    )
+
+
+@pytest.fixture(scope="session")
+def cromwell_jar_file():
+    if "CROMWELL_JAR" in os.environ:
+        return os.environ.get("CROMWELL_JAR")
+
+    classpath = os.environ.get("CLASSPATH")
+    if classpath:
+        for path in classpath.split(os.pathsep):
+            if os.path.basename(path).lower().startswith("cromwell"):
+                return path
+
+    return "cromwell.jar"
+
+
+@pytest.fixture(scope="module")
+def test_data(test_data_file, test_data_dir, http_headers, proxies):
     """
     Provides an accessor for test data files, which may be local or in a remote
     repository. Requires a `test_data_file` argument, which is provided by a
-    `@pytest.mark.parameterize` decoration. The test_data_file file is a JSON file
-    with keys being workflow input or output parameters, and values being hashes with
+    `@pytest.mark.parametrize` decoration. The test_data_file file is a JSON file
+    with keys being workflow input or output parametrize, and values being hashes with
     any of the following keys:
 
     * url: URL to the remote data file
     * path: Path to the local data file
     * type: File type; recoginzed values: "vcf"
 
+    Args:
+        test_data_file:
+        test_data_dir:
+        http_headers:
+        proxies:
+
     Examples:
         @pytest.mark.parametrize('test_data_file', ['tests/test_data.json'])
         def test_workflow(test_data):
             print(test_data["myfile"])
     """
-    test_data_dir = os.environ.get("TEST_DATA_DIR", None)
-    cleanup = False
-    if not test_data_dir or not os.path.exists(test_data_dir):
-        test_data_dir = tempfile.mkdtemp()
-        cleanup = True
-    try:
-        yield Data(test_data_dir, test_data_file, http_headers, proxies)
-    finally:
-        if cleanup:
-            shutil.rmtree(test_data_dir)
+    return Data(test_data_dir, test_data_file, http_headers, proxies)
 
 
-@pytest.fixture(scope="session")
-def cromwell_harness(import_paths=None):
+@pytest.fixture(scope="module")
+def cromwell_harness(project_root, import_paths, java_bin, cromwell_jar_file):
     """
     Provides a harness for calling Cromwell on WDL scripts. Accepts an `import_paths`
-    argument, which is provided by a `@pytest.mark.parameterize` decoration. The
+    argument, which is provided by a `@pytest.mark.parametrize` decoration. The
     import_paths file contains a list of directories (one per line) that contain WDL
     files that should be made available as imports to the running WDL workflow.
 
@@ -383,4 +447,4 @@ def cromwell_harness(import_paths=None):
         def test_workflow(cromwell_harness):
             cromwell_harness.run_workflow(...)
     """
-    return CromwellHarness(import_paths)
+    return CromwellHarness(project_root, import_paths, java_bin, cromwell_jar_file)
