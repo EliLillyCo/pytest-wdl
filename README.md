@@ -13,10 +13,51 @@ Other python dependencies are installed when you install the library.
 
 ## Installation
 
-Currently, you need to clone the repository and install:
+### Install from Artifactory PyPi
+
+The module is stored in the private PyPi repository `elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple`
+
+#### Preferred Artifactory Install Method
+
+To add this repo to your environment for all future installs, edit your `~/.pip/pip.conf`
+file like below, adding your username and password for Artifactory which is 
+your email and the Artifactory API token:
+
+```
+[global]
+index-url = https://pypi.org/simple
+extra-index-url =
+    https://<email>:<artifactory_token>@elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple
+```
+
+Then you can pip install the module:
+
+```commandline
+pip install pytest_cromwell
+```
+
+#### One-Time Artifactory Install
+
+If you just want to do this one-time, you can embed the extra-index-url into 
+the pip command. You can also leave out the auth details and it will interactively prompt for them:
+
+```commandline
+pip install --extra-index-url https://elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple pytest_cromwell
+```
+Which will then prompt for your username and password, the Artifactory email and token.
+
+
+### Install from source
+you can to clone the repository and install:
 
 ```
 python setup.py install
+```
+
+Or use pip to install from github:
+
+```commandline
+pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
 ```
 
 ## Fixtures
