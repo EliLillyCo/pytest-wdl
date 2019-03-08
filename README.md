@@ -23,10 +23,10 @@ python setup.py install
 
 The two main fixtures are:
 
-* test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys:
-    * url: The remote URL.
-    * path: The local path to the file.
-    * contents: The contents of the file, specified as a string.
+* test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys. At least one of {url, path, contents} is required.
+    * url: Optional; the remote URL.
+    * path: Optional; the local path to the file.
+    * contents: Optional; the contents of the file, specified as a string.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. Currently, the only supported value is "vcf".
 * cromwell_harness: Provides an object with a `run_workflow` method that calls a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The run_workflow method has four parameters:
     * Path to the workflow WDL file (relative to the project root)
@@ -34,7 +34,7 @@ The two main fixtures are:
     * Inputs dict: Values for the workflow inputs.
     * Expected output values dict: Optionally specify an expected value for each output. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
 
-There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden either by redefining them in the test module, or by using the `pytest.mark.param.parametrize` decoration on eacy test function/method.
+There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden either by redefining them in the test module, or by using the `pytest.mark.parametrize` decoration on eacy test function/method.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
