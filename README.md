@@ -75,7 +75,7 @@ The two main fixtures are:
     * Inputs dict: Values for the workflow inputs.
     * Expected output values dict: Optionally specify an expected value for each output. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
 
-There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden either by redefining them in the test module, or by using the `pytest.mark.parametrize` decoration on eacy test function/method.
+There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden  by redefining them in the test module.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
@@ -97,7 +97,10 @@ import pytest
 def project_root():
     return "../.."
 
-@pytest.mark.parametrize("test_data_file", ["tests/mytestdata.json"])
+@pytest.fixture(scope="module")
+def test_data_file():
+    return "tests/mytestdata.json"
+
 def test_variant_caller(test_data, cromwell_harness):
     inputs = {
         "bam": test_data["bam"],
