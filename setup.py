@@ -5,6 +5,7 @@ from setuptools import setup
 setup(
     name="pytest-cromwell",
     use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     description="Fixtures for pytest for running WDL workflows using Cromwell.",
     long_description=codecs.open(
             os.path.join(

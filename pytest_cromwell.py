@@ -55,6 +55,9 @@ class DataFile:
             self._persist()
         return self._path
 
+    def __str__(self):
+        return self.path
+
     def assert_contents_equal(self, other):
         """
         Assert the contents of two files are equal.
@@ -247,6 +250,18 @@ class CromwellHarness:
     def run_workflow(
         self, wdl_script, workflow_name, inputs, expected, execution_dir=None
     ):
+        """
+        Run a WDL workflow on given inputs, and check that the output matches
+        given expected values.
+
+        Args:
+            wdl_script: The WDL script to execute.
+            workflow_name: The name of the workflow in the WDL script.
+            inputs: Object that will be serialized to JSON and provided to Cromwell
+                as the workflow inputs.
+            expected: Dict mapping output parameter names to expected values.
+            execution_dir: Directory in which to execute the workflow. Defaults to cwd.
+        """
         if execution_dir:
             os.chdir(execution_dir)
 
@@ -259,7 +274,7 @@ class CromwellHarness:
         )
         inputs_file = "inputs.json"
         with open(inputs_file, "wt") as out:
-            json.dump(cromwell_inputs, out)
+            json.dump(cromwell_inputs, out, default=str)
 
         wdl_path = self._get_path(wdl_script)
 
@@ -277,7 +292,10 @@ class CromwellHarness:
             f"{self.cromwell_jar} run -i {inputs_file} {imports_zip_arg} "
             f"{wdl_path}"
         )
-        print(f"Executing cromwell command '{cmd}'")
+        print(
+            f"Executing cromwell command '{cmd}' with inputs "
+            f"{json.dumps(cromwell_inputs, default=str)}"
+        )
         exe = delegator.run(cmd, block=True)
         if not exe.ok:
             raise Exception(
@@ -296,6 +314,16 @@ class CromwellHarness:
                 expected_value.assert_contents_equal(outputs[key])
             else:
                 assert expected_value == outputs[key]
+
+    def run_workflow_in_tempdir(self, *args, **kwargs):
+        """
+        Conveience method for running a workflow with a temporary execution directory.
+
+        Args:
+             kwargs: keyword args to pass to `run_workflow`.
+        """
+        with _tempdir() as tmpdir:
+            self.run_workflow(*args, **kwargs, execution_dir=tmpdir)
 
     def _get_path(self, path):
         if not os.path.isabs(path):
