@@ -84,7 +84,7 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
 * test_data_dir: Local directory for caching test data. The `TEST_DATA_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
-* test_execution-dir: Local directory in which tests are executed. The `TEST_EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
+* test_execution_dir: Local directory in which tests are executed. The `TEST_EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
 * http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults. The default is `{"X-JFrog-Art-Api": "TOKEN"}`.
 * proxies: Dict mapping proxy names to environment variables. The default is `{"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}`.
 * import_paths: Path to file that contains a list of WDL import paths (one per line). Defaults to `None`.
