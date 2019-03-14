@@ -15,6 +15,13 @@ import delegator
 import pytest
 
 
+def _deprecated(f):
+    def decorator(*args, **kwargs):
+        print(f"Function/method {f.__name__} is deprecated and will be removed")
+        f(*args, **kwargs)
+    return decorator
+
+
 class DataFile:
     """
     A data file, which may be located locally, remotely, or represented as a string.
@@ -247,6 +254,26 @@ class CromwellHarness:
                     for import_path in inp.read().splitlines(keepends=False)
                 ]
 
+    def __call__(
+        self, *args, execution_dir=None, run_in_tempdir=True, **kwargs
+    ):
+        """
+        Conveience method for running a workflow with a temporary execution directory.
+
+        Args:
+            *args: Positional arguments to run_workflow.
+            execution_dir: Directory in which to run the execution; ignored if
+                `run_in_tempdir is True`.
+            run_in_tempdir: Whether to run the workflow in a temporary directory that
+                will be deleted after the workflow completes.
+            kwargs: Keyword args to `run_workflow`.
+        """
+        if run_in_tempdir:
+            with _tempdir() as tmpdir:
+                self.run_workflow(*args, execution_dir=tmpdir, **kwargs)
+        else:
+            self.run_workflow(*args, execution_dir=execution_dir, **kwargs)
+
     def run_workflow(
         self, wdl_script, workflow_name, inputs, expected, execution_dir=None
     ):
@@ -315,12 +342,14 @@ class CromwellHarness:
             else:
                 assert expected_value == outputs[key]
 
+    @_deprecated
     def run_workflow_in_tempdir(self, *args, **kwargs):
         """
         Conveience method for running a workflow with a temporary execution directory.
 
         Args:
-             kwargs: keyword args to pass to `run_workflow`.
+            args: Positional arguments to `run_workflow`.
+            kwargs: Keyword args to pass to `run_workflow`.
         """
         with _tempdir() as tmpdir:
             self.run_workflow(*args, **kwargs, execution_dir=tmpdir)

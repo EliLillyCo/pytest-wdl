@@ -69,11 +69,13 @@ The two main fixtures are:
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. Currently, the only supported value is "vcf".
-* cromwell_harness: Provides an object with a `run_workflow` method that calls a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The run_workflow method has four parameters:
-    * Path to the workflow WDL file (relative to the project root)
-    * The workflow name
-    * Inputs dict: Values for the workflow inputs.
-    * Expected output values dict: Optionally specify an expected value for each output. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
+* cromwell_harness: Provides a callable object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `__call__` method has the following parameters:
+    * wdl_script: The WDL script to execute. The path should be relative to the project root.
+    * workflow_name: The name of the workflow in the WDL script.
+    * inputs: Object that will be serialized to JSON and provided to Cromwell as the workflow inputs.
+    * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
+    * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`.
+    * run_in_tempdir: Whether to run the workflow in a temporary directory that will be deleted after the workflow completes.
 
 There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden  by redefining them in the test module.
 
@@ -109,7 +111,7 @@ def test_variant_caller(test_data, cromwell_harness):
     expected = {
         "vcf": test_data["vcf"]
     }
-    cromwell_harness.run_workflow(
+    cromwell_harness(
         "variant_caller/variant_caller.wdl",
         "call_variants",
         inputs,
