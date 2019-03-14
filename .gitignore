@@ -3,3 +3,5 @@ dist/
 .pytest_cache/
 cromwell-executions/
 *.egg-info/
+__pycache__/
+*.pyc
