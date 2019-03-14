@@ -153,7 +153,8 @@ class DataFile:
                 out.write(self.contents)
         else:
             raise ValueError(
-                "Either a url, file contents, or a local file must be provided"
+                f"File {self._path} does not exist. Either a url, file contents, "
+                f"or a local file must be provided."
             )
 
 
@@ -400,7 +401,8 @@ def test_data_dir(project_root):
         project_root: The root directory to use when the test data directory is
             specified as a relative path.
     """
-    yield _test_dir("TEST_DATA_DIR", project_root)
+    with _test_dir("TEST_DATA_DIR", project_root) as data_dir:
+        yield data_dir
 
 
 @pytest.fixture(scope="function")
@@ -414,7 +416,8 @@ def test_execution_dir(project_root):
         project_root: The root directory to use when the execution directory is
             specified as a relative path.
     """
-    yield _test_dir("EXECUTION_DIR", project_root)
+    with _test_dir("TEST_EXECUTION_DIR", project_root) as execution_dir:
+        yield execution_dir
 
 
 @contextlib.contextmanager

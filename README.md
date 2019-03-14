@@ -48,7 +48,8 @@ Which will then prompt for your username and password, the Artifactory email and
 
 
 ### Install from source
-you can to clone the repository and install:
+
+You can to clone the repository and install:
 
 ```
 python setup.py install
@@ -62,7 +63,7 @@ pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
 
 ## Fixtures
 
-The two main fixtures are:
+The main fixtures are:
 
 * test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys. At least one of {url, path, contents} is required.
     * url: Optional; the remote URL.
@@ -76,13 +77,14 @@ The two main fixtures are:
     * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
     * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`.
     * run_in_tempdir: Whether to run the workflow in a temporary directory that will be deleted after the workflow completes.
+* workflow_runner: This is an alternative to cromwell_harness. It provides a callable and automatically determines the execution_dir based on the test_execution_dir fixture.
 
 There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden  by redefining them in the test module.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
 * test_data_dir: Local directory for caching test data. The `TEST_DATA_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
-* default_env: Defines the default environment variable values. This is a dict that maps environment variable names to values. The environment variables you might want to override are the Artifcactory token ('TOKEN') and the proxy servers ('HTTP_PROXY' and 'HTTPS_PROXY').
+* test_execution-dir: Local directory in which tests are executed. The `TEST_EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
 * http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults. The default is `{"X-JFrog-Art-Api": "TOKEN"}`.
 * proxies: Dict mapping proxy names to environment variables. The default is `{"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}`.
 * import_paths: Path to file that contains a list of WDL import paths (one per line). Defaults to `None`.
