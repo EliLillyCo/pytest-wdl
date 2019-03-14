@@ -3,7 +3,6 @@
 Fixtures for writing tests that execute WDL workflows using Cromwell.
 """
 import contextlib
-import copy
 import hashlib
 import json
 import os
@@ -16,6 +15,10 @@ import pytest
 
 
 def _deprecated(f):
+    """
+    Decorator for deprecated functions/methods. Deprecated functionality will be
+    removed before each major release.
+    """
     def decorator(*args, **kwargs):
         print(f"Function/method {f.__name__} is deprecated and will be removed")
         f(*args, **kwargs)
@@ -254,25 +257,20 @@ class CromwellHarness:
                     for import_path in inp.read().splitlines(keepends=False)
                 ]
 
-    def __call__(
-        self, *args, execution_dir=None, run_in_tempdir=True, **kwargs
-    ):
+    @_deprecated
+    def __call__(self, *args, **kwargs):
+        """
+        Briefly used as a replacement for run_workflow.
+        """
+        self.run_workflow(*args, **kwargs)
+
+    @_deprecated
+    def run_workflow_in_tempdir(self, *args, **kwargs):
         """
         Conveience method for running a workflow with a temporary execution directory.
-
-        Args:
-            *args: Positional arguments to run_workflow.
-            execution_dir: Directory in which to run the execution; ignored if
-                `run_in_tempdir is True`.
-            run_in_tempdir: Whether to run the workflow in a temporary directory that
-                will be deleted after the workflow completes.
-            kwargs: Keyword args to `run_workflow`.
         """
-        if run_in_tempdir:
-            with _tempdir() as tmpdir:
-                self.run_workflow(*args, execution_dir=tmpdir, **kwargs)
-        else:
-            self.run_workflow(*args, execution_dir=execution_dir, **kwargs)
+        with _tempdir() as tmpdir:
+            self(*args, **kwargs, execution_dir=tmpdir)
 
     def run_workflow(
         self, wdl_script, workflow_name, inputs, expected, execution_dir=None
@@ -342,18 +340,6 @@ class CromwellHarness:
             else:
                 assert expected_value == outputs[key]
 
-    @_deprecated
-    def run_workflow_in_tempdir(self, *args, **kwargs):
-        """
-        Conveience method for running a workflow with a temporary execution directory.
-
-        Args:
-            args: Positional arguments to `run_workflow`.
-            kwargs: Keyword args to pass to `run_workflow`.
-        """
-        with _tempdir() as tmpdir:
-            self.run_workflow(*args, **kwargs, execution_dir=tmpdir)
-
     def _get_path(self, path):
         if not os.path.isabs(path):
             path = os.path.join(self.project_root, path)
@@ -376,6 +362,10 @@ class CromwellHarness:
 
 @contextlib.contextmanager
 def _tempdir():
+    """
+    Context manager that creates a temporary directory, yields it, and then
+    deletes it after return from the yield.
+    """
     temp = tempfile.mkdtemp()
     try:
         yield temp
@@ -385,65 +375,152 @@ def _tempdir():
 
 @pytest.fixture(scope="module")
 def project_root(request):
+    """
+    Fixture that provides the root directory of the project.
+    """
     return os.path.abspath(os.path.join(os.path.dirname(request.fspath), "../.."))
 
 
 @pytest.fixture(scope="module")
 def test_data_file():
+    """
+    Fixture that provides the path to the JSON file that describes test data files.
+    """
     return "tests/test_data.json"
 
 
 @pytest.fixture(scope="module")
 def test_data_dir(project_root):
-    test_data_dir = os.environ.get("TEST_DATA_DIR", None)
+    """
+    Fixture that provides the directory in which to cache the test data. If the
+    "TEST_DATA_DIR" environment variable is set, the value will be used as the
+    execution directory path, otherwise a temporary directory is used.
+
+    Args:
+        project_root: The root directory to use when the test data directory is
+            specified as a relative path.
+    """
+    yield _test_dir("TEST_DATA_DIR", project_root)
+
+
+@pytest.fixture(scope="function")
+def test_execution_dir(project_root):
+    """
+    Fixture that provides the directory in which the test is to be executed. If the
+    "EXECUTION_DIR" environment variable is set, the value will be used as the
+    execution directory path, otherwise a temporary directory is used.
+
+    Args:
+        project_root: The root directory to use when the execution directory is
+            specified as a relative path.
+    """
+    yield _test_dir("EXECUTION_DIR", project_root)
+
+
+@contextlib.contextmanager
+def _test_dir(envar, project_root):
+    """
+    Context manager that looks for a specific environment variable to specify a
+    directory. If the environment variable is not set, a temporary directory is
+    created and cleaned up upon return from the yield.
+
+    Args:
+        envar: The environment variable to look for.
+        project_root: The root directory to use when the path is relative.
+
+    Yields:
+        A directory path.
+    """
+    test_dir = os.environ.get(envar, None)
     cleanup = False
-    if not test_data_dir:
-        test_data_dir = tempfile.mkdtemp()
+    if not test_dir:
+        test_dir = tempfile.mkdtemp()
         cleanup = True
     else:
-        if not os.path.isabs(test_data_dir):
-            test_data_dir = os.path.abspath(os.path.join(project_root, test_data_dir))
-        if not os.path.exists(test_data_dir):
-            os.makedirs(test_data_dir, exist_ok=True)
+        if not os.path.isabs(test_dir):
+            test_dir = os.path.abspath(os.path.join(project_root, test_dir))
+        if not os.path.exists(test_dir):
+            os.makedirs(test_dir, exist_ok=True)
     try:
-        yield test_data_dir
+        yield test_dir
     finally:
         if cleanup:
-            shutil.rmtree(test_data_dir)
+            shutil.rmtree(test_dir)
 
 
 @pytest.fixture(scope="session")
+@_deprecated
 def default_env():
+    """
+    No longer used.
+    """
     return None
 
 
 @pytest.fixture(scope="session")
-def http_headers(default_env):
-    headers = copy.copy(default_env) if default_env else {}
-    for name, ev in {"X-JFrog-Art-Api": "TOKEN"}.items():
-        value = os.environ.get(ev, None)
-        if value:
-            headers[name] = value
-    return headers
+def http_header_map():
+    """
+    Fixture that provides a mapping from HTTP header name to the environment variable
+    from which the value should be retrieved.
+    """
+    return {"X-JFrog-Art-Api": "TOKEN"}
 
 
 @pytest.fixture(scope="session")
-def proxies(default_env):
-    proxies = copy.copy(default_env) if default_env else {}
-    for name, ev in {"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}.items():
-        proxy = os.environ.get(ev, None)
-        if proxy:
-            proxies[name] = proxy
-    return proxies
+def http_headers(http_header_map):
+    """
+    Fixture that provides request HTTP headers to use when downloading files.
+    """
+    return _env_map(http_header_map)
+
+
+@pytest.fixture(scope="session")
+def proxy_map():
+    """
+    Fixture that provides a mapping from proxy name to the environment variable
+    from which the value should be retrieved.
+    """
+    return {
+        "http": "HTTP_PROXY",
+        "https": "HTTPS_PROXY"
+    }
+
+
+@pytest.fixture(scope="session")
+def proxies(proxy_map):
+    """
+    Fixture that provides the proxies to use when downloading files.
+    """
+    return _env_map(proxy_map)
+
+
+def _env_map(key_env_map):
+    """
+    Given a mapping of keys to environment variables, creates a mapping of the keys
+    to the values of those environment variables (if they are set).
+    """
+    env_map = {}
+    for name, ev in key_env_map.items():
+        value = os.environ.get(ev, None)
+        if value:
+            env_map[name] = value
+    return env_map
 
 
 @pytest.fixture(scope="session")
 def import_paths():
+    """
+    Fixture that provides the path to a file that lists the names of WDL scripts
+    to make avaialble as imports.
+    """
     return None
 
 
 @pytest.fixture(scope="session")
 def java_bin():
+    """
+    Fixture that provides the path to the java binary.
+    """
     return os.path.join(
         os.path.abspath(os.environ.get("JAVA_HOME", "/usr")),
         "bin", "java"
@@ -452,6 +529,12 @@ def java_bin():
 
 @pytest.fixture(scope="session")
 def cromwell_jar_file():
+    """
+    Fixture that provides the path to the Cromwell JAR file. First looks for the
+    CROMWELL_JAR environment variable, then searches the classpath for a JAR file
+    whose name starts with "cromwell". Defaults to "cromwell.jar" in the current
+    directory.
+    """
     if "CROMWELL_JAR" in os.environ:
         return os.environ.get("CROMWELL_JAR")
 
@@ -478,13 +561,16 @@ def test_data(test_data_file, test_data_dir, http_headers, proxies):
     * type: File type; recoginzed values: "vcf"
 
     Args:
-        test_data_file:
-        test_data_dir:
-        http_headers:
-        proxies:
+        test_data_file: test_data_file fixture.
+        test_data_dir: test_data_dir fixture.
+        http_headers: http_headers fixture.
+        proxies: proxies fixture.
 
     Examples:
-        @pytest.mark.parametrize('test_data_file', ['tests/test_data.json'])
+        @pytest.fixture(scope="session")
+        def test_data_file():
+            return "tests/test_data.json"
+
         def test_workflow(test_data):
             print(test_data["myfile"])
     """
@@ -499,9 +585,33 @@ def cromwell_harness(project_root, import_paths, java_bin, cromwell_jar_file):
     import_paths file contains a list of directories (one per line) that contain WDL
     files that should be made available as imports to the running WDL workflow.
 
+    Args:
+        project_root: project_root fixture.
+        import_paths: import_paths fixture.
+        java_bin: java_bin fixture.
+        cromwell_jar_file: cromwell_jar_file fixture.
+
     Examples:
-        @pytest.mark.parametrize('import_paths', ['tests/import_paths.txt'])
+        @pytest.fixture(scope="session")
+        def import_paths():
+            return "tests/import_paths.txt"
+
         def test_workflow(cromwell_harness):
             cromwell_harness.run_workflow(...)
     """
     return CromwellHarness(project_root, import_paths, java_bin, cromwell_jar_file)
+
+
+@pytest.fixture(scope="function")
+def workflow_runner(cromwell_harness, test_execution_dir):
+    """
+    Provides a callable that runs a workflow (with the same signature as
+    `CromwellHarness.run_workflow`) with the execution_dir being the one
+    provided by the `test_execution_dir` fixture.
+    """
+    def _run_workflow(wdl_script, workflow_name, inputs, expected):
+        cromwell_harness.run_workflow(
+            wdl_script, workflow_name, inputs, expected,
+            execution_dir=test_execution_dir
+        )
+    return _run_workflow

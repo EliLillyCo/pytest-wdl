@@ -103,7 +103,7 @@ def project_root():
 def test_data_file():
     return "tests/mytestdata.json"
 
-def test_variant_caller(test_data, cromwell_harness):
+def test_variant_caller(test_data, workflow_runner):
     inputs = {
         "bam": test_data["bam"],
         "bai": test_data["bai"]
@@ -111,7 +111,7 @@ def test_variant_caller(test_data, cromwell_harness):
     expected = {
         "vcf": test_data["vcf"]
     }
-    cromwell_harness(
+    workflow_runner(
         "variant_caller/variant_caller.wdl",
         "call_variants",
         inputs,
