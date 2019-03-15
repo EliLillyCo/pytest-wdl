@@ -5,6 +5,7 @@ Fixtures for writing tests that execute WDL workflows using Cromwell.
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -14,13 +15,17 @@ import delegator
 import pytest
 
 
+LOG = logging.getLogger("pytest-cromwell")
+LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
+
+
 def _deprecated(f):
     """
     Decorator for deprecated functions/methods. Deprecated functionality will be
     removed before each major release.
     """
     def decorator(*args, **kwargs):
-        print(f"Function/method {f.__name__} is deprecated and will be removed")
+        LOG.warning(f"Function/method {f.__name__} is deprecated and will be removed")
         f(*args, **kwargs)
     return decorator
 
@@ -101,20 +106,16 @@ class DataFile:
             with _tempdir() as temp:
                 temp_file1 = os.path.join(temp, "file1")
                 temp_file2 = os.path.join(temp, "file2")
-                delegator.run(
-                    "gunzip -c {} > {}".format(file1, temp_file1), block=True
-                )
-                delegator.run(
-                    "gunzip -c {} > {}".format(file2, temp_file2), block=True
-                )
+                delegator.run(f"gunzip -c {file1} > {temp_file1}", block=True)
+                delegator.run(f"gunzip -c {file2} > {temp_file2}", block=True)
                 diff_lines = cls._diff(temp_file1, temp_file2)
         else:
             diff_lines = cls._diff(file1, file2)
 
         if diff_lines > allowed_diff_lines:
             raise AssertionError(
-                "{} lines (which is > {} allowed) are different between files {}, "
-                "{}".format(diff_lines, allowed_diff_lines, file1, file2)
+                f"{diff_lines} lines (which is > {allowed_diff_lines} allowed) are "
+                f"different between files {file1}, {file2}"
             )
 
     @classmethod
@@ -132,12 +133,23 @@ class DataFile:
             file2_md5 = hashlib.md5(inp2.read()).hexdigest()
         if file1_md5 != file2_md5:
             raise AssertionError(
-                "MD5 hashes differ between expected identical files "
-                "{}, {}".format(file1, file2)
+                f"MD5 hashes differ between expected identical files "
+                f"{file1}, {file2}"
             )
 
     def _persist(self):
+        if not (self.url or self.contents):
+            raise ValueError(
+                f"File {self._path} does not exist. Either a url, file contents, "
+                f"or a local file must be provided."
+            )
+
+        parent = os.path.dirname(self._path)
+        if not os.path.exists(parent):
+            os.makedirs(parent, exist_ok=True)
+
         if self.url:
+            LOG.debug(f"Persisting {self._path} from url {self.url}")
             req = urllib.request.Request(self.url)
             if self.http_headers:
                 for name, value in self.http_headers.items():
@@ -149,13 +161,9 @@ class DataFile:
             with open(self._path, "wb") as out:
                 shutil.copyfileobj(rsp, out)
         elif self.contents:
+            LOG.debug(f"Persisting {self._path} from contents")
             with open(self._path, "wt") as out:
                 out.write(self.contents)
-        else:
-            raise ValueError(
-                f"File {self._path} does not exist. Either a url, file contents, "
-                f"or a local file must be provided."
-            )
 
 
 class VcfDataFile(DataFile):
@@ -214,7 +222,7 @@ class Data:
     def __getitem__(self, name):
         if name not in self._values:
             if name not in self._data:
-                raise ValueError("Unrecognized name {}".format(name))
+                raise ValueError(f"Unrecognized name {name}")
             value = self._data[name]
             if isinstance(value, dict):
                 data_file_class = DATA_TYPES[value.pop("type", "default")]
@@ -293,7 +301,7 @@ class CromwellHarness:
 
         cromwell_inputs = dict(
             (
-                "{}.{}".format(workflow_name, key),
+                f"{workflow_name}.{key}",
                 value.path if isinstance(value, DataFile) else value
             )
             for key, value in inputs.items()
@@ -318,7 +326,7 @@ class CromwellHarness:
             f"{self.cromwell_jar} run -i {inputs_file} {imports_zip_arg} "
             f"{wdl_path}"
         )
-        print(
+        LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
             f"{json.dumps(cromwell_inputs, default=str)}"
         )
@@ -331,11 +339,9 @@ class CromwellHarness:
         outputs = self.get_cromwell_outputs(exe.out)
 
         for name, expected_value in expected.items():
-            key = "{}.{}".format(workflow_name, name)
+            key = f"{workflow_name}.{name}"
             if key not in outputs:
-                raise AssertionError(
-                    "Workflow did not generate output {}".format(key)
-                )
+                raise AssertionError(f"Workflow did not generate output {key}")
             if isinstance(expected_value, DataFile):
                 expected_value.assert_contents_equal(outputs[key])
             else:
