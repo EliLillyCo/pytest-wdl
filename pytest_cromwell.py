@@ -103,7 +103,7 @@ class DataFile:
     @classmethod
     def _diff_contents(cls, file1, file2, allowed_diff_lines):
         if file1.endswith(".gz"):
-            with _tempdir() as temp:
+            with tempdir() as temp:
                 temp_file1 = os.path.join(temp, "file1")
                 temp_file2 = os.path.join(temp, "file2")
                 delegator.run(f"gunzip -c {file1} > {temp_file1}", block=True)
@@ -180,7 +180,7 @@ class VcfDataFile(DataFile):
             file1:
             file2:
         """
-        with _tempdir() as temp:
+        with tempdir() as temp:
             cmp_file1 = os.path.join(temp, "file1")
             cmp_file2 = os.path.join(temp, "file2")
             job1 = delegator.run(
@@ -278,11 +278,11 @@ class CromwellHarness:
         """
         Conveience method for running a workflow with a temporary execution directory.
         """
-        with _tempdir() as tmpdir:
+        with tempdir() as tmpdir:
             self(*args, **kwargs, execution_dir=tmpdir)
 
     def run_workflow(
-        self, wdl_script, workflow_name, inputs, expected, execution_dir=None
+        self, wdl_script, workflow_name, inputs, expected, **kwargs
     ):
         """
         Run a WDL workflow on given inputs, and check that the output matches
@@ -294,37 +294,79 @@ class CromwellHarness:
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
-            execution_dir: Directory in which to execute the workflow. Defaults to cwd.
+            kwargs: Additional keyword arguments, mostly for debugging:
+                * execution_dir: DEPRECATED
+                * inputs_file: Path to the Cromwell inputs file to use. Inputs are
+                    written to this file only if it doesn't exist.
+                * imports_file: Path to the WDL imports file to use. Imports are
+                    written to this file only if it doesn't exist.
+                * java_args: Additional arguments to pass to Java runtime.
+                * cromwell_args: Additional arguments to pass to `cromwell run`.
         """
-        if execution_dir:
-            os.chdir(execution_dir)
-
-        cromwell_inputs = dict(
-            (
-                f"{workflow_name}.{key}",
-                value.path if isinstance(value, DataFile) else value
+        if "execution_dir" in kwargs:
+            LOG.warning(
+                f"Parameter execution_dir is deprecated and will be removed. Use "
+                f"the `chdir` context manager instead."
             )
-            for key, value in inputs.items()
-        )
-        inputs_file = "inputs.json"
-        with open(inputs_file, "wt") as out:
-            json.dump(cromwell_inputs, out, default=str)
+            os.chdir(kwargs["execution_dir"])
 
+        write_inputs = True
+        if "inputs_file" in kwargs:
+            inputs_file = os.path.abspath(kwargs["inputs_file"])
+            if os.path.exists(inputs_file):
+                write_inputs = False
+            else:
+                os.makedirs(os.path.dirname(inputs_file), exist_ok=True)
+        else:
+            inputs_file = tempfile.mkstemp(suffix=".json")[1]
+
+        write_imports = True
+        if "imports_file" in kwargs:
+            imports_file = os.path.abspath(kwargs["imports_file"])
+            if os.path.exists(imports_file):
+                write_imports = False
+            else:
+                os.makedirs(os.path.dirname(imports_file), exist_ok=True)
+        else:
+            imports_file = tempfile.mkstemp(suffix=".zip")[1]
+
+        java_args = kwargs.get("java_args", "")
+        cromwell_args = kwargs.get("cromwell_args", "")
         wdl_path = self._get_path(wdl_script)
 
+        if write_inputs:
+            cromwell_inputs = dict(
+                (
+                    f"{workflow_name}.{key}",
+                    value.path if isinstance(value, DataFile) else value
+                )
+                for key, value in inputs.items()
+            )
+            with open(inputs_file, "wt") as out:
+                json.dump(cromwell_inputs, out, default=str)
+        else:
+            with open(inputs_file, "rt") as inp:
+                cromwell_inputs = json.load(inp)
+
         imports_zip_arg = ""
-        if self.import_paths:
+        if write_imports and self.import_paths:
             imports = " ".join(
                 os.path.join(self.project_root, path, "*.wdl")
                 for path in self.import_paths
             )
-            delegator.run(f"zip -j imports.zip {imports}", block=True)
-            imports_zip_arg = "-p imports.zip"
+            LOG.info(f"Writing imports {imports} to zip file {imports_file}")
+            exe = delegator.run(f"zip -j - {imports} > {imports_file}", block=True)
+            if not exe.ok:
+                raise Exception(
+                    f"Error creating imports zip file; stdout={exe.out}; "
+                    f"stderr={exe.err}"
+                )
+            imports_zip_arg = f"-p {imports_file}"
 
         cmd = (
-            f"{self.java_bin} -Ddocker.hash-lookup.enabled=false -jar "
-            f"{self.cromwell_jar} run -i {inputs_file} {imports_zip_arg} "
-            f"{wdl_path}"
+            f"{self.java_bin} -Ddocker.hash-lookup.enabled=false -jar {java_args} "
+            f"{self.cromwell_jar} run {cromwell_args} -i {inputs_file} "
+            f"{imports_zip_arg} {wdl_path}"
         )
         LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
@@ -368,7 +410,7 @@ class CromwellHarness:
 
 
 @contextlib.contextmanager
-def _tempdir():
+def tempdir():
     """
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
@@ -378,6 +420,22 @@ def _tempdir():
         yield temp
     finally:
         shutil.rmtree(temp)
+
+
+@contextlib.contextmanager
+def chdir(todir):
+    """
+    Context manager that temporarily changes directories.
+
+    Args:
+        todir: The directory to change to.
+    """
+    curdir = os.getcwd()
+    try:
+        os.chdir(todir)
+        yield todir
+    finally:
+        os.chdir(curdir)
 
 
 @pytest.fixture(scope="module")
@@ -619,8 +677,8 @@ def workflow_runner(cromwell_harness, test_execution_dir):
     provided by the `test_execution_dir` fixture.
     """
     def _run_workflow(wdl_script, workflow_name, inputs, expected):
-        cromwell_harness.run_workflow(
-            wdl_script, workflow_name, inputs, expected,
-            execution_dir=test_execution_dir
-        )
+        with chdir(test_execution_dir):
+            cromwell_harness.run_workflow(
+                wdl_script, workflow_name, inputs, expected
+            )
     return _run_workflow
