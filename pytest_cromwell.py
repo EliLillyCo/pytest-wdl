@@ -364,7 +364,7 @@ class CromwellHarness:
             imports_zip_arg = f"-p {imports_file}"
 
         cmd = (
-            f"{self.java_bin} -Ddocker.hash-lookup.enabled=false -jar {java_args} "
+            f"{self.java_bin} -Ddocker.hash-lookup.enabled=false {java_args} -jar "
             f"{self.cromwell_jar} run {cromwell_args} -i {inputs_file} "
             f"{imports_zip_arg} {wdl_path}"
         )
@@ -574,12 +574,16 @@ def _env_map(key_env_map):
     return env_map
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def import_paths():
     """
     Fixture that provides the path to a file that lists the names of WDL scripts
-    to make avaialble as imports.
+    to make avaialble as imports. This looks for the file at "tests/import_paths.txt"
+    by default, and returns None if that file doesn't exist.
     """
+    default_path = "tests/import_paths.txt"
+    if os.path.exists(default_path):
+        return default_path
     return None
 
 
