@@ -1,6 +1,14 @@
 #! /usr/bin/env python
 """
 Fixtures for writing tests that execute WDL workflows using Cromwell.
+
+Todo:
+    * Currently a very specific directory structure is required for this
+      framework to work by default. This should be generalized so that
+      the structure can be defined by a config file or a session-level
+      fixture.
+    * Decide if this should be python3 only. If so, add type annotations and
+      switch to using pathlib.Paths. Otherwise get rid of the f-strings.
 """
 import contextlib
 import hashlib
@@ -243,28 +251,31 @@ class CromwellHarness:
     Args:
         project_root: The root path to which non-absolute WDL script paths are
             relative.
-        import_paths_file: File that contains relative or absolute paths to
-            directories containing WDL scripts that should be available as
-            imports (one per line).
+        import_dirs: Relative or absolute paths to directories containing WDL
+            scripts that should be available as imports (one per line).
+        java_bin:
+        java_args: Default Java arguments to use; can be overidden by passing
+            `java_args=...` to `run_workflow`.
+        cromwell_jar_file:
+        cromwell_args: Default Cromwell arguments to use; can be overridden by
+            passing `cromwell_args=...` to `run_workflow`.
 
     Env:
         JAVA_HOME: path containing the bin dir that contains the java executable.
         CROMWELL_JAR: path to the cromwell JAR file.
     """
     def __init__(
-        self, project_root, import_paths_file=None, java_bin="/usr/bin/java",
-        cromwell_jar_file="cromwell.jar"
+        self, project_root, import_dirs=None, java_bin="/usr/bin/java",
+        java_args=None, cromwell_jar_file="cromwell.jar", cromwell_args=None
     ):
         self.java_bin = java_bin
+        self.java_args = java_args
         self.cromwell_jar = cromwell_jar_file
+        self.cromwell_args = cromwell_args
         self.project_root = os.path.abspath(project_root)
-        self.import_paths = None
-        if import_paths_file:
-            with open(import_paths_file, "rt") as inp:
-                self.import_paths = [
-                    self._get_path(import_path)
-                    for import_path in inp.read().splitlines(keepends=False)
-                ]
+        self.import_dirs = None
+        if import_dirs:
+            self.import_dirs = [self._get_path(path) for path in import_dirs]
 
     @_deprecated
     def __call__(self, *args, **kwargs):
@@ -330,8 +341,8 @@ class CromwellHarness:
         else:
             imports_file = tempfile.mkstemp(suffix=".zip")[1]
 
-        java_args = kwargs.get("java_args", "")
-        cromwell_args = kwargs.get("cromwell_args", "")
+        java_args = kwargs.get("java_args", self.java_args) or ""
+        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
         wdl_path = self._get_path(wdl_script)
 
         if write_inputs:
@@ -349,10 +360,10 @@ class CromwellHarness:
                 cromwell_inputs = json.load(inp)
 
         imports_zip_arg = ""
-        if write_imports and self.import_paths:
+        if write_imports and self.import_dirs:
             imports = " ".join(
                 os.path.join(self.project_root, path, "*.wdl")
-                for path in self.import_paths
+                for path in self.import_dirs
             )
             LOG.info(f"Writing imports {imports} to zip file {imports_file}")
             exe = delegator.run(f"zip -j - {imports} > {imports_file}", block=True)
@@ -364,9 +375,8 @@ class CromwellHarness:
             imports_zip_arg = f"-p {imports_file}"
 
         cmd = (
-            f"{self.java_bin} -Ddocker.hash-lookup.enabled=false {java_args} -jar "
-            f"{self.cromwell_jar} run {cromwell_args} -i {inputs_file} "
-            f"{imports_zip_arg} {wdl_path}"
+            f"{self.java_bin} {java_args} -jar {self.cromwell_jar} run "
+            f"{cromwell_args} -i {inputs_file} {imports_zip_arg} {wdl_path}"
         )
         LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
@@ -441,7 +451,10 @@ def chdir(todir):
 @pytest.fixture(scope="module")
 def project_root(request):
     """
-    Fixture that provides the root directory of the project.
+    Fixture that provides the root directory of the project. By default, this
+    assumes that the project has one subdirectory per task, and that this
+    framework is being run from the test subdirectory of a task diretory, and
+    therefore looks for the project root two directories up.
     """
     return os.path.abspath(os.path.join(os.path.dirname(request.fspath), "../.."))
 
@@ -577,14 +590,34 @@ def _env_map(key_env_map):
 @pytest.fixture(scope="module")
 def import_paths():
     """
-    Fixture that provides the path to a file that lists the names of WDL scripts
-    to make avaialble as imports. This looks for the file at "tests/import_paths.txt"
-    by default, and returns None if that file doesn't exist.
+    Fixture that provides the path to a file that lists directories containing WDL
+    scripts to make avaialble as imports. This looks for the file at
+    "tests/import_paths.txt" by default, and returns None if that file doesn't exist.
     """
     default_path = "tests/import_paths.txt"
     if os.path.exists(default_path):
         return default_path
     return None
+
+
+@pytest.fixture(scope="module")
+def import_dirs(request, import_paths):
+    """
+    Fixture that provides a list of directories containing WDL scripts to make
+    avaialble as imports. Uses the file provided by `import_paths` fixture if
+    it is not None, otherwise returns a list containing the parent directory
+    of the test module.
+
+    Args:
+        request:
+        import_paths:
+    """
+    if import_paths:
+        with open(import_paths, "rt") as inp:
+            return inp.read().splitlines(keepends=False)
+    else:
+        parent = os.path.abspath(os.path.join(os.path.dirname(request.fspath), ".."))
+        return [os.path.basename(parent)]
 
 
 @pytest.fixture(scope="session")
@@ -596,6 +629,23 @@ def java_bin():
         os.path.abspath(os.environ.get("JAVA_HOME", "/usr")),
         "bin", "java"
     )
+
+
+@pytest.fixture(scope="session")
+def cromwell_config_file():
+    """
+    Fixture that returns the path to a cromwell config file, if any. By default
+    it looks for the CROMWELL_CONFIG_FILE environment variable.
+    """
+    return os.environ.get("CROMWELL_CONFIG_FILE", None)
+
+
+@pytest.fixture(scope="session")
+def java_args(cromwell_config_file):
+    if cromwell_config_file:
+        return "-Dconfig.file={}".format(cromwell_config_file)
+    else:
+        return "-Ddocker.hash-lookup.enabled=false"
 
 
 @pytest.fixture(scope="session")
@@ -616,6 +666,11 @@ def cromwell_jar_file():
                 return path
 
     return "cromwell.jar"
+
+
+@pytest.fixture(scope="session")
+def cromwell_args():
+    return os.environ.get("CROMWELL_ARGS", None)
 
 
 @pytest.fixture(scope="module")
@@ -649,28 +704,31 @@ def test_data(test_data_file, test_data_dir, http_headers, proxies):
 
 
 @pytest.fixture(scope="module")
-def cromwell_harness(project_root, import_paths, java_bin, cromwell_jar_file):
+def cromwell_harness(
+    project_root, import_dirs, java_bin, java_args, cromwell_jar_file, cromwell_args
+):
     """
-    Provides a harness for calling Cromwell on WDL scripts. Accepts an `import_paths`
+    Provides a harness for calling Cromwell on WDL scripts. Accepts an `import_dirs`
     argument, which is provided by a `@pytest.mark.parametrize` decoration. The
-    import_paths file contains a list of directories (one per line) that contain WDL
+    import_dirs file contains a list of directories (one per line) that contain WDL
     files that should be made available as imports to the running WDL workflow.
 
     Args:
         project_root: project_root fixture.
-        import_paths: import_paths fixture.
+        import_dirs: import_dirs fixture.
         java_bin: java_bin fixture.
+        java_args: String with arguments (e.g. -Dfoo=bar) to pass to Java.
         cromwell_jar_file: cromwell_jar_file fixture.
+        cromwell_args: String with arguments to pass to Cromwell.
 
     Examples:
-        @pytest.fixture(scope="session")
-        def import_paths():
-            return "tests/import_paths.txt"
-
         def test_workflow(cromwell_harness):
             cromwell_harness.run_workflow(...)
     """
-    return CromwellHarness(project_root, import_paths, java_bin, cromwell_jar_file)
+    return CromwellHarness(
+        project_root, import_dirs, java_bin, java_args, cromwell_jar_file,
+        cromwell_args
+    )
 
 
 @pytest.fixture(scope="function")

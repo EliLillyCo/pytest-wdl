@@ -70,13 +70,17 @@ The main fixtures are:
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. Currently, the only supported value is "vcf".
-* cromwell_harness: Provides a callable object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `__call__` method has the following parameters:
+* cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
     * inputs: Object that will be serialized to JSON and provided to Cromwell as the workflow inputs.
     * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
-    * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`.
-    * run_in_tempdir: Whether to run the workflow in a temporary directory that will be deleted after the workflow completes.
+    * Additional keyword arguments:
+        * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`. *Deprecated: will be removed in v1.0*
+        * inputs_file: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+        * imports_file: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file.
+        * java_args: Override the default Java arguments.
+        * cromwell_args: Override the default Cromwell arguments.
 * workflow_runner: This is an alternative to cromwell_harness. It provides a callable and automatically determines the execution_dir based on the test_execution_dir fixture.
 
 There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden  by redefining them in the test module.
@@ -88,9 +92,11 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults. The default is `{"X-JFrog-Art-Api": "TOKEN"}`.
 * proxies: Dict mapping proxy names to environment variables. The default is `{"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}`.
 * import_paths: Path to file that contains a list of WDL import paths (one per line). Defaults to `None`.
+* import_dirs: List of WDL import paths. Loads these from the file specified by `import_paths` if any, otherwise uses the parent directory of the test module.
 * java_bin: Path to the java executable. Defaults to `$JAVA_HOME/bin/java`.
+* java_args: String containing arguments to pass to Java.
 * cromwell_jar_file: By default this fixture first looks for the `$CROMWELL_JAR` enironment variable. It then searches the classpath for a JAR file that begins with 'cromwell' (case-insensitive). If the JAR file is not found in either place, it is expected to be located in the same directory as the tests are executed from (i.e. `./cromwell.jar`).
-
+* cromwell_args: String containing arguments to pass to Cromwell.
 
 ## Example
 
