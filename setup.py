@@ -21,8 +21,17 @@ setup(
         ]
     },
     py_modules=["pytest_cromwell"],
+    packages=[
+        'pytest_cromwell_core',
+        'pytest_cromwell_plugins',
+        'pytest_cromwell_plugins/data_types'],
     install_requires=[
         "pytest",
         "delegator.py"
-    ]
+    ],
+    extras_require={
+        "bam": [
+            "pysam"
+        ]
+    }
 )
