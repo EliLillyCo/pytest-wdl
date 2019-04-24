@@ -116,6 +116,33 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * cromwell_jar_file: By default this fixture first looks for the `$CROMWELL_JAR` enironment variable. It then searches the classpath for a JAR file that begins with 'cromwell' (case-insensitive). If the JAR file is not found in either place, it is expected to be located in the same directory as the tests are executed from (i.e. `./cromwell.jar`).
 * cromwell_args: String containing arguments to pass to Cromwell.
 
+### Environment Variables
+
+The fixtures above can utilize environment variables. Technically, none are 
+required and this can be run without them if your environment is setup to 
+meet the needs of each fixture. Many can be set in other ways, like overriding a 
+fixture. Below is a table of possible variables you can 
+set though and which are recommended:
+
+
+| variable name | recommended | description |
+| ------------- | ----------- | ----------- |
+| `CROMWELL_JAR` | yes         | path to cromwell jar. |
+| `HTTPS_PROXY` | required if behind proxy | |
+| `HTTP_PROXY`  | required if behind proxy | |
+| `TOKEN`       | yes         | currently this is an Artifactory token which is needed to fetch test data from the generic repo |
+| `JAVA_HOME` | yes | path to java executable |
+| `TEST_DATA_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
+| `TEST_EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
+| `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
+| `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-cromwell` logger output at various levels. |
+| `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
+| `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
+
+Remember that environment variables can be set multiple ways, including inline 
+before running the command, such as 
+`TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
+
 ### test_data Data Types
 
 available types:
