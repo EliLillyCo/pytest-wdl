@@ -343,7 +343,7 @@ class CromwellHarness:
 
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-        wdl_path = self._get_path(wdl_script)
+        wdl_path = self._get_path(wdl_script, check_exists=True)
 
         if write_inputs:
             cromwell_inputs = dict(
@@ -399,9 +399,11 @@ class CromwellHarness:
             else:
                 assert expected_value == outputs[key]
 
-    def _get_path(self, path):
+    def _get_path(self, path, check_exists=False):
         if not os.path.isabs(path):
             path = os.path.join(self.project_root, path)
+        if check_exists and not os.path.exists(path):
+            raise Exception(f"File not found at path {path}")
         return path
 
     @staticmethod
