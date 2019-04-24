@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Convert BAM to SAM for diff.
+Remove columns in a VCF after qual line so comparisons can be made. Some tools
+that generate VCF (callers) will result in very slightly different qual scores
+when run on different hardware.
 """
 
 import os
