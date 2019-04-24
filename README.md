@@ -86,7 +86,8 @@ The main fixtures are:
     * url: Optional; the remote URL.
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
-    * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. Currently, the only supported value is "vcf".
+    * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
+    * allowed_diff_lines: optional and only used for outputs comparison.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
@@ -114,6 +115,29 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * java_args: String containing arguments to pass to Java.
 * cromwell_jar_file: By default this fixture first looks for the `$CROMWELL_JAR` enironment variable. It then searches the classpath for a JAR file that begins with 'cromwell' (case-insensitive). If the JAR file is not found in either place, it is expected to be located in the same directory as the tests are executed from (i.e. `./cromwell.jar`).
 * cromwell_args: String containing arguments to pass to Cromwell.
+
+### test_data Data Types
+
+available types:
+- default (this is the default if type is not specified)
+- vcf
+- bam*
+
+\* requires extra dependencies to be installed, see 
+[Installing Data Type Plugins](#installing-data-type-plugins)
+
+When comparing outputs of a test execution against an expected output file, 
+that comparison is defined in the `expected` argument of the `workflow_runner`, 
+where the key should be the output variable of the WDL workflow and the value 
+is the expected value. This can be an accession into the test_data fixture, which 
+resolves by looking at the test_data file. If the file is a binary format that 
+requires special handling (not gzip, this is supported by default), such as BAM, 
+then we can specify that as the type (`"type": "bam"`) so that our comparison knows
+to convert that file into a temporary SAM file so we can do a diff. This enables 
+specifying `allowed_diff_lines` attribute since BAM/SAM files often capture 
+the command run as a header which will typically be different.
+
+**Do not** use the `type` attribute for inputs in the test_data.
 
 ## Example
 
