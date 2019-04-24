@@ -1,0 +1,11 @@
+{
+  "bam": {
+    "url": "http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqK562G1AlnRep1.bam",
+    "path": "wgEncodeUwRepliSeqK562G1AlnRep1.bam"
+  },
+  "output_bam": {
+    "url": "http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqK562G1AlnRep1.bam",
+    "path": "wgEncodeUwRepliSeqK562G1AlnRep1.bam",
+    "type": "bam"
+  }
+}
