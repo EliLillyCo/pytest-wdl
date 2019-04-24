@@ -95,14 +95,12 @@ class Data:
                 raise ValueError(f"Unrecognized name {name}")
             value = self._data[name]
             if isinstance(value, dict):
-                print(value)
                 # update available data_types
                 if 'type' in value:
                     desired_type = value.get('type')
                     if desired_type != 'default':
                         load_data_type_plugin(desired_type)
                 data_types = update_available_data_types()
-                print(data_types)
                 data_file_class = data_types[value.pop("type", "default")]
                 self._values[name] = data_file_class(
                     local_dir=self.data_dir, http_headers=self.http_headers,
