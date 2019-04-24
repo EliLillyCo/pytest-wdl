@@ -61,6 +61,23 @@ Or use pip to install from github:
 pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
 ```
 
+## Installing Data Type Plugins
+
+Data Types for expected output comparison are plugins. They are loaded on-demand
+and if they require external dependencies, you must install those.
+
+data types that require an extras installation:
+- bam
+
+To install the dependencies for a data type that has extra dependencies:
+
+`pip install pytest-cromwell[<data_type>]`
+
+To do this locally, you can clone the repo and run:
+
+`pip install -e .[<data_type>]`
+
+
 ## Fixtures
 
 The main fixtures are:
