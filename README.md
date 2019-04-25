@@ -77,6 +77,10 @@ To do this locally, you can clone the repo and run:
 
 `pip install -e .[<data_type>]`
 
+To install pytest-cromwell and **all** extras dependencies:
+
+`pip install pytest-cromwell[all]`
+
 
 ## Fixtures
 
@@ -146,9 +150,16 @@ before running the command, such as
 ### test_data Data Types
 
 available types:
-- default (this is the default if type is not specified)
+- default
+  - this is the default type if one is not specified. It can handle raw text files, as 
+  well as gzip compressed files.
 - vcf
+  - this considers only the first 5 columns in a VCF since the qual scores can 
+  vary slightly on different hardware.
 - bam*
+  - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines`
+  usage since most BAM creation adds a command header or other comments that are 
+  expected to be different.
 
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)
