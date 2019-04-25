@@ -30,6 +30,9 @@ setup(
         "delegator.py"
     ],
     extras_require={
+        "all": [
+            "pysam"
+        ],
         "bam": [
             "pysam"
         ]
