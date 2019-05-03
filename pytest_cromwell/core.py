@@ -7,7 +7,7 @@ import tempfile
 import urllib.request
 
 import delegator
-from pkg_resources import EntryPoint, iter_entry_points
+from pkg_resources import iter_entry_points
 
 from pytest_cromwell.utils import LOG, tempdir, deprecated
 
@@ -148,13 +148,22 @@ class DataFile:
                 out.write(self.contents)
 
 
-def _get_entry_point_callable(entry_point: EntryPoint):
-    module = __import__(entry_point.module_name, fromlist=['__name__'], level=0)
-    return getattr(module, entry_point.attrs[0])
+class _PluginFactory:
+    def __init__(self, entry_point):
+        self.entry_point = entry_point
+        self.factory = None
+
+    def __call__(self, *args, **kwargs):
+        if self.factory is None:
+            module = __import__(
+                self.entry_point.module_name, fromlist=['__name__'], level=0
+            )
+            self.factory = getattr(module, self.entry_point.attrs[0])
+        return self.factory(*args, **kwargs)
 
 
 DATA_TYPES = dict(
-    (entry_point.name, _get_entry_point_callable(entry_point))
+    (entry_point.name, _PluginFactory(entry_point))
     for entry_point in iter_entry_points(group="pytest_cromwell")
 )
 """Data type plugin modules from the discovered entry points."""
