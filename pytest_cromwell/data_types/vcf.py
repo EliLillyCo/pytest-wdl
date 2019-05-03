@@ -1,22 +1,19 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Remove columns in a VCF after qual line so comparisons can be made. Some tools
 that generate VCF (callers) will result in very slightly different qual scores
 when run on different hardware.
 """
-
 import os
 
 import delegator
 
-from pytest_cromwell_core.utils import DataFile, tempdir
+from pytest_cromwell.core import DataFile
+from pytest_cromwell.utils import tempdir
 
 
 class VcfDataFile(DataFile):
-    name = "vcf"
-
     @classmethod
     def _assert_contents_equal(cls, file1, file2, allowed_diff_lines):
         cls._diff_contents(file1, file2, allowed_diff_lines)

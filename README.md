@@ -10,7 +10,6 @@ This package provides fixtures to enable writing tests that execute WDL workflow
 
 Other python dependencies are installed when you install the library.
 
-
 ## Installation
 
 ### Install from Artifactory PyPi
@@ -19,9 +18,7 @@ The module is stored in the private PyPi repository `elilillyco.jfrog.io/elilill
 
 #### Preferred Artifactory Install Method
 
-To add this repo to your environment for all future installs, edit your `~/.pip/pip.conf`
-file like below, adding your username and password for Artifactory which is 
-your email and the Artifactory API token:
+To add this repo to your environment for all future installs, edit your `~/.pip/pip.conf` file like below, adding your username and password for Artifactory which is your email and the Artifactory API token:
 
 ```
 [global]
@@ -38,14 +35,12 @@ pip install pytest_cromwell
 
 #### One-Time Artifactory Install
 
-If you just want to do this one-time, you can embed the extra-index-url into 
-the pip command. You can also leave out the auth details and it will interactively prompt for them:
+If you just want to do this one-time, you can embed the extra-index-url into the pip command. You can also leave out the auth details and it will interactively prompt for them:
 
 ```commandline
 pip install --extra-index-url https://elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple pytest_cromwell
 ```
 Which will then prompt for your username and password, the Artifactory email and token.
-
 
 ### Install from source
 
@@ -63,8 +58,7 @@ pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
 
 ## Installing Data Type Plugins
 
-Data Types for expected output comparison are plugins. They are loaded on-demand
-and if they require external dependencies, you must install those.
+Data Types for expected output comparison are plugins. They are loaded on-demand and if they require external dependencies, you must install those.
 
 data types that require an extras installation:
 - bam
@@ -81,6 +75,34 @@ To install pytest-cromwell and **all** extras dependencies:
 
 `pip install pytest-cromwell[all]`
 
+## Usage
+
+```python
+import pytest
+
+@pytest.fixture(scope="module")
+def project_root():
+    return "../.."
+
+@pytest.fixture(scope="module")
+def test_data_file():
+    return "tests/mytestdata.json"
+
+def test_variant_caller(test_data, workflow_runner):
+    inputs = {
+        "bam": test_data["bam"],
+        "bai": test_data["bai"]
+    }
+    expected = {
+        "vcf": test_data["vcf"]
+    }
+    workflow_runner(
+        "variant_caller/variant_caller.wdl",
+        "call_variants",
+        inputs,
+        expected
+    )
+```
 
 ## Fixtures
 
@@ -122,12 +144,7 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 
 ### Environment Variables
 
-The fixtures above can utilize environment variables. Technically, none are 
-required and this can be run without them if your environment is setup to 
-meet the needs of each fixture. Many can be set in other ways, like overriding a 
-fixture. Below is a table of possible variables you can 
-set though and which are recommended:
-
+The fixtures above can utilize environment variables. Technically, none are required and this can be run without them if your environment is setup to meet the needs of each fixture. Many can be set in other ways, like overriding a fixture. Below is a table of possible variables you can set though and which are recommended:
 
 | variable name | recommended | description |
 | ------------- | ----------- | ----------- |
@@ -143,9 +160,7 @@ set though and which are recommended:
 | `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
 | `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
 
-Remember that environment variables can be set multiple ways, including inline 
-before running the command, such as 
-`TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
+Remember that environment variables can be set multiple ways, including inline before running the command, such as `TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
 
 ### test_data Data Types
 
@@ -177,31 +192,22 @@ the command run as a header which will typically be different.
 
 **Do not** use the `type` attribute for inputs in the test_data.
 
-## Example
+## Creating New Data Types
+
+To create a new data type plugin, add a module in the data_types directory.
+
+This should subclass the `pytest_cromwell_core.utils.DataFile` class and override its methods for _assert_contents_equal() and _diff to define the behavior for this file type. Additionally a class attribute should be set to override `name` which is used as the key.
+
+The `name` and the module file name should ideally be the same and the module name is what is used when defining the type in the test_data.json file.
+
+If the data type requires more dependencies be installed, make sure to use a Try/Except ImportError to warn about this and add the extra dependencies under the setup.py's `extras_require` like:
 
 ```python
-import pytest
-
-@pytest.fixture(scope="module")
-def project_root():
-    return "../.."
-
-@pytest.fixture(scope="module")
-def test_data_file():
-    return "tests/mytestdata.json"
-
-def test_variant_caller(test_data, workflow_runner):
-    inputs = {
-        "bam": test_data["bam"],
-        "bai": test_data["bai"]
-    }
-    expected = {
-        "vcf": test_data["vcf"]
-    }
-    workflow_runner(
-        "variant_caller/variant_caller.wdl",
-        "call_variants",
-        inputs,
-        expected
-    )
+extras_require={
+    'data_type': ['module']
+}
 ```
+
+which enables installing these extra dependencies with `pip install pytest-cromwell[$data_type]`
+
+See the `bam` type for an example that fully exercises these changes for adding a new type.
