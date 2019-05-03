@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import json
 import os
@@ -154,7 +155,7 @@ def _get_entry_point_callable(entry_point: EntryPoint):
 
 DATA_TYPES = dict(
     (entry_point.name, _get_entry_point_callable(entry_point))
-    for entry_point in iter_entry_points(group="pytest-cromwell")
+    for entry_point in iter_entry_points(group="pytest_cromwell")
 )
 """Data type plugin modules from the discovered entry points."""
 
@@ -287,20 +288,6 @@ class CromwellHarness:
         else:
             inputs_file = tempfile.mkstemp(suffix=".json")[1]
 
-        write_imports = True
-        if "imports_file" in kwargs:
-            imports_file = os.path.abspath(kwargs["imports_file"])
-            if os.path.exists(imports_file):
-                write_imports = False
-            else:
-                os.makedirs(os.path.dirname(imports_file), exist_ok=True)
-        else:
-            imports_file = tempfile.mkstemp(suffix=".zip")[1]
-
-        java_args = kwargs.get("java_args", self.java_args) or ""
-        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-        wdl_path = self._get_path(wdl_script, check_exists=True)
-
         if write_inputs:
             cromwell_inputs = dict(
                 (
@@ -315,20 +302,42 @@ class CromwellHarness:
             with open(inputs_file, "rt") as inp:
                 cromwell_inputs = json.load(inp)
 
-        imports_zip_arg = ""
-        if write_imports and self.import_dirs:
-            imports = " ".join(
-                os.path.join(self.project_root, path, "*.wdl")
+        write_imports = bool(self.import_dirs)
+        imports_file = None
+        if "imports_file" in kwargs:
+            imports_file = os.path.abspath(kwargs["imports_file"])
+            if os.path.exists(imports_file):
+                write_imports = False
+
+        if write_imports:
+            imports = [
+                wdl
                 for path in self.import_dirs
-            )
-            LOG.info(f"Writing imports {imports} to zip file {imports_file}")
-            exe = delegator.run(f"zip -j - {imports} > {imports_file}", block=True)
-            if not exe.ok:
-                raise Exception(
-                    f"Error creating imports zip file; stdout={exe.out}; "
-                    f"stderr={exe.err}"
+                for wdl in glob.glob(os.path.join(self.project_root, path, "*.wdl"))
+            ]
+            if imports:
+                if imports_file:
+                    os.makedirs(os.path.dirname(imports_file), exist_ok=True)
+                else:
+                    imports_file = tempfile.mkstemp(suffix=".zip")[1]
+
+                imports_str = " ".join(imports)
+
+                LOG.info(f"Writing imports {imports_str} to zip file {imports_file}")
+                exe = delegator.run(
+                    f"zip -j - {imports_str} > {imports_file}", block=True
                 )
-            imports_zip_arg = f"-p {imports_file}"
+                if not exe.ok:
+                    raise Exception(
+                        f"Error creating imports zip file; stdout={exe.out}; "
+                        f"stderr={exe.err}"
+                    )
+
+        imports_zip_arg = f"-p {imports_file}" if imports_file else ""
+
+        java_args = kwargs.get("java_args", self.java_args) or ""
+        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
+        wdl_path = self._get_path(wdl_script, check_exists=True)
 
         cmd = (
             f"{self.java_bin} {java_args} -jar {self.cromwell_jar} run "

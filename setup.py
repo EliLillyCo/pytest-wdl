@@ -3,7 +3,7 @@ import os
 from setuptools import setup, find_packages
 
 setup(
-    name="pytest-cromwell",
+    name="pytest_cromwell",
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     description="Fixtures for pytest for running WDL workflows using Cromwell.",
@@ -19,9 +19,9 @@ setup(
         "pytest11": [
             "pytest_cromwell = pytest_cromwell"
         ],
-        "pytest-cromwell": [
-            "bam = pytest_cromwell.data_types.bam",
-            "vcf = pytest_cromwell.data_types.vcf",
+        "pytest_cromwell": [
+            "bam = pytest_cromwell.data_types.bam:BamDataFile",
+            "vcf = pytest_cromwell.data_types.vcf:VcfDataFile",
         ]
     },
     py_modules=["pytest_cromwell"],
