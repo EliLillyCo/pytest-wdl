@@ -1,34 +1,14 @@
-#! /usr/bin/env python
-
-"""
-Utility functions for pytest-cromwell.
-"""
-
-import contextlib
 import hashlib
 import json
-import logging
 import os
 import shutil
 import tempfile
 import urllib.request
 
 import delegator
+from pkg_resources import EntryPoint, iter_entry_points
 
-
-LOG = logging.getLogger("pytest-cromwell")
-LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
-
-
-def _deprecated(f):
-    """
-    Decorator for deprecated functions/methods. Deprecated functionality will be
-    removed before each major release.
-    """
-    def decorator(*args, **kwargs):
-        LOG.warning(f"Function/method {f.__name__} is deprecated and will be removed")
-        f(*args, **kwargs)
-    return decorator
+from pytest_cromwell.utils import LOG, tempdir, deprecated
 
 
 class DataFile:
@@ -46,8 +26,6 @@ class DataFile:
         proxies: Proxies to add to the requests to download the remote file from
             Artifactory.
     """
-    name = "default"
-
     def __init__(
         self, path=None, url=None, contents=None, local_dir=".", http_headers=None,
         proxies=None, allowed_diff_lines=0
@@ -169,6 +147,23 @@ class DataFile:
                 out.write(self.contents)
 
 
+def _get_entry_point_callable(entry_point: EntryPoint):
+    module = __import__(entry_point.module_name, fromlist=['__name__'], level=0)
+    return getattr(module, entry_point.attrs[0])
+
+
+DATA_TYPES = dict(
+    (entry_point.name, _get_entry_point_callable(entry_point))
+    for entry_point in iter_entry_points(group="pytest-cromwell")
+)
+"""Data type plugin modules from the discovered entry points."""
+
+
+def create_data_file(data_type: str, *args, **kwargs) -> DataFile:
+    callable_ = DATA_TYPES.get(data_type, DataFile)
+    return callable_(*args, **kwargs)
+
+
 class Data:
     """
     Class that manages test data.
@@ -194,8 +189,8 @@ class Data:
                 raise ValueError(f"Unrecognized name {name}")
             value = self._data[name]
             if isinstance(value, dict):
-                data_file_class = DATA_TYPES[value.pop("type", "default")]
-                self._values[name] = data_file_class(
+                self._values[name] = create_data_file(
+                    value.pop("type", "default"),
                     local_dir=self.data_dir, http_headers=self.http_headers,
                     proxies=self.proxies, **value
                 )
@@ -238,14 +233,14 @@ class CromwellHarness:
         if import_dirs:
             self.import_dirs = [self._get_path(path) for path in import_dirs]
 
-    @_deprecated
+    @deprecated
     def __call__(self, *args, **kwargs):
         """
         Briefly used as a replacement for run_workflow.
         """
         self.run_workflow(*args, **kwargs)
 
-    @_deprecated
+    @deprecated
     def run_workflow_in_tempdir(self, *args, **kwargs):
         """
         Conveience method for running a workflow with a temporary execution directory.
@@ -304,7 +299,7 @@ class CromwellHarness:
 
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-        wdl_path = self._get_path(wdl_script)
+        wdl_path = self._get_path(wdl_script, check_exists=True)
 
         if write_inputs:
             cromwell_inputs = dict(
@@ -360,9 +355,11 @@ class CromwellHarness:
             else:
                 assert expected_value == outputs[key]
 
-    def _get_path(self, path):
+    def _get_path(self, path, check_exists=False):
         if not os.path.isabs(path):
             path = os.path.join(self.project_root, path)
+        if check_exists and not os.path.exists(path):
+            raise Exception(f"File not found at path {path}")
         return path
 
     @staticmethod
@@ -378,63 +375,3 @@ class CromwellHarness:
         else:
             raise AssertionError("No outputs JSON found in Cromwell stdout")
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
-
-
-@contextlib.contextmanager
-def tempdir():
-    """
-    Context manager that creates a temporary directory, yields it, and then
-    deletes it after return from the yield.
-    """
-    temp = tempfile.mkdtemp()
-    try:
-        yield temp
-    finally:
-        shutil.rmtree(temp)
-
-
-@contextlib.contextmanager
-def chdir(todir):
-    """
-    Context manager that temporarily changes directories.
-
-    Args:
-        todir: The directory to change to.
-    """
-    curdir = os.getcwd()
-    try:
-        os.chdir(todir)
-        yield todir
-    finally:
-        os.chdir(curdir)
-
-
-@contextlib.contextmanager
-def _test_dir(envar, project_root):
-    """
-    Context manager that looks for a specific environment variable to specify a
-    directory. If the environment variable is not set, a temporary directory is
-    created and cleaned up upon return from the yield.
-
-    Args:
-        envar: The environment variable to look for.
-        project_root: The root directory to use when the path is relative.
-
-    Yields:
-        A directory path.
-    """
-    test_dir = os.environ.get(envar, None)
-    cleanup = False
-    if not test_dir:
-        test_dir = tempfile.mkdtemp()
-        cleanup = True
-    else:
-        if not os.path.isabs(test_dir):
-            test_dir = os.path.abspath(os.path.join(project_root, test_dir))
-        if not os.path.exists(test_dir):
-            os.makedirs(test_dir, exist_ok=True)
-    try:
-        yield test_dir
-    finally:
-        if cleanup:
-            shutil.rmtree(test_dir)

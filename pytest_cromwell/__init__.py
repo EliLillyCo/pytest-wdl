@@ -10,106 +10,12 @@ Todo:
     * Decide if this should be python3 only. If so, add type annotations and
       switch to using pathlib.Paths. Otherwise get rid of the f-strings.
 """
-import json
-import logging
 import os
-import importlib.util
 
 import pytest
 
-from pytest_cromwell_core.utils import DataFile, _test_dir, tempdir, chdir, \
-    CromwellHarness
-
-LOG = logging.getLogger("pytest-cromwell")
-LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
-
-
-def _deprecated(f):
-    """
-    Decorator for deprecated functions/methods. Deprecated functionality will be
-    removed before each major release.
-    """
-    def decorator(*args, **kwargs):
-        LOG.warning(f"Function/method {f.__name__} is deprecated and will be removed")
-        f(*args, **kwargs)
-    return decorator
-
-
-def load_data_type_plugin(data_type):
-    """
-    Load the module for the Data Type plugin that is specified in the test
-    data attributes. This expects a module to exist in the package
-    pytest_cromwell_plugins.data_types.
-
-    :param data_type: desired data type, should match the module name in
-      pytest_cromwell_plugs.data_types
-    """
-    data_types_dir = os.path.join(
-        os.path.dirname(__file__), 'pytest_cromwell_plugins/data_types'
-    )
-    mod_abs_path = os.path.join(data_types_dir, data_type + '.py')
-    if not os.path.exists(mod_abs_path):
-        raise FileNotFoundError(
-            f"You specified a plugin data type of {data_type}, which does "
-            f"not exist. Consider fixing this type definition, removing "
-            f"it, or adding a new plugin for this type."
-        )
-    spec = importlib.util.spec_from_file_location(data_type, mod_abs_path)
-    data_type_plugin = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(data_type_plugin)
-
-
-def update_available_data_types():
-    """
-    Check which subclasses of DataFile have been imported and return the
-    new dictionary. This expects the subclass to have an attribute of 'name'
-    that can be used to set the key.
-    """
-    data_types = {cls.name: cls for cls in DataFile.__subclasses__()}
-    data_types['default'] = DataFile
-    return data_types
-
-
-class Data:
-    """
-    Class that manages test data.
-
-    Args:
-        data_dir: Directory where test data files should be stored temporarily, if
-            they are being downloaded from a remote server.
-        data_file: JSON file describing the test data.
-        http_headers: Http(s) headers.
-        proxies: Http(s) proxies.
-    """
-    def __init__(self, data_dir, data_file, http_headers, proxies):
-        self.data_dir = data_dir
-        self.http_headers = http_headers
-        self.proxies = proxies
-        self._values = {}
-        with open(data_file, "rt") as inp:
-            self._data = json.load(inp)
-
-    def __getitem__(self, name):
-        if name not in self._values:
-            if name not in self._data:
-                raise ValueError(f"Unrecognized name {name}")
-            value = self._data[name]
-            if isinstance(value, dict):
-                # update available data_types
-                if 'type' in value:
-                    desired_type = value.get('type')
-                    if desired_type != 'default':
-                        load_data_type_plugin(desired_type)
-                data_types = update_available_data_types()
-                data_file_class = data_types[value.pop("type", "default")]
-                self._values[name] = data_file_class(
-                    local_dir=self.data_dir, http_headers=self.http_headers,
-                    proxies=self.proxies, **value
-                )
-            else:
-                self._values[name] = value
-
-        return self._values[name]
+from pytest_cromwell.core import CromwellHarness, Data, DataFile, create_data_file
+from pytest_cromwell.utils import LOG, chdir, deprecated, test_dir, tempdir
 
 
 @pytest.fixture(scope="module")
@@ -142,7 +48,7 @@ def test_data_dir(project_root):
         project_root: The root directory to use when the test data directory is
             specified as a relative path.
     """
-    with _test_dir("TEST_DATA_DIR", project_root) as data_dir:
+    with test_dir("TEST_DATA_DIR", project_root) as data_dir:
         yield data_dir
 
 
@@ -157,12 +63,12 @@ def test_execution_dir(project_root):
         project_root: The root directory to use when the execution directory is
             specified as a relative path.
     """
-    with _test_dir("TEST_EXECUTION_DIR", project_root) as execution_dir:
+    with test_dir("TEST_EXECUTION_DIR", project_root) as execution_dir:
         yield execution_dir
 
 
 @pytest.fixture(scope="session")
-@_deprecated
+@deprecated
 def default_env():
     """
     No longer used.
