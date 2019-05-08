@@ -4,6 +4,7 @@
 Convert BAM to SAM for diff.
 """
 import os
+import re
 
 from pytest_cromwell.core import DataFile, tempdir
 
@@ -46,7 +47,15 @@ class BamDataFile(DataFile):
 
 def _bam_to_sam(input_bam, output_sam):
     """Use PySAM to convert bam to sam."""
-    bamfile = pysam.AlignmentFile(input_bam, 'rb')
-    samfile = pysam.AlignmentFile(output_sam, 'w', template=bamfile)
-    for read in bamfile:
-        samfile.write(read)
+    samfile = pysam.view('-h', input_bam)
+    # avoid trailing newline.
+    newline = ''
+    with open(output_sam, 'w') as file_handle:
+        for row in samfile.splitlines():
+            file_handle.write(newline + _remove_samtools_randomness(row))
+            newline = '\n'
+
+
+def _remove_samtools_randomness(sam_line):
+    """Replace the random IDs added by samtools."""
+    return re.sub(r'UNSET-\w*\b', 'UNSET-placeholder', sam_line)
