@@ -23,3 +23,14 @@ def test_bam(test_data, workflow_runner):
         inputs={"bam": test_data["bam"]},
         expected={"output_bam": test_data["output_bam"]}
     )
+
+
+def test_bam_removing_randomness(test_data, workflow_runner):
+    """Test that BAMs with the only difference being random IDs
+    added by samtools are evaluated as equal."""
+    workflow_runner(
+        wdl_script='tests/test_data_type/test_bam_norandom.wdl',
+        workflow_name='test_bam_no_random',
+        inputs={"bam": test_data["random_id_bam_input"]},
+        expected={"output_bam": test_data["random_id_bam_output"]}
+    )
