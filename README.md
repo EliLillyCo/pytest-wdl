@@ -175,6 +175,7 @@ available types:
   - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines`
   usage since most BAM creation adds a command header or other comments that are 
   expected to be different.
+  - This also replaces random UNSET-\w*\b type IDs that samtools often adds
 
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)
