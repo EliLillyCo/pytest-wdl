@@ -4,7 +4,7 @@
 Some tools that generate VCF (callers) will result in very slightly different qual
 scores and other floating-point-valued fields when run on different hardware. This
 handler ignores the QUAL and INFO columns and only compares the genotype (GT) field
-of sample columns.
+of sample columns. Only works for single-sample VCFs.
 """
 import os
 
