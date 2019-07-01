@@ -7,5 +7,12 @@
     "url": "http://hgdownload.cse.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeUwRepliSeq/wgEncodeUwRepliSeqK562G1AlnRep1.bam",
     "path": "wgEncodeUwRepliSeqK562G1AlnRep1.bam",
     "type": "bam"
+  },
+  "random_id_bam_input": {
+    "path": "fixtures/samtools_random_ids_UNSET-4F784850.bam"
+  },
+  "random_id_bam_output": {
+    "path": "fixtures/samtools_random_ids_UNSET-different.bam",
+    "type": "bam"
   }
 }
