@@ -240,6 +240,7 @@ class CromwellHarness:
         self.cromwell_args = cromwell_args
         self.project_root = os.path.abspath(project_root)
         self.import_dirs = None
+        self.workflow_name = None
         if import_dirs:
             self.import_dirs = [self._get_path(path) for path in import_dirs]
 
@@ -257,6 +258,18 @@ class CromwellHarness:
         """
         with tempdir() as tmpdir:
             self(*args, **kwargs, execution_dir=tmpdir)
+
+    def run_assertion(self, outputs, expected):
+
+        for name, expected_value in expected.items():
+            key = f"{self.workflow_name}.{name}"
+            if key not in outputs:
+                raise AssertionError(f"Workflow did not generate output {key}")
+            if isinstance(expected_value, DataFile):
+                expected_value.assert_contents_equal(outputs[key])
+            else:
+                assert expected_value == outputs[key]
+
 
     def run_workflow(
         self, wdl_script, workflow_name, inputs, expected, **kwargs
@@ -280,6 +293,9 @@ class CromwellHarness:
                 * java_args: Additional arguments to pass to Java runtime.
                 * cromwell_args: Additional arguments to pass to `cromwell run`.
         """
+
+        self.workflow_name = workflow_name
+
         if "execution_dir" in kwargs:
             LOG.warning(
                 f"Parameter execution_dir is deprecated and will be removed. Use "
@@ -364,14 +380,8 @@ class CromwellHarness:
 
         outputs = self.get_cromwell_outputs(exe.out)
 
-        for name, expected_value in expected.items():
-            key = f"{workflow_name}.{name}"
-            if key not in outputs:
-                raise AssertionError(f"Workflow did not generate output {key}")
-            if isinstance(expected_value, DataFile):
-                expected_value.assert_contents_equal(outputs[key])
-            else:
-                assert expected_value == outputs[key]
+        self.run_assertion(outputs, expected)
+
 
     def _get_path(self, path, check_exists=False):
         if not os.path.isabs(path):
