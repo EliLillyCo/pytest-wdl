@@ -118,7 +118,7 @@ The main fixtures are:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
     * inputs: Object that will be serialized to JSON and provided to Cromwell as the workflow inputs.
-    * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
+    * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
     * Additional keyword arguments:
         * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`. *Deprecated: will be removed in v1.0*
         * inputs_file: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
@@ -162,19 +162,43 @@ The fixtures above can utilize environment variables. Technically, none are requ
 
 Remember that environment variables can be set multiple ways, including inline before running the command, such as `TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
 
-### test_data Data Types
+### Test data
+
+Test data files can come from any valid local path. There are two recommended ways of specifying test data files: the `test_data` fixture (provided by this package) and the `datadir` fixture provided by [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/).
+
+#### test_data.json
+
+Test data is specified in a JSON file of the format:
+
+```json
+{
+  "name": {
+    "url": "http://foo.com/path/to/file",
+    "path": "localized/path",
+    "fixture": "relative/path/to/local/file",
+    "contents": "test",
+    "type": "vcf|bam",
+    "allowed_diff_lines": 2
+  }
+}
+```
+
+* url: Path to the file on a remote server from which it is downloaded if it can't be found locally; ignored if `fixture` is specified, or if the file already exists locally
+* path: Relative path to the file within the test data directory; ignored if `fixture` is specified
+* fixture: Relative path to the file within the `tests/` directory of your project; for use with "fixtures" you keep within your project
+* contents: The contents of the file; the file will be written to `path` at runtime
+* type: For use with output data files; specifies the file type for special handling by a plugin
+* allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
+
+#### Data Types
 
 available types:
 - default
-  - this is the default type if one is not specified. It can handle raw text files, as 
-  well as gzip compressed files.
+  - this is the default type if one is not specified. It can handle raw text files, as well as gzip compressed files.
 - vcf
-  - this considers only the first 5 columns in a VCF since the qual scores can 
-  vary slightly on different hardware.
+  - this considers only the first 5 columns in a VCF since the qual scores can vary slightly on different hardware.
 - bam*
-  - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines`
-  usage since most BAM creation adds a command header or other comments that are 
-  expected to be different.
+  - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines` usage since most BAM creation adds a command header or other comments that are expected to be different.
   - This also replaces random UNSET-\w*\b type IDs that samtools often adds
 
 \* requires extra dependencies to be installed, see 

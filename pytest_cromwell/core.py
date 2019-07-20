@@ -21,16 +21,26 @@ class DataFile:
             either downloading the given URL or persisting the given file contents.
         url: A URL of a remote file.
         contents: The contents of the file.
-        local_dir: Directory where a file should be created, if `path` is not provided.
+        data_dir: Directory where a file should be created, if `path` is not provided.
         http_headers: Headers to add to the requrests to download the remote file from
             Artifactory.
         proxies: Proxies to add to the requests to download the remote file from
             Artifactory.
+        datadir_ng: A datadir_ng fixture.
     """
     def __init__(
-        self, path=None, url=None, contents=None, local_dir=".", http_headers=None,
-        proxies=None, allowed_diff_lines=0
+        self,
+        name=None,
+        path=None,
+        url=None,
+        contents=None,
+        allowed_diff_lines=0,
+        data_dir=".",
+        http_headers=None,
+        proxies=None,
+        datadir_ng=None
     ):
+        self.name = name
         self.url = url
         self.contents = contents
         self.http_headers = http_headers
@@ -38,18 +48,20 @@ class DataFile:
         self.allowed_diff_lines = allowed_diff_lines
         if path:
             if not os.path.isabs(path):
-                path = os.path.abspath(os.path.join(local_dir, path))
+                path = os.path.abspath(os.path.join(data_dir, path))
             self._path = path
         elif url:
             filename = url.rsplit("/", 1)[1]
-            self._path = os.path.abspath(os.path.join(local_dir, filename))
+            self._path = os.path.abspath(os.path.join(data_dir, filename))
+        elif name and datadir_ng:
+            self._path = datadir_ng[name]
         else:
-            self._path = tempfile.mkstemp(dir=local_dir)
+            self._path = tempfile.mkstemp(dir=data_dir)
 
     @property
     def path(self):
         if not os.path.exists(self._path):
-            self._persist()
+            self._localize()
         return self._path
 
     def __str__(self):
@@ -119,7 +131,7 @@ class DataFile:
                 f"{file1}, {file2}"
             )
 
-    def _persist(self):
+    def _localize(self):
         if not (self.url or self.contents):
             raise ValueError(
                 f"File {self._path} does not exist. Either a url, file contents, "
@@ -179,16 +191,12 @@ class Data:
     Class that manages test data.
 
     Args:
-        data_dir: Directory where test data files should be stored temporarily, if
-            they are being downloaded from a remote server.
         data_file: JSON file describing the test data.
-        http_headers: Http(s) headers.
-        proxies: Http(s) proxies.
+        data_file_kwargs: Additional keyword arguments to pass to the DataFile
+            constructor.
     """
-    def __init__(self, data_dir, data_file, http_headers, proxies):
-        self.data_dir = data_dir
-        self.http_headers = http_headers
-        self.proxies = proxies
+    def __init__(self, data_file, **data_file_kwargs):
+        self.data_file_kwargs = data_file_kwargs
         self._values = {}
         with open(data_file, "rt") as inp:
             self._data = json.load(inp)
@@ -200,9 +208,7 @@ class Data:
             value = self._data[name]
             if isinstance(value, dict):
                 self._values[name] = create_data_file(
-                    value.pop("type", "default"),
-                    local_dir=self.data_dir, http_headers=self.http_headers,
-                    proxies=self.proxies, **value
+                    value.pop("type", "default"), **self.data_file_kwargs, **value
                 )
             else:
                 self._values[name] = value
