@@ -259,8 +259,8 @@ class CromwellHarness:
             self(*args, **kwargs, execution_dir=tmpdir)
 
     def run_workflow(
-        self, wdl_script, workflow_name, inputs, expected, **kwargs
-    ):
+        self, wdl_script, workflow_name, inputs, expected=None, **kwargs
+    ) -> dict:
         """
         Run a WDL workflow on given inputs, and check that the output matches
         given expected values.
@@ -279,6 +279,12 @@ class CromwellHarness:
                     written to this file only if it doesn't exist.
                 * java_args: Additional arguments to pass to Java runtime.
                 * cromwell_args: Additional arguments to pass to `cromwell run`.
+
+        Returns:
+            A dict with the cromwell outputs.
+
+        Raises:
+            Exception if Cromwell did not execute successfully.
         """
         if "execution_dir" in kwargs:
             LOG.warning(
@@ -364,14 +370,17 @@ class CromwellHarness:
 
         outputs = self.get_cromwell_outputs(exe.out)
 
-        for name, expected_value in expected.items():
-            key = f"{workflow_name}.{name}"
-            if key not in outputs:
-                raise AssertionError(f"Workflow did not generate output {key}")
-            if isinstance(expected_value, DataFile):
-                expected_value.assert_contents_equal(outputs[key])
-            else:
-                assert expected_value == outputs[key]
+        if expected:
+            for name, expected_value in expected.items():
+                key = f"{workflow_name}.{name}"
+                if key not in outputs:
+                    raise AssertionError(f"Workflow did not generate output {key}")
+                if isinstance(expected_value, DataFile):
+                    expected_value.assert_contents_equal(outputs[key])
+                else:
+                    assert expected_value == outputs[key]
+
+        return outputs
 
     def _get_path(self, path, check_exists=False):
         if not os.path.isabs(path):
@@ -381,7 +390,7 @@ class CromwellHarness:
         return path
 
     @staticmethod
-    def get_cromwell_outputs(output):
+    def get_cromwell_outputs(output) -> dict:
         lines = output.splitlines(keepends=False)
         start = None
         for i, line in enumerate(lines):
