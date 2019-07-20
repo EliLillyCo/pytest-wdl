@@ -114,6 +114,7 @@ The main fixtures are:
     * contents: Optional; the contents of the file, specified as a string.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
     * allowed_diff_lines: optional and only used for outputs comparison.
+* test_data_ng: This fixture is the same, but provides an additional option for specifying data files within the tests directory, via the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
@@ -164,7 +165,7 @@ Remember that environment variables can be set multiple ways, including inline b
 
 ### Test data
 
-Test data files can come from any valid local path. There are two recommended ways of specifying test data files: the `test_data` fixture (provided by this package) and the `datadir` fixture provided by [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/).
+Test data files can be provided by the `test_data` and `test_data_ng` fixtures, and are defined in the `test_data.json` file.
 
 #### test_data.json
 
@@ -175,7 +176,7 @@ Test data is specified in a JSON file of the format:
   "name": {
     "url": "http://foo.com/path/to/file",
     "path": "localized/path",
-    "fixture": "relative/path/to/local/file",
+    "name": "filename",
     "contents": "test",
     "type": "vcf|bam",
     "allowed_diff_lines": 2
@@ -185,7 +186,7 @@ Test data is specified in a JSON file of the format:
 
 * url: Path to the file on a remote server from which it is downloaded if it can't be found locally; ignored if `fixture` is specified, or if the file already exists locally
 * path: Relative path to the file within the test data directory; ignored if `fixture` is specified
-* fixture: Relative path to the file within the `tests/` directory of your project; for use with "fixtures" you keep within your project
+* name: Name of the file - used when path is not specified, and also used to request the file from the `datadir` fixture when the `test_data_ng` fixture is used.
 * contents: The contents of the file; the file will be written to `path` at runtime
 * type: For use with output data files; specifies the file type for special handling by a plugin
 * allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
@@ -231,3 +232,7 @@ setup(
 ```
 
 In this example, the extra dependencies can be installed with `pip install pytest-cromwell[bam]`.
+
+# TODO
+
+* Bring the pytest-datadir-ng `datadir` fixture internal and update to use pathlib.

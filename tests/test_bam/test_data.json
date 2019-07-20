@@ -9,12 +9,10 @@
     "type": "bam"
   },
   "random_id_bam_input": {
-    "name": "samtools_random_ids_UNSET-4F784850.bam",
-    "path": "test_bam/samtools_random_ids_UNSET-4F784850.bam"
+    "name": "samtools_random_ids_UNSET-4F784850.bam"
   },
   "random_id_bam_output": {
     "name": "samtools_random_ids_UNSET-different.bam",
-    "path": "test_bam/samtools_random_ids_UNSET-different.bam",
     "type": "bam"
   }
 }

@@ -3,7 +3,7 @@ package = pytest_cromwell
 version = 0.1.1
 tests = tests
 
-BUILD = python setup.py bdist_wheel && pip install --upgrade dist/$(package)-$(version)-py3-none-any.whl $(installargs)
+BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
 TEST = pytest $(pytestops) $(tests)
 
 all:

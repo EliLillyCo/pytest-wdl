@@ -58,9 +58,9 @@ def test_bam_removing_randomness(test_data_ng, workflow_runner):
         wdl_script='tests/test_bam/test_bam_norandom.wdl',
         workflow_name='test_bam_no_random',
         inputs={
-            "bam": test_data_ng["samtools_random_ids_UNSET-4F784850.bam"]
+            "bam": test_data_ng["random_id_bam_input"]
         },
         expected={
-            "output_bam": test_data_ng["samtools_random_ids_UNSET-different.bam"]
+            "output_bam": test_data_ng["random_id_bam_output"]
         }
     )

@@ -54,9 +54,9 @@ class DataFile:
             filename = url.rsplit("/", 1)[1]
             self._path = os.path.abspath(os.path.join(data_dir, filename))
         elif name and datadir_ng:
-            self._path = datadir_ng[name]
+            self._path = str(datadir_ng[name])
         else:
-            self._path = tempfile.mkstemp(dir=data_dir)
+            self._path = tempfile.mkstemp(dir=data_dir)[1]
 
     @property
     def path(self):
