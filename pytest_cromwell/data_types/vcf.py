@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Remove columns in a VCF after qual line so comparisons can be made. Some tools
-that generate VCF (callers) will result in very slightly different qual scores
-when run on different hardware.
+Some tools that generate VCF (callers) will result in very slightly different qual
+scores and other floating-point-valued fields when run on different hardware. This
+handler ignores the QUAL and INFO columns and only compares the genotype (GT) field
+of sample columns. Only works for single-sample VCFs.
 """
 import os
 
@@ -31,10 +32,10 @@ class VcfDataFile(DataFile):
             cmp_file1 = os.path.join(temp, "file1")
             cmp_file2 = os.path.join(temp, "file2")
             job1 = delegator.run(
-                f"cat {file1} | grep -vP '^#' | cut -d$'\t' -f 1-5 > {cmp_file1}"
+                f"cat {file1} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file1}"
             )
             job2 = delegator.run(
-                f"cat {file2} | grep -vP '^#' | cut -d$'\t' -f 1-5 > {cmp_file2}"
+                f"cat {file2} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file2}"
             )
             for job in (job1, job2):
                 job.block()
