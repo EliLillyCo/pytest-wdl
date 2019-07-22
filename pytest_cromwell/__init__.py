@@ -319,7 +319,7 @@ def workflow_runner(cromwell_harness, test_execution_dir):
     `CromwellHarness.run_workflow`) with the execution_dir being the one
     provided by the `test_execution_dir` fixture.
     """
-    def _run_workflow(wdl_script, workflow_name, inputs, expected):
+    def _run_workflow(wdl_script, workflow_name, inputs, expected=None):
         with chdir(test_execution_dir):
             cromwell_harness.run_workflow(
                 wdl_script, workflow_name, inputs, expected
