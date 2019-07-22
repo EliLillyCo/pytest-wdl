@@ -4,10 +4,12 @@ version = 0.1.1
 tests = tests
 
 BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
+INSTALL_EXTRAS = pip install .[all]
 TEST = pytest $(pytestops) $(tests)
 
 all:
 	$(BUILD)
+	$(INSTALL_EXTRAS)
 	$(TEST)
 
 install:
