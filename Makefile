@@ -9,6 +9,7 @@ TEST = pytest $(pytestops) $(tests)
 
 all:
 	$(BUILD)
+	$(INSTALL_EXTRAS)
 	$(TEST)
 
 install:
