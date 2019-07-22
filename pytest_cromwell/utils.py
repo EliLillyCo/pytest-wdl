@@ -5,6 +5,7 @@ Utility functions for pytest-cromwell.
 import contextlib
 import logging
 import os
+from pathlib import Path
 import shutil
 import tempfile
 
@@ -82,3 +83,16 @@ def test_dir(envar, project_root):
     finally:
         if cleanup:
             shutil.rmtree(testdir)
+
+
+def pypath_to_path(pypath) -> Path:
+    """
+    Converts a :class:`py.path.local.LocalPath` to a :class:`pathlib.Path`.
+
+    Args:
+        pypath: The path to convert.
+
+    Returns:
+        A Path
+    """
+    return Path(str(pypath))

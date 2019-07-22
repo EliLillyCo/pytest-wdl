@@ -25,42 +25,16 @@ def test_bam(test_data, workflow_runner):
     )
 
 
-from pytest_cromwell import DataFile
-
-
-class DataDirNgWrapper:
-    def __init__(self, datadir):
-        self.datadir = datadir
-
-    def __getitem__(self, name):
-        return DataFile(path=self.datadir[name])
-
-
-@pytest.fixture(scope="function")
-def datadir_wrapper(datadir):
-    """
-    Provides an interface to pytest-datadir-ng that is compatible with
-    `cromwell_harness`.
-
-    Args:
-        datadir: datadir fixture.
-
-    Returns:
-        DataFile objects.
-    """
-    return DataDirNgWrapper(datadir)
-
-
-def test_bam_removing_randomness(test_data_ng, workflow_runner):
+def test_bam_removing_randomness(test_data, workflow_runner):
     """Test that BAMs with the only difference being random IDs
     added by samtools are evaluated as equal."""
     workflow_runner(
         wdl_script='tests/test_bam/test_bam_norandom.wdl',
         workflow_name='test_bam_no_random',
         inputs={
-            "bam": test_data_ng["random_id_bam_input"]
+            "bam": test_data["random_id_bam_input"]
         },
         expected={
-            "output_bam": test_data_ng["random_id_bam_output"]
+            "output_bam": test_data["random_id_bam_output"]
         }
     )

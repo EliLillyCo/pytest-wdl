@@ -1,9 +1,12 @@
+from abc import ABCMeta
 import glob
 import hashlib
 import json
 import os
+from pathlib import Path
 import shutil
 import tempfile
+from typing import Callable, Optional, Type, cast
 import urllib.request
 
 import delegator
@@ -12,60 +15,72 @@ from pkg_resources import iter_entry_points
 from pytest_cromwell.utils import LOG, tempdir, deprecated
 
 
+class Localizer(metaclass=ABCMeta):
+    def __call__(self, destination: Path):
+        pass
+
+
+class UrlLocalizer:
+    def __init__(
+        self, url: str, http_headers: Optional[dict] = None,
+        proxies: Optional[dict] = None
+    ):
+        self.url = url
+        self.http_headers = http_headers
+        self.proxies = proxies
+
+    def __call__(self, destination: Path):
+        LOG.debug(f"Persisting {destination} from url {self.url}")
+        req = urllib.request.Request(self.url)
+        if self.http_headers:
+            for name, value in self.http_headers.items():
+                req.add_header(name, value)
+        if self.proxies:
+            for proxy_type, url in self.proxies.items():
+                req.set_proxy(url, proxy_type)
+        rsp = urllib.request.urlopen(req)
+        with open(destination, "wb") as out:
+            shutil.copyfileobj(rsp, out)
+
+
+class StringLocalizer:
+    def __init__(self, contents: str):
+        self.contents = contents
+
+    def __call__(self, destination: Path):
+        LOG.debug(f"Persisting {destination} from contents")
+        with open(destination, "wt") as out:
+            out.write(self.contents)
+
+
+class LinkLocalizer:
+    def __init__(self, source: Path):
+        self.source = source
+
+    def __call__(self, destination: Path):
+        self.source.symlink_to(destination)
+
+
 class DataFile:
     """
     A data file, which may be located locally, remotely, or represented as a string.
 
     Args:
-        path: Path to a local file. If this file doesn't exist, it will be created by
-            either downloading the given URL or persisting the given file contents.
-        url: A URL of a remote file.
-        contents: The contents of the file.
-        data_dir: Directory where a file should be created, if `path` is not provided.
-        http_headers: Headers to add to the requrests to download the remote file from
-            Artifactory.
-        proxies: Proxies to add to the requests to download the remote file from
-            Artifactory.
-        datadir_ng: A datadir_ng fixture.
+        local_path: Path where the data file should exist after being localized.
     """
-    def __init__(
-        self,
-        name=None,
-        path=None,
-        url=None,
-        contents=None,
-        allowed_diff_lines=0,
-        data_dir=".",
-        http_headers=None,
-        proxies=None,
-        datadir_ng=None
-    ):
-        self.name = name
-        self.url = url
-        self.contents = contents
-        self.http_headers = http_headers
-        self.proxies = proxies
+    def __init__(self, local_path: Path, localizer: Localizer, allowed_diff_lines: int):
+        self.local_path = local_path
+        self.localizer = localizer
         self.allowed_diff_lines = allowed_diff_lines
-        if path:
-            if not os.path.isabs(path):
-                path = os.path.abspath(os.path.join(data_dir, path))
-            self._path = path
-        elif url:
-            filename = url.rsplit("/", 1)[1]
-            self._path = os.path.abspath(os.path.join(data_dir, filename))
-        elif name and datadir_ng:
-            self._path = str(datadir_ng[name])
-        else:
-            self._path = tempfile.mkstemp(dir=data_dir)[1]
 
     @property
     def path(self):
-        if not os.path.exists(self._path):
-            self._localize()
-        return self._path
+        if not self.local_path.exists():
+            self.localizer(self.local_path)
+        return self.local_path
 
     def __str__(self):
-        return self.path
+        return self.local_path
 
     def assert_contents_equal(self, other):
         """
@@ -131,34 +146,6 @@ class DataFile:
                 f"{file1}, {file2}"
             )
 
-    def _localize(self):
-        if not (self.url or self.contents):
-            raise ValueError(
-                f"File {self._path} does not exist. Either a url, file contents, "
-                f"or a local file must be provided."
-            )
-
-        parent = os.path.dirname(self._path)
-        if not os.path.exists(parent):
-            os.makedirs(parent, exist_ok=True)
-
-        if self.url:
-            LOG.debug(f"Persisting {self._path} from url {self.url}")
-            req = urllib.request.Request(self.url)
-            if self.http_headers:
-                for name, value in self.http_headers.items():
-                    req.add_header(name, value)
-            if self.proxies:
-                for proxy_type, url in self.proxies.items():
-                    req.set_proxy(url, proxy_type)
-            rsp = urllib.request.urlopen(req)
-            with open(self._path, "wb") as out:
-                shutil.copyfileobj(rsp, out)
-        elif self.contents:
-            LOG.debug(f"Persisting {self._path} from contents")
-            with open(self._path, "wt") as out:
-                out.write(self.contents)
-
 
 class _PluginFactory:
     def __init__(self, entry_point):
@@ -181,39 +168,141 @@ DATA_TYPES = dict(
 """Data type plugin modules from the discovered entry points."""
 
 
-def create_data_file(data_type: str, *args, **kwargs) -> DataFile:
-    callable_ = DATA_TYPES.get(data_type, DataFile)
-    return callable_(*args, **kwargs)
+class DataDirs:
+    def __init__(
+        self, basedir: Path, module, cls: Optional[Type], function: Optional[Callable]
+    ):
+        self.basedir = basedir
+        self.module = module
+        self.cls = cls
+        self.function = function
+        self._paths = None
+
+    @property
+    def paths(self):
+        if self._paths is None:
+            def add_datadir_paths(root: Path):
+                testdir = root / self.module.__name__
+                if testdir.exists():
+                    if self.cls is not None:
+                        clsdir = testdir / self.cls.__name__
+                        if clsdir.exists():
+                            fndir = clsdir / self.function.__name__
+                            if fndir.exists():
+                                self._paths.apend(fndir)
+                            self._paths.append(clsdir)
+                    else:
+                        fndir = testdir / self.function.__name__
+                        if fndir.exists():
+                            self._paths.apend(fndir)
+                    self._paths.append(testdir)
+
+            self._paths = []
+            add_datadir_paths(self.basedir)
+            data_root = self.basedir / "data"
+            if data_root.exists():
+                add_datadir_paths(data_root)
+                self._paths.append(data_root)
+
+        return self._paths
 
 
-class Data:
+class TestDataResolver:
+    def __init__(
+        self, test_data_file: Path, localize_dir: Path, http_headers: dict,
+        proxies: dict
+    ):
+        with open(test_data_file, "rt") as inp:
+            self._data = json.load(inp)
+        self.localize_dir = localize_dir
+        self.http_headers = http_headers
+        self.proxies = proxies
+
+    def resolve(
+        self, name: str, datadirs: Optional[DataDirs] = None
+    ) -> DataFile:
+        if name not in self._data:
+            raise ValueError(f"Unrecognized name {name}")
+
+        value = self._data[name]
+        if isinstance(value, dict):
+            return self.create_data_file(datadirs=datadirs, **cast(dict, value))
+        else:
+            return value
+
+    def create_data_file(
+        self,
+        type: Optional[str] = "default",
+        name: Optional[str] = None,
+        path: Optional[str] = None,
+        url: Optional[str] = None,
+        contents: Optional[str] = None,
+        datadirs: Optional[DataDirs] = None,
+        **kwargs
+    ):
+        data_file_class = DATA_TYPES.get(type, DataFile)
+        local_path = None
+        localizer = None
+
+        if path:
+            if os.path.isabs(path):
+                path = Path(path)
+            else:
+                path = (self.localize_dir / path).absolute()
+            local_path = path
+
+        if url:
+            localizer = UrlLocalizer(url, self.http_headers, self.proxies)
+            if not local_path:
+                if name:
+                    local_path = (self.localize_dir / name).absolute()
+                else:
+                    filename = url.rsplit("/", 1)[1]
+                    local_path = (self.localize_dir / filename).absolute()
+        elif contents:
+            localizer = StringLocalizer(contents)
+            if not local_path:
+                if name:
+                    local_path = (self.localize_dir / name).absolute()
+                else:
+                    local_path = Path(tempfile.mkstemp(dir=self.localize_dir)[1])
+        elif name and datadirs:
+            for dd in datadirs.paths:
+                dd_path = dd / name
+                if dd_path.exists():
+                    break
+            else:
+                raise ValueError(
+                    f"File {name} not found in any of the following datadirs: "
+                    f"{datadirs}"
+                )
+            if not local_path:
+                local_path = dd_path
+            else:
+                localizer = LinkLocalizer(dd_path)
+        else:
+            raise ValueError(
+                f"File {path or name} does not exist. Either a url, file contents, "
+                f"or a local file must be provided."
+            )
+
+        return data_file_class(local_path, localizer, **kwargs)
+
+
+class TestData:
     """
     Class that manages test data.
 
     Args:
-        data_file: JSON file describing the test data.
-        data_file_kwargs: Additional keyword arguments to pass to the DataFile
-            constructor.
+        test_data_resolver: Module-level config.
+        datadirs: Data directories to search for the data file.
     """
-    def __init__(self, data_file, **data_file_kwargs):
-        self.data_file_kwargs = data_file_kwargs
-        self._values = {}
-        with open(data_file, "rt") as inp:
-            self._data = json.load(inp)
+    def __init__(self, test_data_resolver: TestDataResolver, datadirs: DataDirs):
+        self.test_data_config = test_data_resolver
+        self.datadirs = datadirs
 
     def __getitem__(self, name):
-        if name not in self._values:
-            if name not in self._data:
-                raise ValueError(f"Unrecognized name {name}")
-            value = self._data[name]
-            if isinstance(value, dict):
-                self._values[name] = create_data_file(
-                    value.pop("type", "default"), **self.data_file_kwargs, **value
-                )
-            else:
-                self._values[name] = value
-
-        return self._values[name]
+        return self.test_data_config.resolve(name, self.datadirs)
 
 
 class CromwellHarness:
