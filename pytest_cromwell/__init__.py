@@ -239,7 +239,49 @@ def test_data(test_data_file, test_data_dir, http_headers, proxies):
         def test_workflow(test_data):
             print(test_data["myfile"])
     """
-    return Data(test_data_dir, test_data_file, http_headers, proxies)
+    return Data(
+        test_data_file,
+        data_dir=test_data_dir,
+        http_headers=http_headers,
+        proxies=proxies
+    )
+
+
+@pytest.fixture(scope="function")
+def test_data_ng(test_data_file, test_data_dir, http_headers, proxies, datadir):
+    """
+    Provides an accessor for test data files, which may be local or in a remote
+    repository. Requires a `test_data_file` argument, which is provided by a
+    `@pytest.mark.parametrize` decoration. The test_data_file file is a JSON file
+    with keys being workflow input or output parametrize, and values being hashes with
+    any of the following keys:
+
+    * url: URL to the remote data file
+    * path: Path to the local data file
+    * type: File type; recoginzed values: "vcf"
+
+    Args:
+        test_data_file: test_data_file fixture.
+        test_data_dir: test_data_dir fixture.
+        http_headers: http_headers fixture.
+        proxies: proxies fixture.
+        datadir: datadir fixture.
+
+    Examples:
+        @pytest.fixture(scope="session")
+        def test_data_file():
+            return "tests/test_data.json"
+
+        def test_workflow(test_data):
+            print(test_data["myfile"])
+    """
+    return Data(
+        test_data_file,
+        data_dir=test_data_dir,
+        http_headers=http_headers,
+        proxies=proxies,
+        datadir_ng=datadir
+    )
 
 
 @pytest.fixture(scope="module")
@@ -277,7 +319,7 @@ def workflow_runner(cromwell_harness, test_execution_dir):
     `CromwellHarness.run_workflow`) with the execution_dir being the one
     provided by the `test_execution_dir` fixture.
     """
-    def _run_workflow(wdl_script, workflow_name, inputs, expected):
+    def _run_workflow(wdl_script, workflow_name, inputs, expected=None):
         with chdir(test_execution_dir):
             cromwell_harness.run_workflow(
                 wdl_script, workflow_name, inputs, expected

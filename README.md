@@ -114,11 +114,12 @@ The main fixtures are:
     * contents: Optional; the contents of the file, specified as a string.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
     * allowed_diff_lines: optional and only used for outputs comparison.
+* test_data_ng: This fixture is the same, but provides an additional option for specifying data files within the tests directory, via the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
     * inputs: Object that will be serialized to JSON and provided to Cromwell as the workflow inputs.
-    * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored.
+    * expected: Dict mapping output parameter names to expected values. For file outputs, the expected value can be specified as above (i.e. a URL, path, or contents). Any outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
     * Additional keyword arguments:
         * execution_dir: Directory in which to execute the workflow. Defaults to cwd. Ignored if `run_in_tempdir is True`. *Deprecated: will be removed in v1.0*
         * inputs_file: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
@@ -162,19 +163,43 @@ The fixtures above can utilize environment variables. Technically, none are requ
 
 Remember that environment variables can be set multiple ways, including inline before running the command, such as `TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
 
-### test_data Data Types
+### Test data
+
+Test data files can be provided by the `test_data` and `test_data_ng` fixtures, and are defined in the `test_data.json` file.
+
+#### test_data.json
+
+Test data is specified in a JSON file of the format:
+
+```json
+{
+  "name": {
+    "url": "http://foo.com/path/to/file",
+    "path": "localized/path",
+    "name": "filename",
+    "contents": "test",
+    "type": "vcf|bam",
+    "allowed_diff_lines": 2
+  }
+}
+```
+
+* url: Path to the file on a remote server from which it is downloaded if it can't be found locally; ignored if `fixture` is specified, or if the file already exists locally
+* path: Relative path to the file within the test data directory; ignored if `fixture` is specified
+* name: Name of the file - used when path is not specified, and also used to request the file from the `datadir` fixture when the `test_data_ng` fixture is used.
+* contents: The contents of the file; the file will be written to `path` at runtime
+* type: For use with output data files; specifies the file type for special handling by a plugin
+* allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
+
+#### Data Types
 
 available types:
 - default
-  - this is the default type if one is not specified. It can handle raw text files, as 
-  well as gzip compressed files.
+  - this is the default type if one is not specified. It can handle raw text files, as well as gzip compressed files.
 - vcf
-  - this considers only the first 5 columns in a VCF since the qual scores can 
-  vary slightly on different hardware.
+  - this considers only the first 5 columns in a VCF since the qual scores can vary slightly on different hardware.
 - bam*
-  - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines`
-  usage since most BAM creation adds a command header or other comments that are 
-  expected to be different.
+  - This converts BAM to SAM for diff comparison, enabling `allowed_diff_lines` usage since most BAM creation adds a command header or other comments that are expected to be different.
   - This also replaces random UNSET-\w*\b type IDs that samtools often adds
 
 \* requires extra dependencies to be installed, see 
@@ -207,3 +232,7 @@ setup(
 ```
 
 In this example, the extra dependencies can be installed with `pip install pytest-cromwell[bam]`.
+
+# TODO
+
+* Bring the pytest-datadir-ng `datadir` fixture internal and update to use pathlib.
