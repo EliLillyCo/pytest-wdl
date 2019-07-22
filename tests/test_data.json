@@ -1,8 +1,8 @@
 {
   "in_txt": {
-    "path": "in.txt"
+    "name": "in.txt"
   },
   "out_txt": {
-    "path": "out.txt"
+    "name": "out.txt"
   }
 }
