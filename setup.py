@@ -28,7 +28,6 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pytest",
-        "pytest-datadir-ng",
         "delegator.py"
     ],
     extras_require={

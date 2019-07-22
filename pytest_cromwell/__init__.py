@@ -13,20 +13,25 @@ Todo:
 import os
 
 import pytest
+from _pytest.fixtures import FixtureRequest
 
-from pytest_cromwell.core import CromwellHarness, Data, DataFile, create_data_file
-from pytest_cromwell.utils import LOG, chdir, deprecated, test_dir, tempdir
+from pytest_cromwell.core import (
+    CromwellHarness, TestDataResolver, TestData, DataDirs, DataFile
+)
+from pytest_cromwell.utils import (
+    LOG, chdir, deprecated, pypath_to_path, test_dir, tempdir
+)
 
 
 @pytest.fixture(scope="module")
-def project_root(request):
+def project_root(request: FixtureRequest):
     """
     Fixture that provides the root directory of the project. By default, this
     assumes that the project has one subdirectory per task, and that this
     framework is being run from the test subdirectory of a task diretory, and
     therefore looks for the project root two directories up.
     """
-    return os.path.abspath(os.path.join(os.path.dirname(request.fspath), "../.."))
+    return os.path.abspath(os.path.join(request.fspath.dirpath(), "../.."))
 
 
 @pytest.fixture(scope="module")
@@ -213,59 +218,37 @@ def cromwell_args():
 
 
 @pytest.fixture(scope="module")
-def test_data(test_data_file, test_data_dir, http_headers, proxies):
+def test_data_config(
+    test_data_file, test_data_dir, http_headers, proxies
+) -> TestDataResolver:
     """
-    Provides an accessor for test data files, which may be local or in a remote
-    repository. Requires a `test_data_file` argument, which is provided by a
-    `@pytest.mark.parametrize` decoration. The test_data_file file is a JSON file
-    with keys being workflow input or output parametrize, and values being hashes with
-    any of the following keys:
-
-    * url: URL to the remote data file
-    * path: Path to the local data file
-    * type: File type; recoginzed values: "vcf"
+    Provides access to test data files for tests in a module.
 
     Args:
         test_data_file: test_data_file fixture.
         test_data_dir: test_data_dir fixture.
         http_headers: http_headers fixture.
         proxies: proxies fixture.
-
-    Examples:
-        @pytest.fixture(scope="session")
-        def test_data_file():
-            return "tests/test_data.json"
-
-        def test_workflow(test_data):
-            print(test_data["myfile"])
     """
-    return Data(
+    return TestDataResolver(
         test_data_file,
-        data_dir=test_data_dir,
+        localize_dir=test_data_dir,
         http_headers=http_headers,
         proxies=proxies
     )
 
 
 @pytest.fixture(scope="function")
-def test_data_ng(test_data_file, test_data_dir, http_headers, proxies, datadir):
+def test_data(
+    request: FixtureRequest, test_data_resolver: TestDataResolver
+) -> TestData:
     """
     Provides an accessor for test data files, which may be local or in a remote
-    repository. Requires a `test_data_file` argument, which is provided by a
-    `@pytest.mark.parametrize` decoration. The test_data_file file is a JSON file
-    with keys being workflow input or output parametrize, and values being hashes with
-    any of the following keys:
-
-    * url: URL to the remote data file
-    * path: Path to the local data file
-    * type: File type; recoginzed values: "vcf"
+    repository.
 
     Args:
-        test_data_file: test_data_file fixture.
-        test_data_dir: test_data_dir fixture.
-        http_headers: http_headers fixture.
-        proxies: proxies fixture.
-        datadir: datadir fixture.
+        request: Fixture request
+        test_data_resolver: Module-level test data configuration
 
     Examples:
         @pytest.fixture(scope="session")
@@ -275,13 +258,13 @@ def test_data_ng(test_data_file, test_data_dir, http_headers, proxies, datadir):
         def test_workflow(test_data):
             print(test_data["myfile"])
     """
-    return Data(
-        test_data_file,
-        data_dir=test_data_dir,
-        http_headers=http_headers,
-        proxies=proxies,
-        datadir_ng=datadir
+    datadirs = DataDirs(
+        pypath_to_path(request.fspath.dirpath()),
+        request.module,
+        request.cls,
+        request.function
     )
+    return TestData(test_data_resolver, datadirs)
 
 
 @pytest.fixture(scope="module")
