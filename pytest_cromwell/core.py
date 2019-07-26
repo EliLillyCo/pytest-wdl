@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Callable, Optional, Type, cast
+from typing import Callable, Optional, Type, Union, cast
 import urllib.request
 
 import delegator
@@ -67,8 +67,15 @@ class DataFile:
 
     Args:
         local_path: Path where the data file should exist after being localized.
+        localizer:
+        allowed_diff_lines:
     """
-    def __init__(self, local_path: Path, localizer: Localizer, allowed_diff_lines: int):
+    def __init__(
+        self,
+        local_path: Path,
+        localizer: Localizer,
+        allowed_diff_lines: int = 0
+    ):
         self.local_path = local_path
         self.localizer = localizer
         self.allowed_diff_lines = allowed_diff_lines
@@ -94,8 +101,10 @@ class DataFile:
         """
         allowed_diff_lines = self.allowed_diff_lines
 
-        if isinstance(other, str):
+        if isinstance(other, Path):
             other_path = other
+        elif isinstance(other, str):
+            other_path = Path(other)
         else:
             other_path = other.path
             allowed_diff_lines = max(allowed_diff_lines, other.allowed_diff_lines)
@@ -103,18 +112,18 @@ class DataFile:
         self._assert_contents_equal(self.path, other_path, allowed_diff_lines)
 
     @classmethod
-    def _assert_contents_equal(cls, file1, file2, allowed_diff_lines):
+    def _assert_contents_equal(cls, file1: Path, file2: Path, allowed_diff_lines: int):
         if allowed_diff_lines:
             cls._diff_contents(file1, file2, allowed_diff_lines)
         else:
             cls._compare_hashes(file1, file2)
 
     @classmethod
-    def _diff_contents(cls, file1, file2, allowed_diff_lines):
-        if file1.endswith(".gz"):
+    def _diff_contents(cls, file1: Path, file2: Path, allowed_diff_lines: int):
+        if file1.suffix == ".gz":
             with tempdir() as temp:
-                temp_file1 = os.path.join(temp, "file1")
-                temp_file2 = os.path.join(temp, "file2")
+                temp_file1 = temp / "file1"
+                temp_file2 = temp / "file2"
                 delegator.run(f"gunzip -c {file1} > {temp_file1}", block=True)
                 delegator.run(f"gunzip -c {file2} > {temp_file2}", block=True)
                 diff_lines = cls._diff(temp_file1, temp_file2)
@@ -128,14 +137,14 @@ class DataFile:
             )
 
     @classmethod
-    def _diff(cls, file1, file2):
+    def _diff(cls, file1: Path, file2: Path):
         cmd = "diff -y --suppress-common-lines {} {} | grep '^' | wc -l".format(
             file1, file2
         )
         return int(delegator.run(cmd, block=True).out)
 
     @classmethod
-    def _compare_hashes(cls, file1, file2):
+    def _compare_hashes(cls, file1: Path, file2: Path):
         with open(file1, "rb") as inp1:
             file1_md5 = hashlib.md5(inp1.read()).hexdigest()
         with open(file2, "rb") as inp2:
@@ -169,6 +178,10 @@ DATA_TYPES = dict(
 
 
 class DataDirs:
+    """
+    Provides data files from test data directory structure as defined by the
+    datadir and datadir-ng plugins. Paths are resolved lazily upon first request.
+    """
     def __init__(
         self, basedir: Path, module, cls: Optional[Type], function: Optional[Callable]
     ):
@@ -208,13 +221,19 @@ class DataDirs:
 
 
 class TestDataResolver:
+    """
+    Resolves data files that may need to be localized.
+    """
     def __init__(
-        self, test_data_file: Path, localize_dir: Path, http_headers: dict,
+        self, test_data_file: Path, localize_dir: Union[str, Path], http_headers: dict,
         proxies: dict
     ):
         with open(test_data_file, "rt") as inp:
             self._data = json.load(inp)
-        self.localize_dir = localize_dir
+        if isinstance(localize_dir, Path):
+            self.localize_dir = cast(Path, localize_dir)
+        else:
+            self.localize_dir = Path(cast(str, localize_dir))
         self.http_headers = http_headers
         self.proxies = proxies
 

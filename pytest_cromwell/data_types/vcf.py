@@ -6,7 +6,7 @@ scores and other floating-point-valued fields when run on different hardware. Th
 handler ignores the QUAL and INFO columns and only compares the genotype (GT) field
 of sample columns. Only works for single-sample VCFs.
 """
-import os
+from pathlib import Path
 
 import delegator
 
@@ -20,7 +20,7 @@ class VcfDataFile(DataFile):
         cls._diff_contents(file1, file2, allowed_diff_lines)
 
     @classmethod
-    def _diff(cls, file1, file2):
+    def _diff(cls, file1: Path, file2: Path):
         """
         Special handling for VCF files to only compare the first 5 columns.
 
@@ -29,8 +29,8 @@ class VcfDataFile(DataFile):
             file2:
         """
         with tempdir() as temp:
-            cmp_file1 = os.path.join(temp, "file1")
-            cmp_file2 = os.path.join(temp, "file2")
+            cmp_file1 = temp / "file1"
+            cmp_file2 = temp / "file2"
             job1 = delegator.run(
                 f"cat {file1} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file1}"
             )

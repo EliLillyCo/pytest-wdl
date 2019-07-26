@@ -26,12 +26,12 @@ def deprecated(f):
 
 
 @contextlib.contextmanager
-def tempdir():
+def tempdir() -> Path:
     """
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
     """
-    temp = tempfile.mkdtemp()
+    temp = Path(tempfile.mkdtemp())
     try:
         yield temp
     finally:

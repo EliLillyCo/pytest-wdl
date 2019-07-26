@@ -218,7 +218,7 @@ def cromwell_args():
 
 
 @pytest.fixture(scope="module")
-def test_data_config(
+def test_data_resolver(
     test_data_file, test_data_dir, http_headers, proxies
 ) -> TestDataResolver:
     """
