@@ -230,10 +230,12 @@ class TestDataResolver:
     ):
         with open(test_data_file, "rt") as inp:
             self._data = json.load(inp)
+
         if isinstance(localize_dir, Path):
             self.localize_dir = cast(Path, localize_dir)
         else:
             self.localize_dir = Path(cast(str, localize_dir))
+
         self.http_headers = http_headers
         self.proxies = proxies
 
