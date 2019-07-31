@@ -5,6 +5,7 @@ Convert BAM to SAM for diff.
 """
 from pathlib import Path
 import re
+from typing import Optional
 
 from pytest_cromwell.core import DataFile, tempdir
 
@@ -24,11 +25,13 @@ class BamDataFile(DataFile):
     SAM, so that DataFile can carry out a regular diff on the SAM files.
     """
     @classmethod
-    def _assert_contents_equal(cls, file1, file2, allowed_diff_lines):
+    def _assert_contents_equal(
+        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
+    ):
         cls._diff_contents(file1, file2, allowed_diff_lines)
 
     @classmethod
-    def _diff(cls, file1, file2):
+    def _diff(cls, file1: Path, file2: Path):
         """
         Special handling for BAM files to read them into SAM so we can
         compare them.

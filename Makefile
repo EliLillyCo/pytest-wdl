@@ -1,11 +1,15 @@
 repo = EliLillyCo/LRL_cromwell_test_runner
 package = pytest_cromwell
-version = 0.1.1
 tests = tests
+# Use this option to show full stack trace for errors
+#pytestopts = "--full-trace"
+#pytestopts = "-ra --tb=short"
+pytestopts = "-s -vv --show-capture=all"
 
 BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
 INSTALL_EXTRAS = pip install .[all]
-TEST = pytest $(pytestops) $(tests)
+# There may be a better way; see https://stackoverflow.com/questions/16404716/using-py-test-with-coverage-doesnt-include-imports
+TEST = env PYTHONPATH="." pytest -p pytester --cov pytest_cromwell --cov-report term-missing $(pytestops) $(tests)
 
 all:
 	$(BUILD)
@@ -26,6 +30,9 @@ reformat:
 	black $(tests)
 
 clean:
+	rm -f .coverage
+	rm -Rf .eggs
+	rm -Rf .pytest_cache
 	rm -Rf __pycache__
 	rm -Rf **/__pycache__/*
 	rm -Rf **/*.c
@@ -34,6 +41,7 @@ clean:
 	rm -Rf dist
 	rm -Rf build
 	rm -Rf $(package).egg-info
+	rm -Rf cromwell-workflow-logs
 
 docker:
 	# build

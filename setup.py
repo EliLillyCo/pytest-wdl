@@ -30,6 +30,9 @@ setup(
         "pytest",
         "delegator.py"
     ],
+    tests_require=[
+        "pytest-cov"
+    ],
     extras_require={
         "all": ["pysam"],
         "bam": ["pysam"]

@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Some tools that generate VCF (callers) will result in very slightly different qual
 scores and other floating-point-valued fields when run on different hardware. This
@@ -7,6 +5,7 @@ handler ignores the QUAL and INFO columns and only compares the genotype (GT) fi
 of sample columns. Only works for single-sample VCFs.
 """
 from pathlib import Path
+from typing import Optional
 
 import delegator
 
@@ -16,7 +15,9 @@ from pytest_cromwell.utils import tempdir
 
 class VcfDataFile(DataFile):
     @classmethod
-    def _assert_contents_equal(cls, file1, file2, allowed_diff_lines):
+    def _assert_contents_equal(
+        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
+    ):
         cls._diff_contents(file1, file2, allowed_diff_lines)
 
     @classmethod
@@ -25,8 +26,8 @@ class VcfDataFile(DataFile):
         Special handling for VCF files to only compare the first 5 columns.
 
         Args:
-            file1:
-            file2:
+            file1: First file to compare
+            file2: Second file to compare
         """
         with tempdir() as temp:
             cmp_file1 = temp / "file1"

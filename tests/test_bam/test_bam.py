@@ -3,7 +3,7 @@
 """
 Test that bam data_type works.
 """
-import os
+from pytest_cromwell.utils import find_project_path
 
 import pytest
 
@@ -13,7 +13,9 @@ def test_data_file(project_root):
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
-    return os.path.join(project_root, "tests/test_bam/test_data.json")
+    return find_project_path(
+        "tests/test_bam/test_data.json", start=project_root, assert_exists=True
+    )
 
 
 def test_bam(test_data, workflow_runner):

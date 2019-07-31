@@ -1,0 +1,11 @@
+{
+  "vcf": {
+    "url": "https://raw.githubusercontent.com/vcflib/vcflib/master/samples/sample.vcf",
+    "path": "sample_input.vcf"
+  },
+  "output_vcf": {
+    "url": "https://raw.githubusercontent.com/vcflib/vcflib/master/samples/sample.vcf",
+    "path": "sample_output.vcf",
+    "type": "vcf"
+  }
+}

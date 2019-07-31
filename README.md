@@ -56,7 +56,7 @@ Or use pip to install from github:
 pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
 ```
 
-## Installing Data Type Plugins
+### Installing Data Type Plugins
 
 Data Types for expected output comparison are plugins. They are loaded on-demand and if they require external dependencies, you must install those.
 
@@ -78,16 +78,6 @@ To install pytest-cromwell and **all** extras dependencies:
 ## Usage
 
 ```python
-import pytest
-
-@pytest.fixture(scope="module")
-def project_root():
-    return "../.."
-
-@pytest.fixture(scope="module")
-def test_data_file():
-    return "tests/mytestdata.json"
-
 def test_variant_caller(test_data, workflow_runner):
     inputs = {
         "bam": test_data["bam"],
@@ -108,13 +98,13 @@ def test_variant_caller(test_data, workflow_runner):
 
 The main fixtures are:
 
-* test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys. At least one of {url, path, contents} is required.
+* test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys.
     * url: Optional; the remote URL.
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
+    * name: Filename to use when localizing the file; also used when none of [url,path,contents] are defined to find the data file within the tests directory, using the same directory structure defined by the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
-    * allowed_diff_lines: optional and only used for outputs comparison.
-* test_data_ng: This fixture is the same, but provides an additional option for specifying data files within the tests directory, via the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
+    * allowed\_diff\_lines: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
@@ -128,7 +118,7 @@ The main fixtures are:
         * cromwell_args: Override the default Cromwell arguments.
 * workflow_runner: This is an alternative to cromwell_harness. It provides a callable and automatically determines the execution_dir based on the test_execution_dir fixture.
 
-There are also fixtures for specifying required inputs to the two main fixtures. These fixtures have sensible defaults, but can be overridden  by redefining them in the test module.
+There are also fixtures for specifying required inputs to the two main fixtures.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
@@ -142,6 +132,11 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * java_args: String containing arguments to pass to Java.
 * cromwell_jar_file: By default this fixture first looks for the `$CROMWELL_JAR` enironment variable. It then searches the classpath for a JAR file that begins with 'cromwell' (case-insensitive). If the JAR file is not found in either place, it is expected to be located in the same directory as the tests are executed from (i.e. `./cromwell.jar`).
 * cromwell_args: String containing arguments to pass to Cromwell.
+
+These fixtures have sensible defaults, but can be overridden in two different ways:
+
+* Define them in the test module
+* Define them in a conftest.py module at or above the level of the test modules
 
 ### Environment Variables
 

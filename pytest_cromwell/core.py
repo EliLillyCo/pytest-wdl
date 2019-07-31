@@ -4,33 +4,50 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
-from typing import Callable, Optional, Type, Union, cast
+from typing import Callable, List, Optional, Type, Union, cast
 import urllib.request
 
 import delegator
 from pkg_resources import iter_entry_points
 
-from pytest_cromwell.utils import LOG, tempdir, deprecated
+from pytest_cromwell.utils import LOG, tempdir, to_path
+
+
+UNSAFE_RE = re.compile(r"[^\w.-]")
 
 
 class Localizer(metaclass=ABCMeta):
-    def __call__(self, destination: Path):
+    """
+    Abstract base of classes that implement file localization.
+    """
+    def localize(self, destination: Path) -> None:
+        """
+        Localize a resource to `destination`.
+
+        Args:
+            destination: Path to file where the non-local resource is to be localized.
+        """
         pass
 
 
-class UrlLocalizer:
+class UrlLocalizer(Localizer):
+    """
+    Localizes a file specified by a URL.
+    """
     def __init__(
-        self, url: str, http_headers: Optional[dict] = None,
+        self, url: str,
+        http_headers: Optional[dict] = None,
         proxies: Optional[dict] = None
     ):
         self.url = url
         self.http_headers = http_headers
         self.proxies = proxies
 
-    def __call__(self, destination: Path):
-        LOG.debug(f"Persisting {destination} from url {self.url}")
+    def localize(self, destination: Path):
+        LOG.debug(f"Localizing url {self.url} to {destination}")
         req = urllib.request.Request(self.url)
         if self.http_headers:
             for name, value in self.http_headers.items():
@@ -43,32 +60,39 @@ class UrlLocalizer:
             shutil.copyfileobj(rsp, out)
 
 
-class StringLocalizer:
+class StringLocalizer(Localizer):
+    """
+    Localizes a string by writing it to a file.
+    """
     def __init__(self, contents: str):
         self.contents = contents
 
-    def __call__(self, destination: Path):
+    def localize(self, destination: Path):
         LOG.debug(f"Persisting {destination} from contents")
         with open(destination, "wt") as out:
             out.write(self.contents)
 
 
-class LinkLocalizer:
+class LinkLocalizer(Localizer):
+    """
+    Localizes a file to another destination using a symlink.
+    """
     def __init__(self, source: Path):
         self.source = source
 
-    def __call__(self, destination: Path):
+    def localize(self, destination: Path):
         self.source.symlink_to(destination)
 
 
 class DataFile:
     """
-    A data file, which may be located locally, remotely, or represented as a string.
+    A data file, which may be local, remote, or represented as a string.
 
     Args:
         local_path: Path where the data file should exist after being localized.
-        localizer:
-        allowed_diff_lines:
+        localizer: Localizer object, for persisting the file on the local disk.
+        allowed_diff_lines: Number of lines by which the file is allowed to differ
+            from another and still be considered equal.
     """
     def __init__(
         self,
@@ -81,15 +105,15 @@ class DataFile:
         self.allowed_diff_lines = allowed_diff_lines
 
     @property
-    def path(self):
+    def path(self) -> Path:
         if not self.local_path.exists():
-            self.localizer(self.local_path)
+            self.localizer.localize(self.local_path)
         return self.local_path
 
-    def __str__(self):
-        return self.local_path
+    def __str__(self) -> str:
+        return str(self.local_path)
 
-    def assert_contents_equal(self, other):
+    def assert_contents_equal(self, other: Union[str, Path, "DataFile"]) -> None:
         """
         Assert the contents of two files are equal.
 
@@ -98,6 +122,9 @@ class DataFile:
 
         Args:
             other: A `DataFile` or string file path.
+
+        Raises:
+            AssertionError if the files are different.
         """
         allowed_diff_lines = self.allowed_diff_lines
 
@@ -112,14 +139,18 @@ class DataFile:
         self._assert_contents_equal(self.path, other_path, allowed_diff_lines)
 
     @classmethod
-    def _assert_contents_equal(cls, file1: Path, file2: Path, allowed_diff_lines: int):
+    def _assert_contents_equal(
+        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
+    ) -> None:
         if allowed_diff_lines:
             cls._diff_contents(file1, file2, allowed_diff_lines)
         else:
             cls._compare_hashes(file1, file2)
 
     @classmethod
-    def _diff_contents(cls, file1: Path, file2: Path, allowed_diff_lines: int):
+    def _diff_contents(
+        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
+    ) -> None:
         if file1.suffix == ".gz":
             with tempdir() as temp:
                 temp_file1 = temp / "file1"
@@ -130,6 +161,9 @@ class DataFile:
         else:
             diff_lines = cls._diff(file1, file2)
 
+        if allowed_diff_lines is None:
+            allowed_diff_lines = 0
+
         if diff_lines > allowed_diff_lines:
             raise AssertionError(
                 f"{diff_lines} lines (which is > {allowed_diff_lines} allowed) are "
@@ -137,14 +171,12 @@ class DataFile:
             )
 
     @classmethod
-    def _diff(cls, file1: Path, file2: Path):
-        cmd = "diff -y --suppress-common-lines {} {} | grep '^' | wc -l".format(
-            file1, file2
-        )
+    def _diff(cls, file1: Path, file2: Path) -> int:
+        cmd = f"diff -y --suppress-common-lines {file1} {file2} | grep '^' | wc -l"
         return int(delegator.run(cmd, block=True).out)
 
     @classmethod
-    def _compare_hashes(cls, file1: Path, file2: Path):
+    def _compare_hashes(cls, file1: Path, file2: Path) -> None:
         with open(file1, "rb") as inp1:
             file1_md5 = hashlib.md5(inp1.read()).hexdigest()
         with open(file2, "rb") as inp2:
@@ -157,6 +189,9 @@ class DataFile:
 
 
 class _PluginFactory:
+    """
+    Lazily loads a DataFile plugin class associated with a data type.
+    """
     def __init__(self, entry_point):
         self.entry_point = entry_point
         self.factory = None
@@ -192,7 +227,7 @@ class DataDirs:
         self._paths = None
 
     @property
-    def paths(self):
+    def paths(self) -> List[Path]:
         if self._paths is None:
             def add_datadir_paths(root: Path):
                 testdir = root / self.module.__name__
@@ -225,17 +260,16 @@ class TestDataResolver:
     Resolves data files that may need to be localized.
     """
     def __init__(
-        self, test_data_file: Path, localize_dir: Union[str, Path], http_headers: dict,
+        self,
+        test_data_file: Path,
+        localize_dir: Path,
+        http_headers: dict,
         proxies: dict
     ):
         with open(test_data_file, "rt") as inp:
             self._data = json.load(inp)
 
-        if isinstance(localize_dir, Path):
-            self.localize_dir = cast(Path, localize_dir)
-        else:
-            self.localize_dir = Path(cast(str, localize_dir))
-
+        self.localize_dir = localize_dir
         self.http_headers = http_headers
         self.proxies = proxies
 
@@ -260,17 +294,13 @@ class TestDataResolver:
         contents: Optional[str] = None,
         datadirs: Optional[DataDirs] = None,
         **kwargs
-    ):
+    ) -> DataFile:
         data_file_class = DATA_TYPES.get(type, DataFile)
         local_path = None
         localizer = None
 
         if path:
-            if os.path.isabs(path):
-                path = Path(path)
-            else:
-                path = (self.localize_dir / path).absolute()
-            local_path = path
+            local_path = to_path(path, self.localize_dir)
 
         if url:
             localizer = UrlLocalizer(url, self.http_headers, self.proxies)
@@ -293,7 +323,7 @@ class TestDataResolver:
                 if dd_path.exists():
                     break
             else:
-                raise ValueError(
+                raise FileNotFoundError(
                     f"File {name} not found in any of the following datadirs: "
                     f"{datadirs}"
                 )
@@ -302,7 +332,7 @@ class TestDataResolver:
             else:
                 localizer = LinkLocalizer(dd_path)
         else:
-            raise ValueError(
+            raise FileNotFoundError(
                 f"File {path or name} does not exist. Either a url, file contents, "
                 f"or a local file must be provided."
             )
@@ -312,70 +342,59 @@ class TestDataResolver:
 
 class TestData:
     """
-    Class that manages test data.
+    Manages test data, which is defined in a test_data.json file.
 
     Args:
         test_data_resolver: Module-level config.
         datadirs: Data directories to search for the data file.
     """
     def __init__(self, test_data_resolver: TestDataResolver, datadirs: DataDirs):
-        self.test_data_config = test_data_resolver
+        self.test_data_resolver = test_data_resolver
         self.datadirs = datadirs
 
     def __getitem__(self, name):
-        return self.test_data_config.resolve(name, self.datadirs)
+        return self.test_data_resolver.resolve(name, self.datadirs)
 
 
 class CromwellHarness:
     """
-    Class that manages the running of WDL workflows using Cromwell.
+    Manages the running of WDL workflows using Cromwell.
 
     Args:
         project_root: The root path to which non-absolute WDL script paths are
             relative.
         import_dirs: Relative or absolute paths to directories containing WDL
-            scripts that should be available as imports (one per line).
-        java_bin:
+            scripts that should be available as imports.
+        java_bin: Path to the java executable.
         java_args: Default Java arguments to use; can be overidden by passing
             `java_args=...` to `run_workflow`.
-        cromwell_jar_file:
+        cromwell_jar_file: Path to the Cromwell JAR file.
         cromwell_args: Default Cromwell arguments to use; can be overridden by
             passing `cromwell_args=...` to `run_workflow`.
-
-    Env:
-        JAVA_HOME: path containing the bin dir that contains the java executable.
-        CROMWELL_JAR: path to the cromwell JAR file.
     """
     def __init__(
-        self, project_root, import_dirs=None, java_bin="/usr/bin/java",
-        java_args=None, cromwell_jar_file="cromwell.jar", cromwell_args=None
+        self,
+        project_root: Path,
+        java_bin: Path,
+        cromwell_jar_file: Path,
+        import_dirs: Optional[List[Path]] = None,
+        java_args: Optional[str] = None,
+        cromwell_args: Optional[str] = None
     ):
+        self.project_root = project_root
+        self.import_dirs = import_dirs
         self.java_bin = java_bin
         self.java_args = java_args
         self.cromwell_jar = cromwell_jar_file
         self.cromwell_args = cromwell_args
-        self.project_root = os.path.abspath(project_root)
-        self.import_dirs = None
-        if import_dirs:
-            self.import_dirs = [self._get_path(path) for path in import_dirs]
-
-    @deprecated
-    def __call__(self, *args, **kwargs):
-        """
-        Briefly used as a replacement for run_workflow.
-        """
-        self.run_workflow(*args, **kwargs)
-
-    @deprecated
-    def run_workflow_in_tempdir(self, *args, **kwargs):
-        """
-        Conveience method for running a workflow with a temporary execution directory.
-        """
-        with tempdir() as tmpdir:
-            self(*args, **kwargs, execution_dir=tmpdir)
 
     def run_workflow(
-        self, wdl_script, workflow_name, inputs, expected=None, **kwargs
+        self,
+        wdl_script: Union[str, Path],
+        workflow_name: Optional[str] = None,
+        inputs: Optional[dict] = None,
+        expected: Optional[dict] = None,
+        **kwargs
     ) -> dict:
         """
         Run a WDL workflow on given inputs, and check that the output matches
@@ -383,7 +402,8 @@ class CromwellHarness:
 
         Args:
             wdl_script: The WDL script to execute.
-            workflow_name: The name of the workflow in the WDL script.
+            workflow_name: The name of the workflow in the WDL script. If None, the
+                name of the WDL script is used (without the .wdl extension).
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
@@ -400,7 +420,8 @@ class CromwellHarness:
             Dict of outputs.
 
         Raises:
-            Exception if there was an error executing Cromwell.
+            Exception: if there was an error executing Cromwell
+            AssertionError: if the actual outputs don't match the expected outputs
         """
         if "execution_dir" in kwargs:
             LOG.warning(
@@ -409,17 +430,28 @@ class CromwellHarness:
             )
             os.chdir(kwargs["execution_dir"])
 
-        write_inputs = True
-        if "inputs_file" in kwargs:
-            inputs_file = os.path.abspath(kwargs["inputs_file"])
-            if os.path.exists(inputs_file):
-                write_inputs = False
-            else:
-                os.makedirs(os.path.dirname(inputs_file), exist_ok=True)
-        else:
-            inputs_file = tempfile.mkstemp(suffix=".json")[1]
+        wdl_path = to_path(wdl_script, self.project_root)
+        if not wdl_path.exists():
+            raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
 
-        if write_inputs:
+        if not workflow_name:
+            workflow_name = UNSAFE_RE.sub("_", wdl_path.stem)
+
+        cromwell_inputs = None
+        inputs_file = None
+
+        if "inputs_file" in kwargs:
+            inputs_file = Path(kwargs["inputs_file"]).absolute()
+            if inputs_file.exists():
+                with open(inputs_file, "rt") as inp:
+                    cromwell_inputs = json.load(inp)
+
+        if cromwell_inputs is None and inputs:
+            if inputs_file:
+                inputs_file.parent.mkdir(parents=True)
+            else:
+                inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
+
             cromwell_inputs = dict(
                 (
                     f"{workflow_name}.{key}",
@@ -429,28 +461,25 @@ class CromwellHarness:
             )
             with open(inputs_file, "wt") as out:
                 json.dump(cromwell_inputs, out, default=str)
-        else:
-            with open(inputs_file, "rt") as inp:
-                cromwell_inputs = json.load(inp)
 
         write_imports = bool(self.import_dirs)
         imports_file = None
         if "imports_file" in kwargs:
-            imports_file = os.path.abspath(kwargs["imports_file"])
-            if os.path.exists(imports_file):
+            imports_file = Path(kwargs["imports_file"]).absolute()
+            if imports_file.exists():
                 write_imports = False
 
         if write_imports:
             imports = [
                 wdl
                 for path in self.import_dirs
-                for wdl in glob.glob(os.path.join(self.project_root, path, "*.wdl"))
+                for wdl in glob.glob(str(path / "*.wdl"))
             ]
             if imports:
                 if imports_file:
-                    os.makedirs(os.path.dirname(imports_file), exist_ok=True)
+                    imports_file.parent.mkdir(parents=True)
                 else:
-                    imports_file = tempfile.mkstemp(suffix=".zip")[1]
+                    imports_file = Path(tempfile.mkstemp(suffix=".zip")[1])
 
                 imports_str = " ".join(imports)
 
@@ -464,15 +493,14 @@ class CromwellHarness:
                         f"stderr={exe.err}"
                     )
 
+        inputs_arg = f"-i {inputs_file}" if cromwell_inputs else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
-
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-        wdl_path = self._get_path(wdl_script, check_exists=True)
 
         cmd = (
             f"{self.java_bin} {java_args} -jar {self.cromwell_jar} run "
-            f"{cromwell_args} -i {inputs_file} {imports_zip_arg} {wdl_path}"
+            f"{cromwell_args} {inputs_arg} {imports_zip_arg} {wdl_path}"
         )
         LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
@@ -484,7 +512,7 @@ class CromwellHarness:
                 f"Cromwell command failed; stdout={exe.out}; stderr={exe.err}"
             )
 
-        outputs = self.get_cromwell_outputs(exe.out)
+        outputs = CromwellHarness.get_cromwell_outputs(exe.out)
 
         if expected:
             for name, expected_value in expected.items():
@@ -497,13 +525,6 @@ class CromwellHarness:
                     assert expected_value == outputs[key]
 
         return outputs
-
-    def _get_path(self, path, check_exists=False):
-        if not os.path.isabs(path):
-            path = os.path.join(self.project_root, path)
-        if check_exists and not os.path.exists(path):
-            raise Exception(f"File not found at path {path}")
-        return path
 
     @staticmethod
     def get_cromwell_outputs(output):

@@ -5,3 +5,4 @@ cromwell-executions/
 *.egg-info/
 __pycache__/
 *.pyc
+.coverage
