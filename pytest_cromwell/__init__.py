@@ -16,7 +16,8 @@ from pytest_cromwell.core import (
     CromwellHarness, TestDataResolver, TestData, DataDirs, DataFile
 )
 from pytest_cromwell.utils import (
-    LOG, chdir, to_path, test_dir, tempdir, find_project_path, find_executable_path
+    LOG, chdir, to_path, test_dir, tempdir, find_project_path, find_executable_path,
+    canonical_path
 )
 
 
@@ -175,7 +176,7 @@ def import_dirs(
             for path_str in inp.read().splitlines(keepends=False):
                 path = Path(path_str)
                 if not path.is_absolute():
-                    path = (project_root / path).absolute()
+                    path = canonical_path(project_root / path)
                 if not path.exists():
                     raise FileNotFoundError(f"Invalid import path: {path}")
                 paths.append(path)
@@ -246,7 +247,7 @@ def cromwell_jar_file() -> Union[str, Path]:
     classpath = os.environ.get("CLASSPATH", ".")
 
     for path_str in classpath.split(os.pathsep):
-        path = Path(path_str).absolute()
+        path = canonical_path(Path(path_str))
         if path.exists():
             if path.is_dir():
                 matches = list(path.glob("cromwell*"))
@@ -313,7 +314,7 @@ def test_data(
             print(test_data["myfile"])
     """
     datadirs = DataDirs(
-        to_path(request.fspath.dirpath()),
+        to_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
         request.cls,
         request.function

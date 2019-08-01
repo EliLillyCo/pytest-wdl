@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 import stat
 import tempfile
-from typing import Callable, Optional, Sequence, Union, cast
+from typing import Optional, Sequence, Union, cast
 
 from py._path.local import LocalPath
 
@@ -35,7 +35,7 @@ def tempdir() -> Path:
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
     """
-    temp = Path(tempfile.mkdtemp())
+    temp = canonical_path(Path(tempfile.mkdtemp()))
     try:
         yield temp
     finally:
@@ -88,7 +88,10 @@ def test_dir(envar: str, project_root: Optional[Path] = None) -> Path:
             shutil.rmtree(testdir_path)
 
 
-def to_path(path: Union[str, LocalPath, Path], root: Optional[Path] = None) -> Path:
+def to_path(
+    path: Union[str, LocalPath, Path], root: Optional[Path] = None,
+    canonicalize: bool = False
+) -> Path:
     """
     Converts a string path or :class:`py.path.local.LocalPath` to a
     :class:`pathlib.Path`.
@@ -96,6 +99,7 @@ def to_path(path: Union[str, LocalPath, Path], root: Optional[Path] = None) -> P
     Args:
         path: The path to convert.
         root: Root directory to use to make `path` absolute if it is not already.
+        canonicalize: Whether to return the canonicalized version of the path.
 
     Returns:
         A `pathlib.Path` object.
@@ -105,8 +109,19 @@ def to_path(path: Union[str, LocalPath, Path], root: Optional[Path] = None) -> P
     else:
         p = Path(str(path))
     if root and not p.is_absolute():
-        p = (root / p).absolute()
+        p = root / p
+        canonicalize = True
+    if canonicalize:
+        p = canonical_path(p)
     return p
+
+
+def canonical_path(path: Path) -> Path:
+    """
+    Get the canonical path for a Path - esxpand home directory shortcut (~),
+    make absolute, and resolve symlinks.
+    """
+    return path.expanduser().absolute().resolve()
 
 
 def resolve_file(
@@ -128,12 +143,13 @@ def resolve_file(
         FileNotFoundError if the file cannot be found and `assert_exists` is True.
     """
     path = to_path(filename)
+    is_abs = path.is_absolute()
 
-    if path.exists():
+    if is_abs and path.exists():
         return path
 
-    if not path.is_absolute():
-        test_path = (project_root / path).absolute()
+    if not is_abs:
+        test_path = canonical_path(project_root / path)
         if test_path.exists():
             return test_path
         # Search in cwd
@@ -153,7 +169,7 @@ def resolve_file(
 
 def find_project_path(
     *filenames: Union[str, Path],
-    start: Path = Path.cwd(),
+    start: Optional[Path] = None,
     return_parent: bool = False,
     assert_exists: bool = False
 ) -> Optional[Path]:
@@ -176,7 +192,7 @@ def find_project_path(
     Raises:
         FileNotFoundError if the file cannot be found and `assert_exists` is True.
     """
-    path = start
+    path = start or Path.cwd()
     while path != path.parent:
         for filename in filenames:
             if isinstance(filename, str):

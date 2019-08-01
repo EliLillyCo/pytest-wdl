@@ -13,7 +13,7 @@ import urllib.request
 import delegator
 from pkg_resources import iter_entry_points
 
-from pytest_cromwell.utils import LOG, tempdir, to_path
+from pytest_cromwell.utils import LOG, tempdir, to_path, canonical_path
 
 
 UNSAFE_RE = re.compile(r"[^\w.-]")
@@ -306,17 +306,19 @@ class TestDataResolver:
             localizer = UrlLocalizer(url, self.http_headers, self.proxies)
             if not local_path:
                 if name:
-                    local_path = (self.localize_dir / name).absolute()
+                    local_path = canonical_path(self.localize_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = (self.localize_dir / filename).absolute()
+                    local_path = canonical_path(self.localize_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = (self.localize_dir / name).absolute()
+                    local_path = canonical_path(self.localize_dir / name)
                 else:
-                    local_path = Path(tempfile.mkstemp(dir=self.localize_dir)[1])
+                    local_path = canonical_path(
+                        Path(tempfile.mkstemp(dir=self.localize_dir)[1])
+                    )
         elif name and datadirs:
             for dd in datadirs.paths:
                 dd_path = dd / name
@@ -430,7 +432,7 @@ class CromwellHarness:
             )
             os.chdir(kwargs["execution_dir"])
 
-        wdl_path = to_path(wdl_script, self.project_root)
+        wdl_path = to_path(wdl_script, self.project_root, canonicalize=True)
         if not wdl_path.exists():
             raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
 
@@ -441,7 +443,7 @@ class CromwellHarness:
         inputs_file = None
 
         if "inputs_file" in kwargs:
-            inputs_file = Path(kwargs["inputs_file"]).absolute()
+            inputs_file = canonical_path(Path(kwargs["inputs_file"]))
             if inputs_file.exists():
                 with open(inputs_file, "rt") as inp:
                     cromwell_inputs = json.load(inp)
@@ -465,7 +467,7 @@ class CromwellHarness:
         write_imports = bool(self.import_dirs)
         imports_file = None
         if "imports_file" in kwargs:
-            imports_file = Path(kwargs["imports_file"]).absolute()
+            imports_file = canonical_path(Path(kwargs["imports_file"]))
             if imports_file.exists():
                 write_imports = False
 
