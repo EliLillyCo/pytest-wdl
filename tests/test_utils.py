@@ -2,6 +2,7 @@ import os
 import stat
 from pathlib import Path
 
+import pytest
 from pytest_cromwell.utils import (
     tempdir, chdir, test_dir as _test_dir, to_path, resolve_file,
     find_executable_path
@@ -74,6 +75,12 @@ def test_resolve_file():
             assert resolve_file("bar", project_root=d) == f
 
 
+def test_resolve_missing_file():
+    with tempdir() as d:
+        with pytest.raises(FileNotFoundError):
+            resolve_file("foo", project_root=d, assert_exists=True)
+
+
 def test_find_project_path():
     pass
 
@@ -87,6 +94,22 @@ def test_find_executable_path():
         assert find_executable_path("foo", [d]) is None
         _make_executable(f)
         assert find_executable_path("foo", [d]) == f
+
+
+def test_find_executable_path_system():
+    with tempdir() as d:
+        f = d / "foo"
+        with open(f, "wt") as out:
+            out.write("foo")
+        os.chmod(f, stat.S_IRUSR)
+        curpath = os.environ["PATH"]
+        try:
+            os.environ["PATH"] = str(d)
+            assert find_executable_path("foo") is None
+            _make_executable(f)
+            assert find_executable_path("foo") == f
+        finally:
+            os.environ["PATH"] = curpath
 
 
 def _make_executable(f):
