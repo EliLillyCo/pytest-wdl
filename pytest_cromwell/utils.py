@@ -237,7 +237,21 @@ def find_executable_path(
         search_path = [Path(p) for p in os.environ['PATH'].split(os.pathsep)]
     for path in search_path:
         exe_path = path / executable
+        print(exe_path, exe_path.exists(), os.stat(exe_path).st_mode)
         if exe_path.exists() and (os.stat(exe_path).st_mode & stat.S_IXUSR):
             return exe_path
     else:
         return None
+
+
+def env_map(key_env_map: dict) -> dict:
+    """
+    Given a mapping of keys to environment variables, creates a mapping of the keys
+    to the values of those environment variables (if they are set).
+    """
+    envmap = {}
+    for name, ev in key_env_map.items():
+        value = os.environ.get(ev)
+        if value:
+            envmap[name] = value
+    return envmap

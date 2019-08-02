@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 from pytest_cromwell.utils import (
     tempdir, chdir, test_dir as _test_dir, to_path, resolve_file,
-    find_executable_path
+    find_executable_path, find_project_path, env_map
 )
+from . import setenv, make_executable
 
 
 def test_tempdir():
@@ -77,12 +78,20 @@ def test_resolve_file():
 
 def test_resolve_missing_file():
     with tempdir() as d:
+        assert resolve_file("foo", project_root=d, assert_exists=False) is None
         with pytest.raises(FileNotFoundError):
             resolve_file("foo", project_root=d, assert_exists=True)
 
 
 def test_find_project_path():
-    pass
+    with tempdir() as d:
+        with pytest.raises(FileNotFoundError):
+            assert find_project_path("foo", start=d, assert_exists=True)
+        foo = d / "foo"
+        with open(foo, "wt") as out:
+            out.write("foo")
+        assert find_project_path("foo", start=d, return_parent=False) == foo
+        assert find_project_path("foo", start=d, return_parent=True) == d
 
 
 def test_find_executable_path():
@@ -92,7 +101,7 @@ def test_find_executable_path():
             out.write("foo")
         os.chmod(f, stat.S_IRUSR)
         assert find_executable_path("foo", [d]) is None
-        _make_executable(f)
+        make_executable(f)
         assert find_executable_path("foo", [d]) == f
 
 
@@ -102,16 +111,19 @@ def test_find_executable_path_system():
         with open(f, "wt") as out:
             out.write("foo")
         os.chmod(f, stat.S_IRUSR)
-        curpath = os.environ["PATH"]
-        try:
-            os.environ["PATH"] = str(d)
+        with setenv({"PATH": str(d)}):
             assert find_executable_path("foo") is None
-            _make_executable(f)
+            make_executable(f)
             assert find_executable_path("foo") == f
-        finally:
-            os.environ["PATH"] = curpath
 
 
-def _make_executable(f):
-    current_permissions = stat.S_IMODE(os.lstat(f).st_mode)
-    os.chmod(f, current_permissions | stat.S_IXUSR)
+def test_env_map():
+    with setenv({
+        "HTTP_PROXY": "http://foo.com",
+    }):
+        assert env_map({
+            "http": "HTTP_PROXY",
+            "https": "HTTPS_PROXY"
+        }) == {
+            "http": "http://foo.com"
+        }

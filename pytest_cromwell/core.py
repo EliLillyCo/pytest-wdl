@@ -218,31 +218,36 @@ class DataDirs:
     datadir and datadir-ng plugins. Paths are resolved lazily upon first request.
     """
     def __init__(
-        self, basedir: Path, module, cls: Optional[Type], function: Optional[Callable]
+        self, basedir: Path, module, function: Callable, cls: Optional[Type]
     ):
         self.basedir = basedir
-        self.module = module
-        self.cls = cls
-        self.function = function
+        module_path = module.__name__.split(".")
+        if (basedir / "__init__.py").exists() and module_path[0] == basedir.name:
+            # This is a case where the tests/ directory contains __init__.py
+            # and the first item in the module path is "tests"
+            module_path = module_path[1:]
+        self.module = os.path.join(*module_path)
+        self.function = function.__name__
+        self.cls = cls.__name__ if cls else None
         self._paths = None
 
     @property
     def paths(self) -> List[Path]:
         if self._paths is None:
             def add_datadir_paths(root: Path):
-                testdir = root / self.module.__name__
+                testdir = root / self.module
                 if testdir.exists():
                     if self.cls is not None:
-                        clsdir = testdir / self.cls.__name__
+                        clsdir = testdir / self.cls
                         if clsdir.exists():
-                            fndir = clsdir / self.function.__name__
+                            fndir = clsdir / self.function
                             if fndir.exists():
                                 self._paths.apend(fndir)
                             self._paths.append(clsdir)
                     else:
-                        fndir = testdir / self.function.__name__
+                        fndir = testdir / self.function
                         if fndir.exists():
-                            self._paths.apend(fndir)
+                            self._paths.append(fndir)
                     self._paths.append(testdir)
 
             self._paths = []
@@ -327,7 +332,7 @@ class TestDataResolver:
             else:
                 raise FileNotFoundError(
                     f"File {name} not found in any of the following datadirs: "
-                    f"{datadirs}"
+                    f"{datadirs.paths}"
                 )
             if not local_path:
                 local_path = dd_path

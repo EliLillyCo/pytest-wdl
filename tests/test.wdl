@@ -1,3 +1,5 @@
+import "submodule.wdl"
+
 task cat {
   File in_txt
 
@@ -21,7 +23,13 @@ workflow cat_file {
     input: in_txt = in_txt
   }
 
+  call submodule.foo {
+    input:
+      s = "foo"
+  }
+
   output {
     File out_txt = cat.out_txt
+    File out2 = foo.out
   }
 }
