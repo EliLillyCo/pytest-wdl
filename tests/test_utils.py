@@ -119,11 +119,11 @@ def test_find_executable_path_system():
 
 def test_env_map():
     with setenv({
-        "HTTP_PROXY": "http://foo.com",
+        "FOOVAR1": "http://foo.com",
     }):
         assert env_map({
-            "http": "HTTP_PROXY",
-            "https": "HTTPS_PROXY"
+            "http": "FOOVAR1",
+            "https": "FOOVAR2"
         }) == {
             "http": "http://foo.com"
         }
