@@ -240,7 +240,6 @@ def find_executable_path(
             return None
     for path in search_path:
         exe_path = path / executable
-        print(exe_path, exe_path.exists(), os.stat(exe_path).st_mode)
         if exe_path.exists() and (os.stat(exe_path).st_mode & stat.S_IXUSR):
             return exe_path
     else:

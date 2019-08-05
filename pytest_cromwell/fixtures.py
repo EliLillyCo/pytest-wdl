@@ -169,7 +169,7 @@ def java_bin() -> Union[str, Path]:
     """
     java_home = os.environ.get("JAVA_HOME")
     if java_home:
-        path = Path(java_home)
+        path = to_path(java_home, canonicalize=True)
         if not path.exists():
             raise FileNotFoundError(f"JAVA_HOME directory {path} does not exist")
         bin_path = path / "bin" / "java"
