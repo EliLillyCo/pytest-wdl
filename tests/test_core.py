@@ -113,14 +113,14 @@ def test_data_dirs():
         ]
 
 
-def test_data_resolver():
-    with tempdir() as d1, tempdir() as d2:
-        test_data_json = d1 / "test_data.json"
-        test_data = {
-            "foo": {
-                ""
-            }
-        }
-        with open(test_data_json, "wt") as out:
-            json.dump(, out)
-        resolver = TestDataResolver(d2)
+# def test_data_resolver():
+#     with tempdir() as d1, tempdir() as d2:
+#         test_data_json = d1 / "test_data.json"
+#         test_data = {
+#             "foo": {
+#                 ""
+#             }
+#         }
+#         with open(test_data_json, "wt") as out:
+#             json.dump(, out)
+#         resolver = TestDataResolver(d2)
