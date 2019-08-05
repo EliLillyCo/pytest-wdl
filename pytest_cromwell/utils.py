@@ -234,7 +234,10 @@ def find_executable_path(
         Absolute path of the executable, or None if no matching executable was found.
     """
     if search_path is None:
-        search_path = [Path(p) for p in os.environ['PATH'].split(os.pathsep)]
+        if "PATH" in os.environ:
+            search_path = [Path(p) for p in os.environ["PATH"].split(os.pathsep)]
+        else:
+            return None
     for path in search_path:
         exe_path = path / executable
         print(exe_path, exe_path.exists(), os.stat(exe_path).st_mode)

@@ -4,7 +4,7 @@
 Test that bam data_type works.
 """
 from pytest_cromwell.utils import find_project_path
-
+from .. import no_internet
 import pytest
 
 
@@ -18,6 +18,7 @@ def test_data_file(project_root):
     )
 
 
+@pytest.mark.skipif(no_internet, reason="no internet available")
 def test_bam(test_data, workflow_runner):
     workflow_runner(
         wdl_script='tests/test_bam/test_bam.wdl',

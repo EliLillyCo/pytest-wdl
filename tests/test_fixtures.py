@@ -1,5 +1,7 @@
 from pathlib import Path
-from pytest_cromwell.fixtures import import_dirs, java_bin
+from pytest_cromwell.fixtures import (
+    import_dirs, java_bin, cromwell_config_file, java_args, cromwell_jar_file
+)
 from pytest_cromwell.utils import tempdir
 import pytest
 from . import setenv, make_executable
@@ -25,7 +27,7 @@ def test_import_dirs():
         with open(foo, "wt") as out:
             out.write("bar")
         with pytest.raises(FileNotFoundError):
-            import_dirs(None, d, "foo")
+            import_dirs(None, d, foo)
 
     cwd = Path.cwd()
     mock = Mock()
@@ -50,6 +52,69 @@ def test_java_bin():
         }):
             assert java_bin() == java
 
+        with setenv({
+            "PATH": None,
+            "JAVA_HOME": None
+        }):
+            with pytest.raises(FileNotFoundError):
+                java_bin()
+
     with setenv({"JAVA_HOME": "foo"}):
         with pytest.raises(FileNotFoundError):
             java_bin()
+
+
+def test_cromwell_config():
+    assert cromwell_config_file() is None
+    with tempdir() as d:
+        config = d / "config"
+        with setenv({"CROMWELL_CONFIG_FILE": str(config)}):
+            with pytest.raises(FileNotFoundError):
+                cromwell_config_file()
+            with open(config, "wt") as out:
+                out.write("foo")
+            assert cromwell_config_file() == config
+
+
+def test_java_args():
+    assert java_args() is None
+    with pytest.raises(FileNotFoundError):
+        java_args(Path("foo"))
+    with tempdir() as d:
+        config = d / "config"
+        with pytest.raises(FileNotFoundError):
+            java_args(config)
+        with open(config, "wt") as out:
+            out.write("foo")
+        assert java_args(config) == f"-Dconfig.file={config}"
+
+
+def test_cromwell_jar():
+    with tempdir() as d:
+        jar = d / "cromwell.jar"
+
+        with setenv({"CROMWELL_JAR": str(jar)}):
+            with pytest.raises(FileNotFoundError):
+                cromwell_jar_file()
+            with open(jar, "wt") as out:
+                out.write("foo")
+            assert cromwell_jar_file() == jar
+
+        with setenv({
+            "CROMWELL_JAR": None,
+            "CLASSPATH": str(d)
+        }):
+            assert cromwell_jar_file() == jar
+
+        with setenv({
+            "CROMWELL_JAR": None,
+            "CLASSPATH": str(jar)
+        }):
+            assert cromwell_jar_file() == jar
+
+        with setenv({
+            "CROMWELL_JAR": None,
+            "CLASSPATH": None
+        }):
+            with pytest.raises(FileNotFoundError):
+                cromwell_jar_file()

@@ -1,4 +1,4 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 import glob
 import hashlib
 import json
@@ -23,6 +23,7 @@ class Localizer(metaclass=ABCMeta):
     """
     Abstract base of classes that implement file localization.
     """
+    @abstractmethod
     def localize(self, destination: Path) -> None:
         """
         Localize a resource to `destination`.
@@ -48,16 +49,19 @@ class UrlLocalizer(Localizer):
 
     def localize(self, destination: Path):
         LOG.debug(f"Localizing url {self.url} to {destination}")
-        req = urllib.request.Request(self.url)
-        if self.http_headers:
-            for name, value in self.http_headers.items():
-                req.add_header(name, value)
-        if self.proxies:
-            for proxy_type, url in self.proxies.items():
-                req.set_proxy(url, proxy_type)
-        rsp = urllib.request.urlopen(req)
-        with open(destination, "wb") as out:
-            shutil.copyfileobj(rsp, out)
+        try:
+            req = urllib.request.Request(self.url)
+            if self.http_headers:
+                for name, value in self.http_headers.items():
+                    req.add_header(name, value)
+            if self.proxies:
+                for proxy_type, url in self.proxies.items():
+                    req.set_proxy(url, proxy_type)
+            rsp = urllib.request.urlopen(req)
+            with open(destination, "wb") as out:
+                shutil.copyfileobj(rsp, out)
+        except Exception as err:
+            raise RuntimeError(f"Error localizing url {self.url}") from err
 
 
 class StringLocalizer(Localizer):
@@ -81,7 +85,7 @@ class LinkLocalizer(Localizer):
         self.source = source
 
     def localize(self, destination: Path):
-        self.source.symlink_to(destination)
+        destination.symlink_to(self.source)
 
 
 class DataFile:
@@ -97,9 +101,13 @@ class DataFile:
     def __init__(
         self,
         local_path: Path,
-        localizer: Localizer,
-        allowed_diff_lines: int = 0
+        localizer: Optional[Localizer] = None,
+        allowed_diff_lines: Optional[int] = 0
     ):
+        if localizer is None and not local_path.exists():
+            raise ValueError(
+                f"Local path {local_path} does not exist and 'localizer' is None"
+            )
         self.local_path = local_path
         self.localizer = localizer
         self.allowed_diff_lines = allowed_diff_lines
@@ -242,7 +250,7 @@ class DataDirs:
                         if clsdir.exists():
                             fndir = clsdir / self.function
                             if fndir.exists():
-                                self._paths.apend(fndir)
+                                self._paths.append(fndir)
                             self._paths.append(clsdir)
                     else:
                         fndir = testdir / self.function

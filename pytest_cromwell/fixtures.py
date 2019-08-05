@@ -50,7 +50,11 @@ def test_data_file() -> Optional[Union[str, Path]]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
-    return find_project_path(Path("tests") / "test_data.json")
+    tests = find_project_path(Path("tests"))
+    if tests:
+        test_data = tests / "test_data.txt"
+        if test_data.exists():
+            return test_data
 
 
 def test_data_dir(project_root: Union[str, Path]) -> Union[str, Path]:
@@ -139,9 +143,7 @@ def import_dirs(
     if import_paths:
         import_paths = to_path(import_paths)
         if not import_paths.exists():
-            raise FileNotFoundError(
-                f"import_paths.json file {import_paths} does not exist"
-            )
+            raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
 
         paths = []
 
@@ -194,9 +196,14 @@ def cromwell_config_file() -> Union[str, Path, None]:
         return None
 
 
-def java_args(cromwell_config_file: Union[str, Path]) -> Optional[str]:
+def java_args(cromwell_config_file: Optional[Union[str, Path]] = None) -> Optional[str]:
     if cromwell_config_file:
-        return f"-Dconfig.file={cromwell_config_file}"
+        if cromwell_config_file.exists():
+            return f"-Dconfig.file={cromwell_config_file}"
+        else:
+            raise FileNotFoundError(
+                f"Cromwell config file not found: {cromwell_config_file}"
+            )
 
 
 def cromwell_jar_file() -> Union[str, Path]:
@@ -219,7 +226,7 @@ def cromwell_jar_file() -> Union[str, Path]:
         path = canonical_path(Path(path_str))
         if path.exists():
             if path.is_dir():
-                matches = list(path.glob("cromwell*"))
+                matches = list(path.glob("cromwell*.jar"))
                 if matches:
                     if len(matches) > 1:
                         LOG.warning(

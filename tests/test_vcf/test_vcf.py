@@ -1,6 +1,7 @@
 from pytest_cromwell.data_types.vcf import VcfDataFile
 from pytest_cromwell.core import StringLocalizer
 from pytest_cromwell.utils import tempdir, find_project_path
+from .. import no_internet
 import pytest
 
 
@@ -41,6 +42,7 @@ def test_vcf_data_file_different():
         v1.assert_contents_equal(v2)
 
 
+@pytest.mark.skipif(no_internet, reason="no internet available")
 def test_vcf(test_data, workflow_runner):
     workflow_runner(
         wdl_script="tests/test_vcf/test_vcf.wdl",
