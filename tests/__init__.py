@@ -1,16 +1,16 @@
 import contextlib
 import os
+import socket
 from pathlib import Path
 import stat
-import urllib.request
 
 
 try:
     # TODO: is there a better method for testing whether
     #  internet access is available?
-    urllib.request.urlopen("http://google.com")
+    socket.create_connection(("www.google.com", 80))
     no_internet = False
-except:
+except OSError:
     no_internet = True
 
 

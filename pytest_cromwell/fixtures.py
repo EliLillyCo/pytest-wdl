@@ -46,15 +46,16 @@ def project_root(
         return path.parent
 
 
-def test_data_file() -> Optional[Union[str, Path]]:
+def test_data_file() -> Union[str, Path]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
     tests = find_project_path(Path("tests"))
     if tests:
-        test_data = tests / "test_data.txt"
+        test_data = tests / "test_data.json"
         if test_data.exists():
             return test_data
+    raise FileNotFoundError("Could not find test_data.json file")
 
 
 def test_data_dir(project_root: Union[str, Path]) -> Union[str, Path]:
@@ -250,20 +251,23 @@ def cromwell_args() -> Optional[str]:
 def test_data_resolver(
     test_data_file: Union[str, Path],
     test_data_dir: Union[str, Path],
-    http_headers: dict,
-    proxies: dict
+    http_headers: Optional[dict] = None,
+    proxies: Optional[dict] = None
 ) -> TestDataResolver:
     """
     Provides access to test data files for tests in a module.
 
     Args:
-        test_data_file: test_data_file fixture.
         test_data_dir: test_data_dir fixture.
+        test_data_file: test_data_file fixture.
         http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
     return TestDataResolver(
-        to_path(test_data_file), to_path(test_data_dir), http_headers, proxies
+        to_path(test_data_file),
+        to_path(test_data_dir),
+        http_headers,
+        proxies
     )
 
 

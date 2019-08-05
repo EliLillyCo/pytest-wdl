@@ -228,12 +228,16 @@ class DataDirs:
     def __init__(
         self, basedir: Path, module, function: Callable, cls: Optional[Type]
     ):
-        self.basedir = basedir
         module_path = module.__name__.split(".")
-        if (basedir / "__init__.py").exists() and module_path[0] == basedir.name:
-            # This is a case where the tests/ directory contains __init__.py
-            # and the first item in the module path is "tests"
-            module_path = module_path[1:]
+        if len(module_path) > 1:
+            for mod in reversed(module_path[:-1]):
+                if basedir.name == mod:
+                    basedir = basedir.parent
+                else:
+                    raise RuntimeError(
+                        f"Module path {module_path} does not match basedir {basedir}"
+                    )
+        self.basedir = basedir
         self.module = os.path.join(*module_path)
         self.function = function.__name__
         self.cls = cls.__name__ if cls else None
@@ -244,16 +248,20 @@ class DataDirs:
         if self._paths is None:
             def add_datadir_paths(root: Path):
                 testdir = root / self.module
+                print(f"Checking {testdir}")
                 if testdir.exists():
                     if self.cls is not None:
                         clsdir = testdir / self.cls
+                        print(f"Checking {clsdir}")
                         if clsdir.exists():
                             fndir = clsdir / self.function
+                            print(f"Checking {fndir}")
                             if fndir.exists():
                                 self._paths.append(fndir)
                             self._paths.append(clsdir)
                     else:
                         fndir = testdir / self.function
+                        print(f"Checking {fndir}")
                         if fndir.exists():
                             self._paths.append(fndir)
                     self._paths.append(testdir)
@@ -276,12 +284,11 @@ class TestDataResolver:
         self,
         test_data_file: Path,
         localize_dir: Path,
-        http_headers: dict,
-        proxies: dict
+        http_headers: Optional[dict],
+        proxies: Optional[dict]
     ):
         with open(test_data_file, "rt") as inp:
             self._data = json.load(inp)
-
         self.localize_dir = localize_dir
         self.http_headers = http_headers
         self.proxies = proxies
