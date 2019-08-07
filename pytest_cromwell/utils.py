@@ -30,14 +30,21 @@ LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 
 
 @contextlib.contextmanager
-def tempdir() -> Path:
+def tempdir(change_dir: bool = False) -> Path:
     """
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
+
+    Args:
+        change_dir: Whether to temporarily change to the temp dir.
     """
     temp = canonical_path(Path(tempfile.mkdtemp()))
     try:
-        yield temp
+        if change_dir:
+            with chdir(temp):
+                yield temp
+        else:
+            yield temp
     finally:
         shutil.rmtree(temp)
 

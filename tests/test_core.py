@@ -113,14 +113,24 @@ def test_data_dirs():
         ]
 
 
-# def test_data_resolver():
-#     with tempdir() as d1, tempdir() as d2:
-#         test_data_json = d1 / "test_data.json"
-#         test_data = {
-#             "foo": {
-#                 ""
-#             }
-#         }
-#         with open(test_data_json, "wt") as out:
-#             json.dump(, out)
-#         resolver = TestDataResolver(d2)
+def test_data_resolver():
+    with tempdir() as d1, tempdir() as d2:
+        test_data_json = d1 / "test_data.json"
+        test_data = {
+            "foo": {
+                "name": "foo.txt"
+            }
+        }
+        with open(test_data_json, "wt") as out:
+            json.dump(test_data, out)
+        foo_txt = d2 / "data" / "foo.txt"
+        foo_txt.parent.mkdir()
+        with open(foo_txt, "wt") as out:
+            out.write("bar")
+        mod = Mock()
+        mod.__name__ = ""
+        fun = Mock()
+        fun.__name__ = "test_foo"
+        dd = DataDirs(d2, mod, fun)
+        resolver = TestDataResolver(test_data_json)
+        assert resolver.resolve("foo", dd).path == foo_txt

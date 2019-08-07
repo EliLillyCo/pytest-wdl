@@ -226,7 +226,11 @@ class DataDirs:
     datadir and datadir-ng plugins. Paths are resolved lazily upon first request.
     """
     def __init__(
-        self, basedir: Path, module, function: Callable, cls: Optional[Type]
+        self,
+        basedir: Path,
+        module,  # TODO: no Module type in typelib yet
+        function: Callable,
+        cls: Optional[Type] = None
     ):
         module_path = module.__name__.split(".")
         if len(module_path) > 1:
@@ -283,9 +287,9 @@ class TestDataResolver:
     def __init__(
         self,
         test_data_file: Path,
-        localize_dir: Path,
-        http_headers: Optional[dict],
-        proxies: Optional[dict]
+        localize_dir: Optional[Path] = None,
+        http_headers: Optional[dict] = None,
+        proxies: Optional[dict] = None
     ):
         with open(test_data_file, "rt") as inp:
             self._data = json.load(inp)

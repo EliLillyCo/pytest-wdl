@@ -2,10 +2,10 @@ from pathlib import Path
 from pytest_cromwell.fixtures import (
     import_dirs, java_bin, cromwell_config_file, java_args, cromwell_jar_file
 )
-from pytest_cromwell.utils import tempdir
+from pytest_cromwell.utils import tempdir, chdir
 import pytest
-from . import setenv, make_executable
 from unittest.mock import Mock
+from . import setenv, make_executable
 
 
 def test_fixtures(test_data, workflow_runner):
@@ -29,10 +29,18 @@ def test_import_dirs():
         with pytest.raises(FileNotFoundError):
             import_dirs(None, d, foo)
 
-    cwd = Path.cwd()
-    mock = Mock()
-    mock.fspath.dirpath.return_value = cwd
-    assert import_dirs(mock, None, None) == [cwd.parent]
+    with tempdir(change_dir=True) as cwd:
+        tests = cwd / "tests"
+        tests.mkdir()
+        req = Mock()
+        req.fspath.dirpath.return_value = str(tests)
+
+        assert import_dirs(req, None, None) == []
+
+        foo = cwd / "foo.wdl"
+        with open(foo, "wt") as out:
+            out.write("foo")
+        assert import_dirs(req, None, None) == [cwd]
 
 
 def test_java_bin():

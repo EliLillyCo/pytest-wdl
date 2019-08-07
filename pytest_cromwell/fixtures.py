@@ -159,8 +159,14 @@ def import_dirs(
 
         return paths
     else:
-        # Fall back to importing the WDL files in the parent of the current directory
-        return [Path(request.fspath.dirpath()).parent]
+        # Fall back to importing WDL files in a parent of the test directory
+        path = find_project_path(
+            "*.wdl", start=Path(request.fspath.dirpath()).parent, return_parent=True
+        )
+        if path:
+            return [path]
+        else:
+            return []
 
 
 def java_bin() -> Union[str, Path]:
