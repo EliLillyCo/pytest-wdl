@@ -11,7 +11,7 @@ from typing import List, Optional, Union
 
 from _pytest.fixtures import FixtureRequest
 
-from pytest_cromwell.core import CromwellHarness, TestDataResolver, TestData, DataDirs
+from pytest_cromwell.core import CromwellHarness, DataResolver, DataManager, DataDirs
 from pytest_cromwell.utils import (
     LOG, chdir, to_path, test_dir, find_project_path, find_executable_path,
     canonical_path, env_map
@@ -24,7 +24,7 @@ def project_root_files() -> List[str]:
     directory. Used by the `project_root` fixture to locate the project root
     directory.
     """
-    return [".git", "requirements.txt", "setup.py", "pyproject.toml"]
+    return [".git", "setup.py", "pyproject.toml"]
 
 
 def project_root(
@@ -259,7 +259,7 @@ def test_data_resolver(
     test_data_dir: Union[str, Path],
     http_headers: Optional[dict] = None,
     proxies: Optional[dict] = None
-) -> TestDataResolver:
+) -> DataResolver:
     """
     Provides access to test data files for tests in a module.
 
@@ -269,7 +269,7 @@ def test_data_resolver(
         http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
-    return TestDataResolver(
+    return DataResolver(
         to_path(test_data_file),
         to_path(test_data_dir),
         http_headers,
@@ -278,8 +278,8 @@ def test_data_resolver(
 
 
 def test_data(
-    request: FixtureRequest, test_data_resolver: TestDataResolver
-) -> TestData:
+    request: FixtureRequest, test_data_resolver: DataResolver
+) -> DataManager:
     """
     Provides an accessor for test data files, which may be local or in a remote
     repository.
@@ -301,7 +301,7 @@ def test_data(
         request.function,
         request.cls
     )
-    return TestData(test_data_resolver, datadirs)
+    return DataManager(test_data_resolver, datadirs)
 
 
 def cromwell_harness(

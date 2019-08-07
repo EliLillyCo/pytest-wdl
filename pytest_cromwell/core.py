@@ -19,7 +19,7 @@ from pytest_cromwell.utils import LOG, tempdir, to_path, canonical_path
 UNSAFE_RE = re.compile(r"[^\w.-]")
 
 
-class Localizer(metaclass=ABCMeta):
+class Localizer(metaclass=ABCMeta):  # pragma: no-cover
     """
     Abstract base of classes that implement file localization.
     """
@@ -48,7 +48,10 @@ class UrlLocalizer(Localizer):
         self.proxies = proxies
 
     def localize(self, destination: Path):
-        LOG.debug(f"Localizing url {self.url} to {destination}")
+        LOG.debug(
+            f"Localizing url %s to %s with headers %s and proxies %s",
+            self.url, str(destination), str(self.http_headers), str(self.proxies)
+        )
         try:
             req = urllib.request.Request(self.url)
             if self.http_headers:
@@ -280,7 +283,7 @@ class DataDirs:
         return self._paths
 
 
-class TestDataResolver:
+class DataResolver:
     """
     Resolves data files that may need to be localized.
     """
@@ -366,7 +369,7 @@ class TestDataResolver:
         return data_file_class(local_path, localizer, **kwargs)
 
 
-class TestData:
+class DataManager:
     """
     Manages test data, which is defined in a test_data.json file.
 
@@ -374,7 +377,7 @@ class TestData:
         test_data_resolver: Module-level config.
         datadirs: Data directories to search for the data file.
     """
-    def __init__(self, test_data_resolver: TestDataResolver, datadirs: DataDirs):
+    def __init__(self, test_data_resolver: DataResolver, datadirs: DataDirs):
         self.test_data_resolver = test_data_resolver
         self.datadirs = datadirs
 

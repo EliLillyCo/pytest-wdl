@@ -1,7 +1,7 @@
 import gzip
 import json
 from pytest_cromwell.core import (
-    LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, TestDataResolver
+    LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver
 )
 from pytest_cromwell.utils import tempdir
 from . import no_internet
@@ -30,7 +30,7 @@ def test_data_file():
         bar = d / "bar.txt"
         with open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DataFile(bar, LinkLocalizer(foo))
+        df = DataFile(bar, LinkLocalizer(foo), allowed_diff_lines=None)
 
         baz = d / "baz.txt"
         with open(baz, "wt") as out:
@@ -132,5 +132,5 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d2, mod, fun)
-        resolver = TestDataResolver(test_data_json)
+        resolver = DataResolver(test_data_json)
         assert resolver.resolve("foo", dd).path == foo_txt
