@@ -142,8 +142,8 @@ def test_data_resolver():
         mod.__name__ = ""
         fun = Mock()
         fun.__name__ = "test_foo"
-        dd = DataDirs(d2, mod, fun)
-        resolver = DataResolver(test_data_json)
+        dd = DataDirs(d, mod, fun)
+        resolver = DataResolver(test_data)
         with pytest.raises(ValueError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
@@ -151,4 +151,14 @@ def test_data_resolver():
 
 
 def test_data_resolver_create():
-    pass
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "path": "foo.txt",
+                "contents": "foo"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "foo.txt"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
