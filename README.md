@@ -122,8 +122,8 @@ The main fixtures are:
 There are also fixtures for specifying required inputs to the two main fixtures.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
-* data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
-* data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
+* io_data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
+* io_data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
 * cache_dir: Local directory for caching test data. The `CACHE_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
 * execution_dir: Local directory in which tests are executed. The `EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
 * http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
