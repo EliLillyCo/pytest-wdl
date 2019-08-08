@@ -92,23 +92,37 @@ def test_url_localizer():
 def test_data_dirs():
     with tempdir() as d:
         mod = Mock()
-        mod.__name__ = "foo"
+        mod.__name__ = "foo.bar"
         cls = Mock()
-        cls.__name__ = "bar"
+        cls.__name__ = "baz"
         fun = Mock()
-        fun.__name__ = "baz"
-        mod_cls_fun = d / "foo" / "bar" / "baz"
+        fun.__name__ = "blorf"
+        mod_cls_fun = d / "foo" / "bar" / "baz" / "blorf"
         mod_cls_fun.mkdir(parents=True)
-        data_mod_cls_fun = d / "data" / "foo" / "bar" / "baz"
+        data_mod_cls_fun = d / "data" / "foo" / "bar" / "baz" / "blorf"
         data_mod_cls_fun.mkdir(parents=True)
-        dd = DataDirs(d, mod, fun, cls)
+        with pytest.raises(RuntimeError):
+            DataDirs(d, mod, fun, cls)
+        dd = DataDirs(d / "foo", mod, fun, cls)
+        assert dd.paths == [
+            mod_cls_fun,
+            d / "foo" / "bar" / "baz",
+            d / "foo" / "bar",
+            data_mod_cls_fun,
+            d / "data" / "foo" / "bar" / "baz",
+            d / "data" / "foo" / "bar",
+            d / "data"
+        ]
+        mod_cls_fun = d / "foo" / "bar" / "blorf"
+        mod_cls_fun.mkdir(parents=True)
+        data_mod_cls_fun = d / "data" / "foo" / "bar" / "blorf"
+        data_mod_cls_fun.mkdir(parents=True)
+        dd = DataDirs(d / "foo", mod, fun)
         assert dd.paths == [
             mod_cls_fun,
             d / "foo" / "bar",
-            d / "foo",
             data_mod_cls_fun,
             d / "data" / "foo" / "bar",
-            d / "data" / "foo",
             d / "data"
         ]
 
@@ -118,7 +132,8 @@ def test_data_resolver():
         test_data = {
             "foo": {
                 "name": "foo.txt"
-            }
+            },
+            "bar": 1
         }
         foo_txt = d2 / "data" / "foo.txt"
         foo_txt.parent.mkdir()
@@ -129,5 +144,12 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d2, mod, fun)
-        resolver = DataResolver(test_data)
+        resolver = DataResolver(test_data_json)
+        with pytest.raises(ValueError):
+            resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
+        assert resolver.resolve("bar", dd) == 1
+
+
+def test_data_resolver_create():
+    pass
