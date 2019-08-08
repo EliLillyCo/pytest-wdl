@@ -91,6 +91,7 @@ def http_header_map() -> dict:
     Fixture that provides a mapping from HTTP header name to the environment variable
     from which the value should be retrieved.
     """
+    LOG.debug("Calling http_header_map from fixtures.py")
     return {}
 
 
@@ -98,6 +99,7 @@ def http_headers(http_header_map: dict) -> dict:
     """
     Fixture that provides request HTTP headers to use when downloading files.
     """
+    LOG.debug("Calling http_headers from fixtures.py")
     return env_map(http_header_map)
 
 
@@ -203,7 +205,7 @@ def cromwell_config_file() -> Union[str, Path, None]:
         return None
 
 
-def java_args(cromwell_config_file: Optional[Union[str, Path]] = None) -> Optional[str]:
+def java_args(cromwell_config_file: Optional[Union[str, Path]]) -> Optional[str]:
     if cromwell_config_file:
         if cromwell_config_file.exists():
             return f"-Dconfig.file={cromwell_config_file}"
@@ -257,8 +259,8 @@ def cromwell_args() -> Optional[str]:
 def test_data_resolver(
     test_data_file: Union[str, Path],
     test_data_dir: Union[str, Path],
-    http_headers: Optional[dict] = None,
-    proxies: Optional[dict] = None
+    http_headers: Optional[dict],
+    proxies: Optional[dict]
 ) -> DataResolver:
     """
     Provides access to test data files for tests in a module.
@@ -269,6 +271,7 @@ def test_data_resolver(
         http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
+    LOG.debug("Calling test_data_resolver from fixtures.py")
     return DataResolver(
         to_path(test_data_file),
         to_path(test_data_dir),
@@ -295,6 +298,7 @@ def test_data(
         def test_workflow(test_data):
             print(test_data["myfile"])
     """
+    LOG.debug("Calling test_data from fixtures.py")
     datadirs = DataDirs(
         to_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
@@ -347,8 +351,8 @@ def workflow_runner(
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
-        workflow_name: str,
-        inputs: dict,
+        workflow_name: Optional[str] = None,
+        inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
     ):

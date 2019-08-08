@@ -2,7 +2,7 @@ from pathlib import Path
 from pytest_cromwell.fixtures import (
     import_dirs, java_bin, cromwell_config_file, java_args, cromwell_jar_file
 )
-from pytest_cromwell.utils import tempdir, chdir
+from pytest_cromwell.utils import tempdir
 import pytest
 from unittest.mock import Mock
 from . import setenv, make_executable
@@ -85,7 +85,7 @@ def test_cromwell_config():
 
 
 def test_java_args():
-    assert java_args() is None
+    assert java_args(None) is None
     with pytest.raises(FileNotFoundError):
         java_args(Path("foo"))
     with tempdir() as d:
