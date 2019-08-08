@@ -4,6 +4,7 @@ This package provides fixtures to enable writing tests that execute WDL workflow
 
 ## Dependencies
 
+* Python 3.6+
 * Java 1.8+
 * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
 * [Docker](https://www.docker.com/get-started) daemon (if your WDL tasks depend on Docker images)
