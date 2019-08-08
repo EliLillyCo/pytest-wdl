@@ -228,7 +228,3 @@ setup(
 ```
 
 In this example, the extra dependencies can be installed with `pip install pytest-wdl[bam]`.
-
-# TODO
-
-* Bring the pytest-datadir-ng `datadir` fixture internal and update to use pathlib.
