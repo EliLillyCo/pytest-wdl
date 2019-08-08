@@ -1,0 +1,15 @@
+[paths]
+source = pytest_wdl/
+
+[run]
+source = pytest_wdl/
+
+[report]
+show_missing = true
+precision = 2
+exclude_lines =
+    pragma: no cover
+    pragma: no-cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
