@@ -284,24 +284,23 @@ class DataResolver:
     """
     def __init__(
         self,
-        test_data_file: Path,
-        localize_dir: Optional[Path] = None,
+        data_descriptors: dict,
+        cache_dir: Optional[Path] = None,
         http_headers: Optional[dict] = None,
         proxies: Optional[dict] = None
     ):
-        with open(test_data_file, "rt") as inp:
-            self._data = json.load(inp)
-        self.localize_dir = localize_dir
+        self.data_descriptors = data_descriptors
+        self.cache_dir = cache_dir
         self.http_headers = http_headers
         self.proxies = proxies
 
     def resolve(
         self, name: str, datadirs: Optional[DataDirs] = None
     ) -> DataFile:
-        if name not in self._data:
+        if name not in self.data_descriptors:
             raise ValueError(f"Unrecognized name {name}")
 
-        value = self._data[name]
+        value = self.data_descriptors[name]
         if isinstance(value, dict):
             return self.create_data_file(datadirs=datadirs, **cast(dict, value))
         else:
@@ -322,24 +321,24 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = to_path(path, self.localize_dir)
+            local_path = to_path(path, self.cache_dir)
 
         if url:
             localizer = UrlLocalizer(url, self.http_headers, self.proxies)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.localize_dir / name)
+                    local_path = canonical_path(self.cache_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = canonical_path(self.localize_dir / filename)
+                    local_path = canonical_path(self.cache_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.localize_dir / name)
+                    local_path = canonical_path(self.cache_dir / name)
                 else:
                     local_path = canonical_path(
-                        Path(tempfile.mkstemp(dir=self.localize_dir)[1])
+                        Path(tempfile.mkstemp(dir=self.cache_dir)[1])
                     )
         elif name and datadirs:
             for dd in datadirs.paths:
@@ -369,15 +368,15 @@ class DataManager:
     Manages test data, which is defined in a test_data.json file.
 
     Args:
-        test_data_resolver: Module-level config.
+        data_resolver: Module-level config.
         datadirs: Data directories to search for the data file.
     """
-    def __init__(self, test_data_resolver: DataResolver, datadirs: DataDirs):
-        self.test_data_resolver = test_data_resolver
+    def __init__(self, data_resolver: DataResolver, datadirs: DataDirs):
+        self.data_resolver = data_resolver
         self.datadirs = datadirs
 
     def __getitem__(self, name):
-        return self.test_data_resolver.resolve(name, self.datadirs)
+        return self.data_resolver.resolve(name, self.datadirs)
 
 
 class CromwellHarness:
