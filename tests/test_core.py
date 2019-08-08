@@ -1,5 +1,4 @@
 import gzip
-import json
 from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver
 )
@@ -128,14 +127,14 @@ def test_data_dirs():
 
 
 def test_data_resolver():
-    with tempdir() as d1, tempdir() as d2:
+    with tempdir() as d:
         test_data = {
             "foo": {
                 "name": "foo.txt"
             },
             "bar": 1
         }
-        foo_txt = d2 / "data" / "foo.txt"
+        foo_txt = d / "data" / "foo.txt"
         foo_txt.parent.mkdir()
         with open(foo_txt, "wt") as out:
             out.write("bar")
@@ -143,8 +142,8 @@ def test_data_resolver():
         mod.__name__ = ""
         fun = Mock()
         fun.__name__ = "test_foo"
-        dd = DataDirs(d2, mod, fun)
-        resolver = DataResolver(test_data_json)
+        dd = DataDirs(d, mod, fun)
+        resolver = DataResolver(test_data)
         with pytest.raises(ValueError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
@@ -152,4 +151,14 @@ def test_data_resolver():
 
 
 def test_data_resolver_create():
-    pass
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "path": "foo.txt",
+                "contents": "foo"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "foo.txt"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
