@@ -113,7 +113,7 @@ class DataFile:
             )
         self.local_path = local_path
         self.localizer = localizer
-        self.allowed_diff_lines = allowed_diff_lines
+        self.allowed_diff_lines = allowed_diff_lines or 0
 
     @property
     def path(self) -> Path:
@@ -151,7 +151,7 @@ class DataFile:
 
     @classmethod
     def _assert_contents_equal(
-        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
+        cls, file1: Path, file2: Path, allowed_diff_lines: int
     ) -> None:
         if allowed_diff_lines:
             cls._diff_contents(file1, file2, allowed_diff_lines)
@@ -159,9 +159,7 @@ class DataFile:
             cls._compare_hashes(file1, file2)
 
     @classmethod
-    def _diff_contents(
-        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
-    ) -> None:
+    def _diff_contents(cls, file1: Path, file2: Path, allowed_diff_lines: int) -> None:
         if file1.suffix == ".gz":
             with tempdir() as temp:
                 temp_file1 = temp / "file1"
@@ -171,9 +169,6 @@ class DataFile:
                 diff_lines = cls._diff(temp_file1, temp_file2)
         else:
             diff_lines = cls._diff(file1, file2)
-
-        if allowed_diff_lines is None:
-            allowed_diff_lines = 0
 
         if diff_lines > allowed_diff_lines:
             raise AssertionError(
