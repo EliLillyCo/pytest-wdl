@@ -11,8 +11,8 @@ from typing import List, Optional, Union
 
 from _pytest.fixtures import FixtureRequest
 
-from pytest_cromwell.core import CromwellHarness, DataResolver, DataManager, DataDirs
-from pytest_cromwell.utils import (
+from pytest_wdl.core import CromwellHarness, DataResolver, DataManager, DataDirs
+from pytest_wdl.utils import (
     LOG, chdir, to_path, test_dir, find_project_path, find_executable_path,
     canonical_path, env_map
 )

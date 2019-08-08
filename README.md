@@ -1,4 +1,4 @@
-# pytest-cromwell
+# pytest-wdl
 
 This package provides fixtures to enable writing tests that execute WDL workflows via Cromwell and check the generated output against expected values.
 
@@ -30,7 +30,7 @@ extra-index-url =
 Then you can pip install the module:
 
 ```commandline
-pip install pytest_cromwell
+pip install pytest_wdl
 ```
 
 #### One-Time Artifactory Install
@@ -38,7 +38,7 @@ pip install pytest_cromwell
 If you just want to do this one-time, you can embed the extra-index-url into the pip command. You can also leave out the auth details and it will interactively prompt for them:
 
 ```commandline
-pip install --extra-index-url https://elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple pytest_cromwell
+pip install --extra-index-url https://elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple pytest_wdl
 ```
 Which will then prompt for your username and password, the Artifactory email and token.
 
@@ -53,7 +53,7 @@ python setup.py install
 Or use pip to install from github:
 
 ```commandline
-pip install git+https://github.com/elilillyco/lrl_cromwell_test_runner.git
+pip install git+https://github.com/elilillyco/pytest-wdl.git
 ```
 
 ### Installing Data Type Plugins
@@ -65,15 +65,15 @@ data types that require an extras installation:
 
 To install the dependencies for a data type that has extra dependencies:
 
-`pip install pytest-cromwell[<data_type>]`
+`pip install pytest-wdl[<data_type>]`
 
 To do this locally, you can clone the repo and run:
 
 `pip install -e .[<data_type>]`
 
-To install pytest-cromwell and **all** extras dependencies:
+To install pytest-wdl and **all** extras dependencies:
 
-`pip install pytest-cromwell[all]`
+`pip install pytest-wdl[all]`
 
 ## Usage
 
@@ -152,7 +152,7 @@ The fixtures above can utilize environment variables. Technically, none are requ
 | `TEST_DATA_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
 | `TEST_EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
 | `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
-| `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-cromwell` logger output at various levels. |
+| `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-wdl` logger output at various levels. |
 | `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
 | `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
 
@@ -208,7 +208,7 @@ When comparing outputs of a test execution against an expected output file, that
 
 To create a new data type plugin, add a module in the data_types directory.
 
-This should subclass the `pytest_cromwell.core.DataFile` class and override its methods for _assert_contents_equal() and _diff to define the behavior for this file type.
+This should subclass the `pytest_wdl.core.DataFile` class and override its methods for _assert_contents_equal() and _diff to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies be installed, make sure to use a Try/Except ImportError to warn about this and add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -216,8 +216,8 @@ Next, add an entry point in setup.py. If the data type requires more dependencie
 setup(
     ...,
     entry_points={
-        "pytest_cromwell": [
-            "bam = pytest_cromwell.data_types.bam:BamDataFile"
+        "pytest_wdl": [
+            "bam = pytest_wdl.data_types.bam:BamDataFile"
         ]
     },
     extras_require={
@@ -226,7 +226,7 @@ setup(
 )
 ```
 
-In this example, the extra dependencies can be installed with `pip install pytest-cromwell[bam]`.
+In this example, the extra dependencies can be installed with `pip install pytest-wdl[bam]`.
 
 # TODO
 

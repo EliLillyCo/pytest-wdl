@@ -1,9 +1,9 @@
 """
 Fixtures for writing tests that execute WDL workflows using Cromwell. For testability
-purposes, the implementaiton of these fixtures is done in the pytest_cromwell.fixtures
+purposes, the implementaiton of these fixtures is done in the pytest_wdl.fixtures
 module.
 """
-from pytest_cromwell import fixtures
+from pytest_wdl import fixtures
 import pytest
 
 

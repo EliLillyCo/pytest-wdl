@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 """
-Utility functions for pytest-cromwell.
+Utility functions for pytest-wdl.
 """
 import contextlib
 import logging
@@ -14,7 +14,7 @@ from typing import Optional, Sequence, Union, cast
 from py._path.local import LocalPath
 
 
-LOG = logging.getLogger("pytest-cromwell")
+LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 
 

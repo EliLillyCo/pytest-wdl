@@ -1,5 +1,5 @@
-repo = EliLillyCo/LRL_cromwell_test_runner
-package = pytest_cromwell
+repo = EliLillyCo/pytest-wdl
+package = pytest_wdl
 tests = tests
 # Use this option to show full stack trace for errors
 #pytestopts = "--full-trace"

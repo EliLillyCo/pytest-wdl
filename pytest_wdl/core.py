@@ -13,7 +13,7 @@ import urllib.request
 import delegator
 from pkg_resources import iter_entry_points
 
-from pytest_cromwell.utils import LOG, tempdir, to_path, canonical_path
+from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path
 
 
 UNSAFE_RE = re.compile(r"[^\w.-]")
@@ -213,7 +213,7 @@ class _PluginFactory:
 
 DATA_TYPES = dict(
     (entry_point.name, _PluginFactory(entry_point))
-    for entry_point in iter_entry_points(group="pytest_cromwell")
+    for entry_point in iter_entry_points(group="pytest_wdl")
 )
 """Data type plugin modules from the discovered entry points."""
 

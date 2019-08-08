@@ -1,8 +1,8 @@
 [paths]
-source = pytest_cromwell/
+source = pytest_wdl/
 
 [run]
-source = pytest_cromwell/
+source = pytest_wdl/
 
 [report]
 show_missing = true

@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from typing import Optional
 
-from pytest_cromwell.core import DataFile, tempdir
+from pytest_wdl.core import DataFile, tempdir
 
 
 try:
@@ -15,7 +15,7 @@ try:
 except ImportError:
     raise ImportError(
         "Failed to import dependencies for bam type. To add support for BAM files, "
-        "install the plugin with pip install pytest-cromwell[bam]"
+        "install the plugin with pip install pytest-wdl[bam]"
     )
 
 

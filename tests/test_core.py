@@ -1,9 +1,9 @@
 import gzip
 import json
-from pytest_cromwell.core import (
+from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver
 )
-from pytest_cromwell.utils import tempdir
+from pytest_wdl.utils import tempdir
 from . import no_internet
 import pytest
 from unittest.mock import Mock

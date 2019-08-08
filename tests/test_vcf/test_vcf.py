@@ -1,6 +1,6 @@
-from pytest_cromwell.data_types.vcf import VcfDataFile
-from pytest_cromwell.core import StringLocalizer
-from pytest_cromwell.utils import tempdir, find_project_path
+from pytest_wdl.data_types.vcf import VcfDataFile
+from pytest_wdl.core import StringLocalizer
+from pytest_wdl.utils import tempdir, find_project_path
 from .. import no_internet
 import pytest
 

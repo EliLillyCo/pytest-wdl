@@ -3,7 +3,7 @@ import stat
 from pathlib import Path
 
 import pytest
-from pytest_cromwell.utils import (
+from pytest_wdl.utils import (
     tempdir, chdir, test_dir as _test_dir, to_path, resolve_file,
     find_executable_path, find_project_path, env_map
 )

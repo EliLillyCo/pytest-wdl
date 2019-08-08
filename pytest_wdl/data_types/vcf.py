@@ -9,8 +9,8 @@ from typing import Optional
 
 import delegator
 
-from pytest_cromwell.core import DataFile
-from pytest_cromwell.utils import tempdir
+from pytest_wdl.core import DataFile
+from pytest_wdl.utils import tempdir
 
 
 class VcfDataFile(DataFile):

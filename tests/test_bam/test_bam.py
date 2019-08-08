@@ -3,7 +3,7 @@
 """
 Test that bam data_type works.
 """
-from pytest_cromwell.utils import find_project_path
+from pytest_wdl.utils import find_project_path
 from .. import no_internet
 import pytest
 
