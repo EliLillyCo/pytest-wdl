@@ -66,7 +66,7 @@ def chdir(todir: Path):
 
 
 @contextlib.contextmanager
-def test_dir(envar: str, project_root: Optional[Path] = None) -> Path:
+def env_dir(envar: str, project_root: Optional[Path] = None) -> Path:
     """
     Context manager that looks for a specific environment variable to specify a
     directory. If the environment variable is not set, a temporary directory is
@@ -156,17 +156,17 @@ def resolve_file(
         return path
 
     if not is_abs:
-        test_path = canonical_path(project_root / path)
-        if test_path.exists():
-            return test_path
+        check_path = canonical_path(project_root / path)
+        if check_path.exists():
+            return check_path
         # Search in cwd
-        test_path = find_project_path(path)
-        if test_path and test_path.exists():
-            return test_path
+        check_path = find_project_path(path)
+        if check_path and check_path.exists():
+            return check_path
         # Search upward from project root
-        test_path = find_project_path(path, start=project_root)
-        if test_path and test_path.exists():
-            return test_path
+        check_path = find_project_path(path, start=project_root)
+        if check_path and check_path.exists():
+            return check_path
 
     if assert_exists:
         raise FileNotFoundError(f"Could not resolve file: {filename}")

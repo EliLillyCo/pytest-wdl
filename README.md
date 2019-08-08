@@ -79,13 +79,13 @@ To install pytest-wdl and **all** extras dependencies:
 ## Usage
 
 ```python
-def test_variant_caller(test_data, workflow_runner):
+def test_variant_caller(io_data, workflow_runner):
     inputs = {
-        "bam": test_data["bam"],
-        "bai": test_data["bai"]
+        "bam": io_data["bam"],
+        "bai": io_data["bai"]
     }
     expected = {
-        "vcf": test_data["vcf"]
+        "vcf": io_data["vcf"]
     }
     workflow_runner(
         "variant_caller/variant_caller.wdl",
@@ -99,7 +99,7 @@ def test_variant_caller(test_data, workflow_runner):
 
 The main fixtures are:
 
-* test_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `TEST_DATA_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys.
+* io_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `CACHE_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys.
     * url: Optional; the remote URL.
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
@@ -117,16 +117,17 @@ The main fixtures are:
         * imports_file: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file.
         * java_args: Override the default Java arguments.
         * cromwell_args: Override the default Cromwell arguments.
-* workflow_runner: This is an alternative to cromwell_harness. It provides a callable and automatically determines the execution_dir based on the test_execution_dir fixture.
+* workflow_runner: This is an alternative to cromwell_harness. It provides a callable and automatically determines the execution_dir based on the execution_dir fixture.
 
 There are also fixtures for specifying required inputs to the two main fixtures.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
-* test_data_file: Path to the JSON file that defines the test data files. Defaults to `tests/test_data.json`.
-* test_data_dir: Local directory for caching test data. The `TEST_DATA_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
-* test_execution_dir: Local directory in which tests are executed. The `TEST_EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
-* http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults. The default is `{"X-JFrog-Art-Api": "TOKEN"}`.
-* proxies: Dict mapping proxy names to environment variables. The default is `{"http": "HTTP_PROXY", "https": "HTTPS_PROXY"}`.
+* data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
+* data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
+* cache_dir: Local directory for caching test data. The `CACHE_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
+* execution_dir: Local directory in which tests are executed. The `EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
+* http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
+* proxies: Dict mapping proxy names to environment variables.
 * import_paths: Path to file that contains a list of WDL import paths (one per line). Defaults to `None`.
 * import_dirs: List of WDL import paths. Loads these from the file specified by `import_paths` if any, otherwise uses the parent directory of the test module.
 * java_bin: Path to the java executable. Defaults to `$JAVA_HOME/bin/java`.
@@ -150,18 +151,18 @@ The fixtures above can utilize environment variables. Technically, none are requ
 | `HTTP_PROXY`  | required if behind proxy | |
 | `TOKEN`       | yes         | currently this is an Artifactory token which is needed to fetch test data from the generic repo |
 | `JAVA_HOME` | yes | path to java executable |
-| `TEST_DATA_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
-| `TEST_EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
+| `CACHE_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
+| `EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
 | `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
 | `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-wdl` logger output at various levels. |
 | `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
 | `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
 
-Remember that environment variables can be set multiple ways, including inline before running the command, such as `TEST_EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
+Remember that environment variables can be set multiple ways, including inline before running the command, such as `EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
 
 ### Test data
 
-Test data files can be provided by the `test_data` and `test_data_ng` fixtures, and are defined in the `test_data.json` file.
+Test data files can be provided by the `io_data` fixture, and are defined in the `test_data.json` file.
 
 #### test_data.json
 
@@ -182,7 +183,7 @@ Test data is specified in a JSON file of the format:
 
 * url: Path to the file on a remote server from which it is downloaded if it can't be found locally; ignored if `fixture` is specified, or if the file already exists locally
 * path: Relative path to the file within the test data directory; ignored if `fixture` is specified
-* name: Name of the file - used when path is not specified, and also used to request the file from the `datadir` fixture when the `test_data_ng` fixture is used.
+* name: Name of the file - used when path is not specified, and also used to request the file from a location under the tests/ directory when it is in a directory structure as defined by the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) plugin.
 * contents: The contents of the file; the file will be written to `path` at runtime
 * type: For use with output data files; specifies the file type for special handling by a plugin
 * allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
@@ -201,9 +202,9 @@ available types:
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)
 
-When comparing outputs of a test execution against an expected output file, that comparison is defined in the `expected` argument of the `workflow_runner`, where the key should be the output variable of the WDL workflow and the value is the expected value. This can be an accession into the test_data fixture, which resolves by looking at the test_data file. If the file is a binary format that requires special handling (not gzip, this is supported by default), such as BAM, =then we can specify that as the type (`"type": "bam"`) so that our comparison knows to convert that file into a temporary SAM file so we can do a diff. This enables specifying `allowed_diff_lines` attribute since BAM/SAM files often capture the command run as a header which will typically be different.
+When comparing outputs of a test execution against an expected output file, that comparison is defined in the `expected` argument of the `workflow_runner`, where the key should be the output variable of the WDL workflow and the value is the expected value. This can be an accession into the io_data fixture, which resolves by looking at the test_data.json file. If the file is a binary format that requires special handling (not gzip, this is supported by default), such as BAM, =then we can specify that as the type (`"type": "bam"`) so that our comparison knows to convert that file into a temporary SAM file so we can do a diff. This enables specifying `allowed_diff_lines` attribute since BAM/SAM files often capture the command run as a header which will typically be different.
 
-**Do not** use the `type` attribute for inputs in the test_data.
+The `type` attribute is ignored for input data files defined in io_data.
 
 ## Creating New Data Types
 
