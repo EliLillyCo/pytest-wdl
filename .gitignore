@@ -6,3 +6,8 @@ cromwell-executions/
 __pycache__/
 *.pyc
 .coverage
+.idea
+docs/build
+docs/source/modules.rst
+docs/source/pytst_wdl.rst
+docs/source/pytst_wdl.data_types.rst
