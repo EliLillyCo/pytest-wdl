@@ -5,6 +5,7 @@ Note: This library is being transitioned to python3 only, and to use `pathlib.Pa
 instead of string paths. For backward compatibility fixtures that produce a path may
 still return string paths, but this support will be dropped in a future version.
 """
+import json
 import os
 from pathlib import Path
 from typing import List, Optional, Union
@@ -13,7 +14,7 @@ from _pytest.fixtures import FixtureRequest
 
 from pytest_wdl.core import CromwellHarness, DataResolver, DataManager, DataDirs
 from pytest_wdl.utils import (
-    LOG, chdir, to_path, test_dir, find_project_path, find_executable_path,
+    LOG, chdir, to_path, env_dir, find_project_path, find_executable_path,
     canonical_path, env_map
 )
 
@@ -46,7 +47,7 @@ def project_root(
         return path.parent
 
 
-def test_data_file() -> Union[str, Path]:
+def workflow_data_descriptor_file() -> Union[str, Path]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
@@ -58,21 +59,36 @@ def test_data_file() -> Union[str, Path]:
     raise FileNotFoundError("Could not find test_data.json file")
 
 
-def test_data_dir(project_root: Union[str, Path]) -> Union[str, Path]:
+def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
+    """
+    Fixture that provides a mapping of test data names to values.
+
+    Args:
+        workflow_data_descriptor_file: Path to the data descriptor JSON file.
+
+    Returns:
+        A dict with keys as test data names and each value either a
+        primitive, a map describing a data file, or a DataFile object.
+    """
+    with open(to_path(workflow_data_descriptor_file), "rt") as inp:
+        return json.load(inp)
+
+
+def cache_dir(project_root: Union[str, Path]) -> Union[str, Path]:
     """
     Fixture that provides the directory in which to cache the test data. If the
-    "TEST_DATA_DIR" environment variable is set, the value will be used as the
+    "CACHE_DIR" environment variable is set, the value will be used as the
     execution directory path, otherwise a temporary directory is used.
 
     Args:
         project_root: The root directory to use when the test data directory is
             specified as a relative path.
     """
-    with test_dir("TEST_DATA_DIR", project_root) as data_dir:
+    with env_dir("CACHE_DIR", project_root) as data_dir:
         yield data_dir
 
 
-def test_execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
+def execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
     """
     Fixture that provides the directory in which the test is to be executed. If the
     "EXECUTION_DIR" environment variable is set, the value will be used as the
@@ -82,7 +98,7 @@ def test_execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
         project_root: The root directory to use when the execution directory is
             specified as a relative path.
     """
-    with test_dir("TEST_EXECUTION_DIR", project_root) as execution_dir:
+    with env_dir("EXECUTION_DIR", project_root) as execution_dir:
         yield execution_dir
 
 
@@ -254,9 +270,9 @@ def cromwell_args() -> Optional[str]:
     return os.environ.get("CROMWELL_ARGS")
 
 
-def test_data_resolver(
-    test_data_file: Union[str, Path],
-    test_data_dir: Union[str, Path],
+def workflow_data_resolver(
+    workflow_data_descriptors: dict,
+    cache_dir: Union[str, Path],
     http_headers: Optional[dict],
     proxies: Optional[dict]
 ) -> DataResolver:
@@ -264,21 +280,21 @@ def test_data_resolver(
     Provides access to test data files for tests in a module.
 
     Args:
-        test_data_dir: test_data_dir fixture.
-        test_data_file: test_data_file fixture.
+        workflow_data_descriptors: workflow_data_descriptors fixture.
+        cache_dir: cache_dir fixture.
         http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
     return DataResolver(
-        to_path(test_data_file),
-        to_path(test_data_dir),
+        workflow_data_descriptors,
+        to_path(cache_dir),
         http_headers,
         proxies
     )
 
 
-def test_data(
-    request: FixtureRequest, test_data_resolver: DataResolver
+def workflow_data(
+    request: FixtureRequest, workflow_data_resolver: DataResolver
 ) -> DataManager:
     """
     Provides an accessor for test data files, which may be local or in a remote
@@ -286,14 +302,14 @@ def test_data(
 
     Args:
         request: FixtureRequest object
-        test_data_resolver: Module-level test data configuration
+        workflow_data_resolver: Module-level test data configuration
 
     Examples:
-                def test_data_file():
+        def workflow_data_descriptor_file():
             return "tests/test_data.json"
 
-        def test_workflow(test_data):
-            print(test_data["myfile"])
+        def test_workflow(workflow_data):
+            print(workflow_data["myfile"])
     """
     datadirs = DataDirs(
         to_path(request.fspath.dirpath(), canonicalize=True),
@@ -301,7 +317,7 @@ def test_data(
         request.function,
         request.cls
     )
-    return DataManager(test_data_resolver, datadirs)
+    return DataManager(workflow_data_resolver, datadirs)
 
 
 def cromwell_harness(
@@ -338,12 +354,12 @@ def cromwell_harness(
 
 
 def workflow_runner(
-    cromwell_harness: CromwellHarness, test_execution_dir: Union[str, Path]
+    cromwell_harness: CromwellHarness, execution_dir: Union[str, Path]
 ):
     """
     Provides a callable that runs a workflow (with the same signature as
     `CromwellHarness.run_workflow`) with the execution_dir being the one
-    provided by the `test_execution_dir` fixture.
+    provided by the `execution_dir` fixture.
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
@@ -352,7 +368,7 @@ def workflow_runner(
         expected: Optional[dict] = None,
         **kwargs
     ):
-        with chdir(to_path(test_execution_dir)):
+        with chdir(to_path(execution_dir)):
             cromwell_harness.run_workflow(
                 wdl_script, workflow_name, inputs, expected, **kwargs
             )

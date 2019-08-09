@@ -115,14 +115,11 @@ def test_data_dirs():
 
 def test_data_resolver():
     with tempdir() as d1, tempdir() as d2:
-        test_data_json = d1 / "test_data.json"
         test_data = {
             "foo": {
                 "name": "foo.txt"
             }
         }
-        with open(test_data_json, "wt") as out:
-            json.dump(test_data, out)
         foo_txt = d2 / "data" / "foo.txt"
         foo_txt.parent.mkdir()
         with open(foo_txt, "wt") as out:
@@ -132,5 +129,5 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d2, mod, fun)
-        resolver = DataResolver(test_data_json)
+        resolver = DataResolver(test_data)
         assert resolver.resolve("foo", dd).path == foo_txt
