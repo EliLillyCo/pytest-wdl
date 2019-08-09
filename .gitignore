@@ -9,8 +9,8 @@ __pycache__/
 .idea
 docs/build
 docs/source/modules.rst
-docs/source/pytst_wdl.rst
-docs/source/pytst_wdl.data_types.rst
+docs/source/pytest_wdl.rst
+docs/source/pytest_wdl.data_types.rst
 
 # Environments
 .env
