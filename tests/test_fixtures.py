@@ -8,12 +8,12 @@ from unittest.mock import Mock
 from . import setenv, make_executable
 
 
-def test_fixtures(io_data, workflow_runner):
+def test_fixtures(workflow_data, workflow_runner):
     inputs = {
-        "in_txt": io_data["in_txt"]
+        "in_txt": workflow_data["in_txt"]
     }
     outputs = {
-        "out_txt": io_data["out_txt"]
+        "out_txt": workflow_data["out_txt"]
     }
     workflow_runner("tests/test.wdl", "cat_file", inputs, outputs)
 

@@ -79,13 +79,13 @@ To install pytest-wdl and **all** extras dependencies:
 ## Usage
 
 ```python
-def test_variant_caller(io_data, workflow_runner):
+def test_variant_caller(workflow_data, workflow_runner):
     inputs = {
-        "bam": io_data["bam"],
-        "bai": io_data["bai"]
+        "bam": workflow_data["bam"],
+        "bai": workflow_data["bai"]
     }
     expected = {
-        "vcf": io_data["vcf"]
+        "vcf": workflow_data["vcf"]
     }
     workflow_runner(
         "variant_caller/variant_caller.wdl",
@@ -99,7 +99,7 @@ def test_variant_caller(io_data, workflow_runner):
 
 The main fixtures are:
 
-* io_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `CACHE_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys.
+* workflow_data: Provides access to data files for use as inputs to a workflow, and for comparing to workflow output. Data files may be stored locally or remotely. The local cache directory may be specified using the `CACHE_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. Data are described in a JSON file. File data are described as a hash with the following keys.
     * url: Optional; the remote URL.
     * path: Optional; the local path to the file.
     * contents: Optional; the contents of the file, specified as a string.
@@ -122,8 +122,8 @@ The main fixtures are:
 There are also fixtures for specifying required inputs to the two main fixtures.
 
 * project_root: The root directory of the project. All relative paths are relative to this directory.
-* io_data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
-* io_data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
+* workflow_data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
+* workflow_data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
 * cache_dir: Local directory for caching test data. The `CACHE_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
 * execution_dir: Local directory in which tests are executed. The `EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
 * http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
@@ -162,7 +162,7 @@ Remember that environment variables can be set multiple ways, including inline b
 
 ### Test data
 
-Test data files can be provided by the `io_data` fixture, and are defined in the `test_data.json` file.
+Test data files can be provided by the `workflow_data` fixture, and are defined in the `test_data.json` file.
 
 #### test_data.json
 
@@ -202,9 +202,9 @@ available types:
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)
 
-When comparing outputs of a test execution against an expected output file, that comparison is defined in the `expected` argument of the `workflow_runner`, where the key should be the output variable of the WDL workflow and the value is the expected value. This can be an accession into the io_data fixture, which resolves by looking at the test_data.json file. If the file is a binary format that requires special handling (not gzip, this is supported by default), such as BAM, =then we can specify that as the type (`"type": "bam"`) so that our comparison knows to convert that file into a temporary SAM file so we can do a diff. This enables specifying `allowed_diff_lines` attribute since BAM/SAM files often capture the command run as a header which will typically be different.
+When comparing outputs of a test execution against an expected output file, that comparison is defined in the `expected` argument of the `workflow_runner`, where the key should be the output variable of the WDL workflow and the value is the expected value. This can be an accession into the workflow_data fixture, which resolves by looking at the test_data.json file. If the file is a binary format that requires special handling (not gzip, this is supported by default), such as BAM, =then we can specify that as the type (`"type": "bam"`) so that our comparison knows to convert that file into a temporary SAM file so we can do a diff. This enables specifying `allowed_diff_lines` attribute since BAM/SAM files often capture the command run as a header which will typically be different.
 
-The `type` attribute is ignored for input data files defined in io_data.
+The `type` attribute is ignored for input data files defined in workflow_data.
 
 ## Creating New Data Types
 

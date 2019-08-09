@@ -47,7 +47,7 @@ def project_root(
         return path.parent
 
 
-def io_data_descriptor_file() -> Union[str, Path]:
+def workflow_data_descriptor_file() -> Union[str, Path]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
@@ -59,18 +59,18 @@ def io_data_descriptor_file() -> Union[str, Path]:
     raise FileNotFoundError("Could not find test_data.json file")
 
 
-def io_data_descriptors(io_data_descriptor_file: Union[str, Path]) -> dict:
+def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
     """
     Fixture that provides a mapping of test data names to values.
 
     Args:
-        io_data_descriptor_file: Path to the data descriptor JSON file.
+        workflow_data_descriptor_file: Path to the data descriptor JSON file.
 
     Returns:
         A dict with keys as test data names and each value either a
         primitive, a map describing a data file, or a DataFile object.
     """
-    with open(to_path(io_data_descriptor_file), "rt") as inp:
+    with open(to_path(workflow_data_descriptor_file), "rt") as inp:
         return json.load(inp)
 
 
@@ -270,8 +270,8 @@ def cromwell_args() -> Optional[str]:
     return os.environ.get("CROMWELL_ARGS")
 
 
-def io_data_resolver(
-    io_data_descriptors: dict,
+def workflow_data_resolver(
+    workflow_data_descriptors: dict,
     cache_dir: Union[str, Path],
     http_headers: Optional[dict],
     proxies: Optional[dict]
@@ -280,21 +280,21 @@ def io_data_resolver(
     Provides access to test data files for tests in a module.
 
     Args:
-        io_data_descriptors: io_data_descriptors fixture.
+        workflow_data_descriptors: workflow_data_descriptors fixture.
         cache_dir: cache_dir fixture.
         http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
     return DataResolver(
-        io_data_descriptors,
+        workflow_data_descriptors,
         to_path(cache_dir),
         http_headers,
         proxies
     )
 
 
-def io_data(
-    request: FixtureRequest, io_data_resolver: DataResolver
+def workflow_data(
+    request: FixtureRequest, workflow_data_resolver: DataResolver
 ) -> DataManager:
     """
     Provides an accessor for test data files, which may be local or in a remote
@@ -302,14 +302,14 @@ def io_data(
 
     Args:
         request: FixtureRequest object
-        io_data_resolver: Module-level test data configuration
+        workflow_data_resolver: Module-level test data configuration
 
     Examples:
-        def io_data_descriptor_file():
+        def workflow_data_descriptor_file():
             return "tests/test_data.json"
 
-        def test_workflow(io_data):
-            print(io_data["myfile"])
+        def test_workflow(workflow_data):
+            print(workflow_data["myfile"])
     """
     datadirs = DataDirs(
         to_path(request.fspath.dirpath(), canonicalize=True),
@@ -317,7 +317,7 @@ def io_data(
         request.function,
         request.cls
     )
-    return DataManager(io_data_resolver, datadirs)
+    return DataManager(workflow_data_resolver, datadirs)
 
 
 def cromwell_harness(

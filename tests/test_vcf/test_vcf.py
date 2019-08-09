@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def io_data_descriptor_file(project_root):
+def workflow_data_descriptor_file(project_root):
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
@@ -43,10 +43,10 @@ def test_vcf_data_file_different():
 
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
-def test_vcf(io_data, workflow_runner):
+def test_vcf(workflow_data, workflow_runner):
     workflow_runner(
         wdl_script="tests/test_vcf/test_vcf.wdl",
         workflow_name="test_vcf",
-        inputs={"vcf": io_data["vcf"]},
-        expected={"output_vcf": io_data["output_vcf"]}
+        inputs={"vcf": workflow_data["vcf"]},
+        expected={"output_vcf": workflow_data["output_vcf"]}
     )

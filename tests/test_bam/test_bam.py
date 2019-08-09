@@ -9,7 +9,7 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def io_data_descriptor_file(project_root):
+def workflow_data_descriptor_file(project_root):
     """
     Fixture that provides the path to the JSON file that describes test data files.
     """
@@ -19,25 +19,25 @@ def io_data_descriptor_file(project_root):
 
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
-def test_bam(io_data, workflow_runner):
+def test_bam(workflow_data, workflow_runner):
     workflow_runner(
         wdl_script='tests/test_bam/test_bam.wdl',
         workflow_name='test_bam',
-        inputs={"bam": io_data["bam"]},
-        expected={"output_bam": io_data["output_bam"]}
+        inputs={"bam": workflow_data["bam"]},
+        expected={"output_bam": workflow_data["output_bam"]}
     )
 
 
-def test_bam_removing_randomness(io_data, workflow_runner):
+def test_bam_removing_randomness(workflow_data, workflow_runner):
     """Test that BAMs with the only difference being random IDs
     added by samtools are evaluated as equal."""
     workflow_runner(
         wdl_script='tests/test_bam/test_bam_norandom.wdl',
         workflow_name='test_bam_no_random',
         inputs={
-            "bam": io_data["random_id_bam_input"]
+            "bam": workflow_data["random_id_bam_input"]
         },
         expected={
-            "output_bam": io_data["random_id_bam_output"]
+            "output_bam": workflow_data["random_id_bam_output"]
         }
     )
