@@ -270,3 +270,6 @@ def test_data_resolver_create_from_datadir():
         burp_resolved = resolver.resolve("burp", dd).path
         assert burp_resolved == d1 / "burp.txt"
         assert burp_resolved.is_symlink()
+
+        with pytest.raises(FileNotFoundError):
+            resolver.resolve("bobble")
