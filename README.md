@@ -128,9 +128,6 @@ The fixtures above can utilize environment variables. Technically, none are requ
 | variable name | recommended | description |
 | ------------- | ----------- | ----------- |
 | `CROMWELL_JAR` | yes         | path to cromwell jar. |
-| `HTTPS_PROXY` | required if behind proxy | |
-| `HTTP_PROXY`  | required if behind proxy | |
-| `TOKEN`       | yes         | currently this is an Artifactory token which is needed to fetch test data from the generic repo |
 | `JAVA_HOME` | yes | path to java executable |
 | `CACHE_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
 | `EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
