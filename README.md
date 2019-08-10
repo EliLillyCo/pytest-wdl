@@ -13,42 +13,18 @@ Other python dependencies are installed when you install the library.
 
 ## Installation
 
-### Install from Artifactory PyPi
-
-The module is stored in the private PyPi repository `elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple`
-
-#### Preferred Artifactory Install Method
-
-To add this repo to your environment for all future installs, edit your `~/.pip/pip.conf` file like below, adding your username and password for Artifactory which is your email and the Artifactory API token:
-
-```
-[global]
-index-url = https://pypi.org/simple
-extra-index-url =
-    https://<email>:<artifactory_token>@elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple
-```
-
-Then you can pip install the module:
+### Install from PyPI
 
 ```commandline
-pip install pytest_wdl
+pip install pytest-wdl
 ```
-
-#### One-Time Artifactory Install
-
-If you just want to do this one-time, you can embed the extra-index-url into the pip command. You can also leave out the auth details and it will interactively prompt for them:
-
-```commandline
-pip install --extra-index-url https://elilillyco.jfrog.io/elilillyco/api/pypi/omics-pypi-lc/simple pytest_wdl
-```
-Which will then prompt for your username and password, the Artifactory email and token.
 
 ### Install from source
 
 You can to clone the repository and install:
 
 ```
-python setup.py install
+make install
 ```
 
 Or use pip to install from github:
@@ -61,7 +37,8 @@ pip install git+https://github.com/elilillyco/pytest-wdl.git
 
 Data Types for expected output comparison are plugins. They are loaded on-demand and if they require external dependencies, you must install those.
 
-data types that require an extras installation:
+The following data types require an extras installation:
+
 - bam
 
 To install the dependencies for a data type that has extra dependencies:
@@ -77,6 +54,8 @@ To install pytest-wdl and **all** extras dependencies:
 `pip install pytest-wdl[all]`
 
 ## Usage
+
+The pytest-wdl plugin provides a set of fixtures for use with pytest. Here is a quick example:
 
 ```python
 def test_variant_caller(workflow_data, workflow_runner):
@@ -95,7 +74,9 @@ def test_variant_caller(workflow_data, workflow_runner):
     )
 ```
 
-## Fixtures
+For details, [read the docs](docs/index.html).
+
+### Fixtures
 
 The main fixtures are:
 
@@ -160,9 +141,9 @@ The fixtures above can utilize environment variables. Technically, none are requ
 
 Remember that environment variables can be set multiple ways, including inline before running the command, such as `EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
 
-### Test data
+### Workflow test data
 
-Test data files can be provided by the `workflow_data` fixture, and are defined in the `test_data.json` file.
+Workflow test data files can be provided by the `workflow_data` fixture, and are defined in the `test_data.json` file.
 
 #### test_data.json
 
@@ -190,7 +171,8 @@ Test data is specified in a JSON file of the format:
 
 #### Data Types
 
-available types:
+Available types:
+
 - default
   - this is the default type if one is not specified. It can handle raw text files, as well as gzip compressed files.
 - vcf
@@ -206,7 +188,7 @@ When comparing outputs of a test execution against an expected output file, that
 
 The `type` attribute is ignored for input data files defined in workflow_data.
 
-## Creating New Data Types
+##### Creating New Data Types
 
 To create a new data type plugin, add a module in the data_types directory.
 
@@ -229,3 +211,16 @@ setup(
 ```
 
 In this example, the extra dependencies can be installed with `pip install pytest-wdl[bam]`.
+
+## Development
+
+To develop pytest-wdl, clone the repository and install all the dependencies:
+
+```
+$ git clone https://github.com/EliLillyCo/pytest-wdl.git
+$ pip install -r requirements.txt
+```
+
+To run the full build and unit tests, run:
+
+`make`

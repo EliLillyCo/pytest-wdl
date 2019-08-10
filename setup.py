@@ -30,9 +30,6 @@ setup(
         "pytest",
         "delegator.py"
     ],
-    tests_require=[
-        "coverage"
-    ],
     extras_require={
         "all": ["pysam"],
         "bam": ["pysam"]
