@@ -1,9 +1,12 @@
 import gzip
+import json
 from pytest_wdl.core import (
-    LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver
+    LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
+    get_workflow, get_workflow_imports, get_workflow_inputs
 )
+import zipfile
 from pytest_wdl.utils import tempdir
-from . import no_internet, setenv
+from . import no_internet
 import pytest
 from unittest.mock import Mock
 
@@ -273,3 +276,99 @@ def test_data_resolver_create_from_datadir():
 
         with pytest.raises(FileNotFoundError):
             resolver.resolve("bobble")
+
+
+def test_get_workflow():
+    with tempdir() as d:
+        wdl = d / "test.wdl"
+        with pytest.raises(FileNotFoundError):
+            get_workflow(d, "test.wdl")
+        with open(wdl, "wt") as out:
+            out.write("workflow test {}")
+        assert get_workflow(d, "test.wdl") == (wdl, "test")
+        assert get_workflow(d, "test.wdl", "foo") == (wdl, "foo")
+
+
+def test_get_workflow_inputs():
+    with tempdir() as d:
+        actual_inputs_dict, inputs_path = get_workflow_inputs("foo", {"bar": 1})
+        assert inputs_path.exists()
+        with open(inputs_path, "rt") as inp:
+            assert json.load(inp) == actual_inputs_dict
+        assert actual_inputs_dict == {
+            "foo.bar": 1
+        }
+
+    with tempdir() as d:
+        inputs_file = d / "inputs.json"
+        actual_inputs_dict, inputs_path = get_workflow_inputs(
+            "foo", {"bar": 1}, inputs_file
+        )
+        assert inputs_file == inputs_path
+        assert inputs_path.exists()
+        with open(inputs_path, "rt") as inp:
+            assert json.load(inp) == actual_inputs_dict
+        assert actual_inputs_dict == {
+            "foo.bar": 1
+        }
+
+    with tempdir() as d:
+        inputs_file = d / "inputs.json"
+        inputs_dict = {"foo.bar": 1}
+        with open(inputs_file, "wt") as out:
+            json.dump(inputs_dict, out)
+        actual_inputs_dict, inputs_path = get_workflow_inputs(
+            "foo", inputs_file=inputs_file
+        )
+        assert inputs_file == inputs_path
+        assert inputs_path.exists()
+        with open(inputs_path, "rt") as inp:
+            assert json.load(inp) == actual_inputs_dict
+        assert actual_inputs_dict == inputs_dict
+
+
+def test_get_workflow_imports():
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        zip_path = get_workflow_imports([wdl_dir])
+        assert zip_path.exists()
+        with zipfile.ZipFile(zip_path, "r") as import_zip:
+            names = import_zip.namelist()
+            assert len(names) == 1
+            assert names[0] == "bar.wdl"
+            with import_zip.open("bar.wdl", "r") as inp:
+                assert inp.read().decode() == "foo"
+
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        imports_file = d / "imports.zip"
+        zip_path = get_workflow_imports([wdl_dir], imports_file)
+        assert zip_path.exists()
+        assert zip_path == imports_file
+        with zipfile.ZipFile(zip_path, "r") as import_zip:
+            names = import_zip.namelist()
+            assert len(names) == 1
+            assert names[0] == "bar.wdl"
+            with import_zip.open("bar.wdl", "r") as inp:
+                assert inp.read().decode() == "foo"
+
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        imports_file = d / "imports.zip"
+        with open(imports_file, "wt") as out:
+            out.write("foo")
+        zip_path = get_workflow_imports(imports_file=imports_file)
+        assert zip_path.exists()
+        assert zip_path == imports_file
