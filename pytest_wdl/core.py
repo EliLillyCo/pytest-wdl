@@ -338,7 +338,7 @@ class DataResolver:
                     local_path = canonical_path(self.cache_dir / name)
                 else:
                     local_path = canonical_path(
-                        Path(tempfile.mkstemp(dir=self.cache_dir)[1])
+                        Path(tempfile.mktemp(dir=self.cache_dir))
                     )
         elif name and datadirs:
             for dd in datadirs.paths:

@@ -3,9 +3,14 @@ from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver
 )
 from pytest_wdl.utils import tempdir
-from . import no_internet
+from . import no_internet, setenv
 import pytest
 from unittest.mock import Mock
+
+
+# TODO: switch after repo is made public
+# GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/sample.vcf"
+GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
 
 
 def test_link_localizer():
@@ -76,7 +81,7 @@ def test_string_localizer():
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
 def test_url_localizer():
-    good_url = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
+    good_url = GOOD_URL
     bad_url = "foo"
     with tempdir() as d:
         foo = d / "foo"
@@ -150,7 +155,7 @@ def test_data_resolver():
         assert resolver.resolve("bar", dd) == 1
 
 
-def test_data_resolver_create():
+def test_data_resolver_create_from_contents():
     with tempdir() as d:
         resolver = DataResolver({
             "foo": {
@@ -162,3 +167,106 @@ def test_data_resolver_create():
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
             assert inp.read() == "foo"
+
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "name": "foo.txt",
+                "contents": "foo"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "foo.txt"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "contents": "foo"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path.parent == d
+        assert foo.path.exists()
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+
+def test_data_resolver_create_from_url():
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "name": "sample.vcf"
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "test_file"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+
+def test_data_resolver_create_from_datadir():
+    with tempdir() as d, tempdir() as d1:
+        mod = Mock()
+        mod.__name__ = "foo.bar"
+        cls = Mock()
+        cls.__name__ = "baz"
+        fun = Mock()
+        fun.__name__ = "blorf"
+        mod_cls_fun = d / "foo" / "bar" / "baz" / "blorf"
+        mod_cls_fun.mkdir(parents=True)
+        data_mod_cls_fun = d / "data" / "foo" / "bar" / "baz" / "blorf"
+        data_mod_cls_fun.mkdir(parents=True)
+        dd = DataDirs(d / "foo", mod, fun, cls)
+
+        resolver = DataResolver({
+            "boink": {
+                "name": "boink.txt",
+            },
+            "bobble": {
+                "name": "bobble.txt"
+            },
+            "burp": {
+                "name": "burp.txt",
+                "path": "burp.txt"
+            }
+        }, d1)
+        boink = d / "foo" / "bar" / "boink.txt"
+        with open(boink, "wt") as out:
+            out.write("boink")
+        assert boink == resolver.resolve("boink", dd).path
+
+        with pytest.raises(FileNotFoundError):
+            resolver.resolve("bobble", dd)
+
+        burp = d / "foo" / "bar" / "burp.txt"
+        with open(burp, "wt") as out:
+            out.write("burp")
+        burp_resolved = resolver.resolve("burp", dd).path
+        assert burp_resolved == d1 / "burp.txt"
+        assert burp_resolved.is_symlink()
