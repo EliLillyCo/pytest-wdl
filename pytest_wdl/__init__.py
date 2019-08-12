@@ -13,8 +13,6 @@ workflow_data_descriptor_file = pytest.fixture(scope="module")(fixtures.workflow
 workflow_data_descriptors = pytest.fixture(scope="module")(fixtures.workflow_data_descriptors)
 cache_dir = pytest.fixture(scope="module")(fixtures.cache_dir)
 execution_dir = pytest.fixture(scope="function")(fixtures.execution_dir)
-http_header_map = pytest.fixture(scope="session")(fixtures.http_header_map)
-http_headers = pytest.fixture(scope="session")(fixtures.http_headers)
 proxy_map = pytest.fixture(scope="session")(fixtures.proxy_map)
 proxies = pytest.fixture(scope="session")(fixtures.proxies)
 import_paths = pytest.fixture(scope="module")(fixtures.import_paths)

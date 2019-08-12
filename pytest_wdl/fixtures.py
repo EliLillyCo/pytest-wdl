@@ -102,21 +102,6 @@ def execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
         yield execution_dir
 
 
-def http_header_map() -> dict:
-    """
-    Fixture that provides a mapping from HTTP header name to the environment variable
-    from which the value should be retrieved.
-    """
-    return {}
-
-
-def http_headers(http_header_map: dict) -> dict:
-    """
-    Fixture that provides request HTTP headers to use when downloading files.
-    """
-    return env_map(http_header_map)
-
-
 def proxy_map() -> dict:
     """
     Fixture that provides a mapping from proxy name to the environment variable
@@ -273,7 +258,6 @@ def cromwell_args() -> Optional[str]:
 def workflow_data_resolver(
     workflow_data_descriptors: dict,
     cache_dir: Union[str, Path],
-    http_headers: Optional[dict],
     proxies: Optional[dict]
 ) -> DataResolver:
     """
@@ -282,13 +266,11 @@ def workflow_data_resolver(
     Args:
         workflow_data_descriptors: workflow_data_descriptors fixture.
         cache_dir: cache_dir fixture.
-        http_headers: http_headers fixture.
         proxies: proxies fixture.
     """
     return DataResolver(
         workflow_data_descriptors,
         to_path(cache_dir),
-        http_headers,
         proxies
     )
 

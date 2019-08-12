@@ -372,3 +372,48 @@ def test_get_workflow_imports():
         zip_path = get_workflow_imports(imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
+
+
+def test_http_header_set_in_workflow_data(monkeypatch):
+    """
+    Test that workflow data file can define the HTTP Headers. This is
+    important because the URLs referenced can be from different hosts and
+    require different headers, so setting them at this level allows that
+    fine-grained control.
+    """
+    monkeypatch.setenv("TOKEN", "this_is_the_token")
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        assert resolver.http_headers == {
+            "Auth-Header-Token": "this_is_the_token"
+        }
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+    # and a negative test, remove the env var
+    monkeypatch.delenv("TOKEN", raising=False)
+    with tempdir() as d:
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        }, d)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        assert not resolver.http_headers
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
