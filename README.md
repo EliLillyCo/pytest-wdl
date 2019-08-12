@@ -87,6 +87,7 @@ The main fixtures are:
     * name: Filename to use when localizing the file; also used when none of [url,path,contents] are defined to find the data file within the tests directory, using the same directory structure defined by the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
     * allowed\_diff\_lines: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
+    * http_headers: Optional dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
@@ -107,7 +108,6 @@ There are also fixtures for specifying required inputs to the two main fixtures.
 * workflow_data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
 * cache_dir: Local directory for caching test data. The `CACHE_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
 * execution_dir: Local directory in which tests are executed. The `EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
-* http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
 * proxies: Dict mapping proxy names to environment variables.
 * import_paths: Path to file that contains a list of WDL import paths (one per line). Defaults to `None`.
 * import_dirs: List of WDL import paths. Loads these from the file specified by `import_paths` if any, otherwise uses the parent directory of the test module.
@@ -154,7 +154,10 @@ Test data is specified in a JSON file of the format:
     "name": "filename",
     "contents": "test",
     "type": "vcf|bam",
-    "allowed_diff_lines": 2
+    "allowed_diff_lines": 2,
+    "http_headers": {
+    	"http_header_name": "ENV_var"
+    }
   }
 }
 ```
@@ -165,6 +168,7 @@ Test data is specified in a JSON file of the format:
 * contents: The contents of the file; the file will be written to `path` at runtime
 * type: For use with output data files; specifies the file type for special handling by a plugin
 * allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
+* http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
 
 #### Data Types
 

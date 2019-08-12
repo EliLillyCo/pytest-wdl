@@ -13,7 +13,7 @@ import urllib.request
 import delegator
 from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path
+from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path, env_map
 
 
 UNSAFE_RE = re.compile(r"[^\w.-]")
@@ -286,12 +286,11 @@ class DataResolver:
         self,
         data_descriptors: dict,
         cache_dir: Optional[Path] = None,
-        http_headers: Optional[dict] = None,
         proxies: Optional[dict] = None
     ):
         self.data_descriptors = data_descriptors
         self.cache_dir = cache_dir
-        self.http_headers = http_headers
+        self.http_headers = None
         self.proxies = proxies
 
     def resolve(
@@ -314,11 +313,17 @@ class DataResolver:
         url: Optional[str] = None,
         contents: Optional[str] = None,
         datadirs: Optional[DataDirs] = None,
+        http_headers: Optional[dict] = None,
         **kwargs
     ) -> DataFile:
         data_file_class = DATA_TYPES.get(type, DataFile)
         local_path = None
         localizer = None
+
+        if http_headers:
+            self.http_headers = env_map(http_headers)
+        else:
+            self.http_headers = None
 
         if path:
             local_path = to_path(path, self.cache_dir)
