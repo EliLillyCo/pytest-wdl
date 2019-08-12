@@ -18,6 +18,7 @@ task cat {
 
 workflow cat_file {
   File in_txt
+  Int in_int
 
   call cat {
     input: in_txt = in_txt
@@ -31,5 +32,6 @@ workflow cat_file {
   output {
     File out_txt = cat.out_txt
     File out2 = foo.out
+    Int out_int = in_int
   }
 }

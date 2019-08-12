@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, List, Optional, Type, Union, cast
+from typing import Callable, List, Optional, Tuple, Type, Union, cast
 import urllib.request
 
 import delegator
@@ -338,7 +338,7 @@ class DataResolver:
                     local_path = canonical_path(self.cache_dir / name)
                 else:
                     local_path = canonical_path(
-                        Path(tempfile.mkstemp(dir=self.cache_dir)[1])
+                        Path(tempfile.mktemp(dir=self.cache_dir))
                     )
         elif name and datadirs:
             for dd in datadirs.paths:
@@ -453,70 +453,19 @@ class CromwellHarness:
             )
             os.chdir(kwargs["execution_dir"])
 
-        wdl_path = to_path(wdl_script, self.project_root, canonicalize=True)
-        if not wdl_path.exists():
-            raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
+        wdl_path, workflow_name = get_workflow(
+            self.project_root, wdl_script, workflow_name,
+        )
 
-        if not workflow_name:
-            workflow_name = UNSAFE_RE.sub("_", wdl_path.stem)
+        inputs_dict, inputs_file = get_workflow_inputs(
+            workflow_name, inputs, kwargs.get("inputs_file")
+        )
 
-        cromwell_inputs = None
-        inputs_file = None
+        imports_file = get_workflow_imports(
+            self.import_dirs, kwargs.get("imports_file")
+        )
 
-        if "inputs_file" in kwargs:
-            inputs_file = canonical_path(Path(kwargs["inputs_file"]))
-            if inputs_file.exists():
-                with open(inputs_file, "rt") as inp:
-                    cromwell_inputs = json.load(inp)
-
-        if cromwell_inputs is None and inputs:
-            if inputs_file:
-                inputs_file.parent.mkdir(parents=True)
-            else:
-                inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
-            cromwell_inputs = dict(
-                (
-                    f"{workflow_name}.{key}",
-                    value.path if isinstance(value, DataFile) else value
-                )
-                for key, value in inputs.items()
-            )
-            with open(inputs_file, "wt") as out:
-                json.dump(cromwell_inputs, out, default=str)
-
-        write_imports = bool(self.import_dirs)
-        imports_file = None
-        if "imports_file" in kwargs:
-            imports_file = canonical_path(Path(kwargs["imports_file"]))
-            if imports_file.exists():
-                write_imports = False
-
-        if write_imports:
-            imports = [
-                wdl
-                for path in self.import_dirs
-                for wdl in glob.glob(str(path / "*.wdl"))
-            ]
-            if imports:
-                if imports_file:
-                    imports_file.parent.mkdir(parents=True)
-                else:
-                    imports_file = Path(tempfile.mkstemp(suffix=".zip")[1])
-
-                imports_str = " ".join(imports)
-
-                LOG.info(f"Writing imports {imports_str} to zip file {imports_file}")
-                exe = delegator.run(
-                    f"zip -j - {imports_str} > {imports_file}", block=True
-                )
-                if not exe.ok:
-                    raise Exception(
-                        f"Error creating imports zip file; stdout={exe.out}; "
-                        f"stderr={exe.err}"
-                    )
-
-        inputs_arg = f"-i {inputs_file}" if cromwell_inputs else ""
+        inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
@@ -527,7 +476,7 @@ class CromwellHarness:
         )
         LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
-            f"{json.dumps(cromwell_inputs, default=str)}"
+            f"{json.dumps(inputs_dict, default=str)}"
         )
         exe = delegator.run(cmd, block=True)
         if not exe.ok:
@@ -562,3 +511,122 @@ class CromwellHarness:
         else:
             raise AssertionError("No outputs JSON found in Cromwell stdout")
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
+
+
+def get_workflow(
+    project_root: Path, wdl_file: Union[str, Path], workflow_name: Optional[str] = None
+) -> Tuple[Path, str]:
+    """
+    Resolve the WDL file and workflow name.
+
+    TODO: if `workflow_name` is None, parse the WDL file and extract the name
+     of the workflow.
+
+    Args:
+        project_root: The root directory to which `wdl_file` might be relative.
+        wdl_file: Path to the WDL file.
+        workflow_name: The workflow name; if None, the filename without ".wdl"
+            extension is used.
+
+    Returns:
+        A tuple (wdl_path, workflow_name)
+    """
+    wdl_path = to_path(wdl_file, project_root, canonicalize=True)
+    if not wdl_path.exists():
+        raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
+
+    if not workflow_name:
+        workflow_name = UNSAFE_RE.sub("_", wdl_path.stem)
+
+    return wdl_path, workflow_name
+
+
+def get_workflow_inputs(
+    workflow_name: str, inputs_dict: Optional[dict] = None,
+    inputs_file: Optional[Path] = None
+) -> Tuple[dict, Path]:
+    """
+    Persist workflow inputs to a file, or load workflow inputs from a file.
+
+    Args:
+        workflow_name: Name of the workflow; used to prefix the input parameters when
+            creating the inputs file from the inputs dict.
+        inputs_dict: Dict of input names/values.
+        inputs_file: JSON file with workflow inputs.
+
+    Returns:
+        A tuple (inputs_dict, inputs_file)
+    """
+    if inputs_file:
+        inputs_file = to_path(inputs_file, canonicalize=True)
+        if inputs_file.exists():
+            with open(inputs_file, "rt") as inp:
+                inputs_dict = json.load(inp)
+                return inputs_dict, inputs_file
+
+    if inputs_dict:
+        inputs_dict = dict(
+            (
+                f"{workflow_name}.{key}",
+                value.path if isinstance(value, DataFile) else value
+            )
+            for key, value in inputs_dict.items()
+        )
+
+        if inputs_file:
+            inputs_file.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
+
+        with open(inputs_file, "wt") as out:
+            json.dump(inputs_dict, out, default=str)
+
+    return inputs_dict, inputs_file
+
+
+def get_workflow_imports(
+    import_dirs: Optional[List[Path]] = None, imports_file: Optional[Path] = None
+) -> Path:
+    """
+    Creates a ZIP file with all WDL files to be imported.
+
+    Args:
+        import_dirs: Directories from which to import WDL files.
+        imports_file: Text file naming import directories/files - one per line.
+
+    Returns:
+        Path to the ZIP file.
+    """
+    write_imports = bool(import_dirs)
+    imports_path = None
+
+    if imports_file:
+        imports_path = to_path(imports_file, canonicalize=True)
+        if imports_path.exists():
+            write_imports = False
+
+    if write_imports and import_dirs:
+        imports = [
+            wdl
+            for path in import_dirs
+            for wdl in glob.glob(str(path / "*.wdl"))
+        ]
+        if imports:
+            if imports_path:
+                imports_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                imports_path = Path(tempfile.mkstemp(suffix=".zip")[1])
+
+            imports_str = " ".join(imports)
+
+            LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
+            exe = delegator.run(
+                f"zip -j - {imports_str} > {imports_path}", block=True
+            )
+            if not exe.ok:
+                raise Exception(
+                    f"Error creating imports zip file; stdout={exe.out}; "
+                    f"stderr={exe.err}"
+                )
+
+    return imports_path
