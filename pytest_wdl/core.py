@@ -1,22 +1,53 @@
 from abc import ABCMeta, abstractmethod
-import glob
 import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import tempfile
 from typing import Callable, List, Optional, Type, Union, cast
 import urllib.request
 
 import delegator
-from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path
+from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path, plugin_factory_map
 
 
-UNSAFE_RE = re.compile(r"[^\w.-]")
+class WdlConfig:
+    def __init__(self, config_file: Optional[Path] = None, **kwargs):
+        self.config_file = config_file
+        if config_file:
+            with open(config_file, "rt") as inp:
+                self._config = json.load(inp)
+                self._config.update(kwargs)
+        else:
+            self._config = kwargs
+        self._proxies = None
+        self._http_headers = None
+
+    @property
+    def default_proxies(self) -> dict:
+        if self._proxies is None:
+            if "proxies" in self._config:
+                self._proxies = envmap(self._config["proxies"])
+            else:
+                self._proxies = {}
+
+        return self._proxies
+
+    @property
+    def default_http_headers(self) -> dict:
+        if self._http_headers is None:
+            if "http_headers" in self._config:
+                self._http_headers = envmap(self._config["http_headers"])
+            else:
+                self._http_headers = {}
+
+        return self._http_headers
+
+    def get_executor_defaults(self, executor_name: str) -> dict:
+        if "executors" in self._config:
+            return self._config["executors"].get(executor_name)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -194,27 +225,7 @@ class DataFile:
             )
 
 
-class _PluginFactory:
-    """
-    Lazily loads a DataFile plugin class associated with a data type.
-    """
-    def __init__(self, entry_point):
-        self.entry_point = entry_point
-        self.factory = None
-
-    def __call__(self, *args, **kwargs):
-        if self.factory is None:
-            module = __import__(
-                self.entry_point.module_name, fromlist=['__name__'], level=0
-            )
-            self.factory = getattr(module, self.entry_point.attrs[0])
-        return self.factory(*args, **kwargs)
-
-
-DATA_TYPES = dict(
-    (entry_point.name, _PluginFactory(entry_point))
-    for entry_point in iter_entry_points(group="pytest_wdl")
-)
+DATA_TYPES  = plugin_factory_map("pytest_wdl.data_type", DataFile)
 """Data type plugin modules from the discovered entry points."""
 
 
@@ -282,14 +293,10 @@ class DataResolver:
     """
     Resolves data files that may need to be localized.
     """
-    def __init__(
-        self,
-        data_descriptors: dict,
-        cache_dir: Optional[Path] = None,
-        http_headers: Optional[dict] = None,
-        proxies: Optional[dict] = None
-    ):
+    def __init__(self, data_descriptors: dict, wdl_config: WdlConfig):
         self.data_descriptors = data_descriptors
+        self.wdl_config = wdl_config
+
         self.cache_dir = cache_dir
         self.http_headers = http_headers
         self.proxies = proxies
@@ -379,38 +386,8 @@ class DataManager:
         return self.data_resolver.resolve(name, self.datadirs)
 
 
-class CromwellHarness:
-    """
-    Manages the running of WDL workflows using Cromwell.
-
-    Args:
-        project_root: The root path to which non-absolute WDL script paths are
-            relative.
-        import_dirs: Relative or absolute paths to directories containing WDL
-            scripts that should be available as imports.
-        java_bin: Path to the java executable.
-        java_args: Default Java arguments to use; can be overidden by passing
-            `java_args=...` to `run_workflow`.
-        cromwell_jar_file: Path to the Cromwell JAR file.
-        cromwell_args: Default Cromwell arguments to use; can be overridden by
-            passing `cromwell_args=...` to `run_workflow`.
-    """
-    def __init__(
-        self,
-        project_root: Path,
-        java_bin: Path,
-        cromwell_jar_file: Path,
-        import_dirs: Optional[List[Path]] = None,
-        java_args: Optional[str] = None,
-        cromwell_args: Optional[str] = None
-    ):
-        self.project_root = project_root
-        self.import_dirs = import_dirs
-        self.java_bin = java_bin
-        self.java_args = java_args
-        self.cromwell_jar = cromwell_jar_file
-        self.cromwell_args = cromwell_args
-
+class Executor(metaclass=ABCMeta):
+    @abstractmethod
     def run_workflow(
         self,
         wdl_script: Union[str, Path],
@@ -443,122 +420,10 @@ class CromwellHarness:
             Dict of outputs.
 
         Raises:
-            Exception: if there was an error executing Cromwell
+            Exception: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        if "execution_dir" in kwargs:
-            LOG.warning(
-                f"Parameter execution_dir is deprecated and will be removed. Use "
-                f"the `chdir` context manager instead."
-            )
-            os.chdir(kwargs["execution_dir"])
 
-        wdl_path = to_path(wdl_script, self.project_root, canonicalize=True)
-        if not wdl_path.exists():
-            raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
 
-        if not workflow_name:
-            workflow_name = UNSAFE_RE.sub("_", wdl_path.stem)
-
-        cromwell_inputs = None
-        inputs_file = None
-
-        if "inputs_file" in kwargs:
-            inputs_file = canonical_path(Path(kwargs["inputs_file"]))
-            if inputs_file.exists():
-                with open(inputs_file, "rt") as inp:
-                    cromwell_inputs = json.load(inp)
-
-        if cromwell_inputs is None and inputs:
-            if inputs_file:
-                inputs_file.parent.mkdir(parents=True)
-            else:
-                inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
-            cromwell_inputs = dict(
-                (
-                    f"{workflow_name}.{key}",
-                    value.path if isinstance(value, DataFile) else value
-                )
-                for key, value in inputs.items()
-            )
-            with open(inputs_file, "wt") as out:
-                json.dump(cromwell_inputs, out, default=str)
-
-        write_imports = bool(self.import_dirs)
-        imports_file = None
-        if "imports_file" in kwargs:
-            imports_file = canonical_path(Path(kwargs["imports_file"]))
-            if imports_file.exists():
-                write_imports = False
-
-        if write_imports:
-            imports = [
-                wdl
-                for path in self.import_dirs
-                for wdl in glob.glob(str(path / "*.wdl"))
-            ]
-            if imports:
-                if imports_file:
-                    imports_file.parent.mkdir(parents=True)
-                else:
-                    imports_file = Path(tempfile.mkstemp(suffix=".zip")[1])
-
-                imports_str = " ".join(imports)
-
-                LOG.info(f"Writing imports {imports_str} to zip file {imports_file}")
-                exe = delegator.run(
-                    f"zip -j - {imports_str} > {imports_file}", block=True
-                )
-                if not exe.ok:
-                    raise Exception(
-                        f"Error creating imports zip file; stdout={exe.out}; "
-                        f"stderr={exe.err}"
-                    )
-
-        inputs_arg = f"-i {inputs_file}" if cromwell_inputs else ""
-        imports_zip_arg = f"-p {imports_file}" if imports_file else ""
-        java_args = kwargs.get("java_args", self.java_args) or ""
-        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-
-        cmd = (
-            f"{self.java_bin} {java_args} -jar {self.cromwell_jar} run "
-            f"{cromwell_args} {inputs_arg} {imports_zip_arg} {wdl_path}"
-        )
-        LOG.info(
-            f"Executing cromwell command '{cmd}' with inputs "
-            f"{json.dumps(cromwell_inputs, default=str)}"
-        )
-        exe = delegator.run(cmd, block=True)
-        if not exe.ok:
-            raise Exception(
-                f"Cromwell command failed; stdout={exe.out}; stderr={exe.err}"
-            )
-
-        outputs = CromwellHarness.get_cromwell_outputs(exe.out)
-
-        if expected:
-            for name, expected_value in expected.items():
-                key = f"{workflow_name}.{name}"
-                if key not in outputs:
-                    raise AssertionError(f"Workflow did not generate output {key}")
-                if isinstance(expected_value, DataFile):
-                    expected_value.assert_contents_equal(outputs[key])
-                else:
-                    assert expected_value == outputs[key]
-
-        return outputs
-
-    @staticmethod
-    def get_cromwell_outputs(output):
-        lines = output.splitlines(keepends=False)
-        start = None
-        for i, line in enumerate(lines):
-            if line == "{" and lines[i+1].lstrip().startswith('"outputs":'):
-                start = i
-            elif line == "}" and start is not None:
-                end = i
-                break
-        else:
-            raise AssertionError("No outputs JSON found in Cromwell stdout")
-        return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
+EXECUTORS = plugin_factory_map("pytest_wdl.executors", Executor)
+"""Executor plugin modules from the discovered entry points."""

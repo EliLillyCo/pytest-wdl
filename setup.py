@@ -19,9 +19,12 @@ setup(
         "pytest11": [
             "pytest_wdl = pytest_wdl"
         ],
-        "pytest_wdl": [
+        "pytest_wdl.data_types": [
             "bam = pytest_wdl.data_types.bam:BamDataFile",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
+        ],
+        "pytest_wdl.executors": [
+            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutorFactory"
         ]
     },
     py_modules=["pytest_wdl"],
