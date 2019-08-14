@@ -12,11 +12,21 @@ from typing import List, Optional, Union
 
 from _pytest.fixtures import FixtureRequest
 
-from pytest_wdl.core import CromwellHarness, DataResolver, DataManager, DataDirs
+from pytest_wdl.core import CromwellExecutor, DataResolver, DataManager, DataDirs
 from pytest_wdl.utils import (
     LOG, chdir, to_path, env_dir, find_project_path, find_executable_path,
     canonical_path, env_map
 )
+
+
+def wdl_config_file(request) -> Optional[Path]:
+    config_file = request.config.getoption("--wdl-config")
+    if config_file:
+        return to_path(config_file)
+
+
+def wdl_config(wdl_config_file: Optional[Path]) -> WdlConfig:
+    return WdlConfig(wdl_config_file)
 
 
 def project_root_files() -> List[str]:
@@ -74,62 +84,41 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         return json.load(inp)
 
 
-def cache_dir(project_root: Union[str, Path]) -> Union[str, Path]:
+def workflow_data_resolver(workflow_data_descriptors: dict) -> DataResolver:
     """
-    Fixture that provides the directory in which to cache the test data. If the
-    "CACHE_DIR" environment variable is set, the value will be used as the
-    execution directory path, otherwise a temporary directory is used.
+    Provides access to test data files for tests in a module.
 
     Args:
-        project_root: The root directory to use when the test data directory is
-            specified as a relative path.
+        workflow_data_descriptors: workflow_data_descriptors fixture.
     """
-    with env_dir("CACHE_DIR", project_root) as data_dir:
-        yield data_dir
+    return DataResolver(workflow_data_descriptors)
 
 
-def execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
+def workflow_data(
+    request: FixtureRequest, workflow_data_resolver: DataResolver
+) -> DataManager:
     """
-    Fixture that provides the directory in which the test is to be executed. If the
-    "EXECUTION_DIR" environment variable is set, the value will be used as the
-    execution directory path, otherwise a temporary directory is used.
+    Provides an accessor for test data files, which may be local or in a remote
+    repository.
 
     Args:
-        project_root: The root directory to use when the execution directory is
-            specified as a relative path.
-    """
-    with env_dir("EXECUTION_DIR", project_root) as execution_dir:
-        yield execution_dir
+        request: FixtureRequest object
+        workflow_data_resolver: Module-level test data configuration
 
+    Examples:
+        def workflow_data_descriptor_file():
+            return "tests/test_data.json"
 
-def http_header_map() -> dict:
+        def test_workflow(workflow_data):
+            print(workflow_data["myfile"])
     """
-    Fixture that provides a mapping from HTTP header name to the environment variable
-    from which the value should be retrieved.
-    """
-    return {}
-
-
-def http_headers(http_header_map: dict) -> dict:
-    """
-    Fixture that provides request HTTP headers to use when downloading files.
-    """
-    return env_map(http_header_map)
-
-
-def proxy_map() -> dict:
-    """
-    Fixture that provides a mapping from proxy name to the environment variable
-    from which the value should be retrieved.
-    """
-    return {}
-
-
-def proxies(proxy_map: dict) -> dict:
-    """
-    Fixture that provides the proxies to use when downloading files.
-    """
-    return env_map(proxy_map)
+    datadirs = DataDirs(
+        to_path(request.fspath.dirpath(), canonicalize=True),
+        request.module,
+        request.function,
+        request.cls
+    )
+    return DataManager(workflow_data_resolver, datadirs)
 
 
 def import_paths() -> Union[str, Path, None]:
@@ -185,181 +174,37 @@ def import_dirs(
             return []
 
 
-def java_bin() -> Union[str, Path]:
-    """
-    Fixture that provides the path to the java binary.
-    """
-    java_home = os.environ.get("JAVA_HOME")
-    if java_home:
-        path = to_path(java_home, canonicalize=True)
-        if not path.exists():
-            raise FileNotFoundError(f"JAVA_HOME directory {path} does not exist")
-        bin_path = path / "bin" / "java"
-    else:
-        bin_path = find_executable_path("java")
-
-    if not (bin_path and bin_path.exists()):
-        raise FileNotFoundError(f"java executable not found at {bin_path}")
-
-    return bin_path
-
-
-def cromwell_config_file() -> Union[str, Path, None]:
-    """
-    Fixture that returns the path to a cromwell config file, if any. By default
-    it looks for the CROMWELL_CONFIG_FILE environment variable.
-    """
-    config_file = os.environ.get("CROMWELL_CONFIG_FILE")
-    if config_file:
-        path = Path(config_file)
-        if not path.exists():
-            raise FileNotFoundError(f"CROMWELL_CONFIG_FILE {path} does not exist")
-        return path
-    else:
-        return None
-
-
-def java_args(cromwell_config_file: Optional[Union[str, Path]]) -> Optional[str]:
-    if cromwell_config_file:
-        if cromwell_config_file.exists():
-            return f"-Dconfig.file={cromwell_config_file}"
-        else:
-            raise FileNotFoundError(
-                f"Cromwell config file not found: {cromwell_config_file}"
-            )
-
-
-def cromwell_jar_file() -> Union[str, Path]:
-    """
-    Fixture that provides the path to the Cromwell JAR file. First looks for the
-    CROMWELL_JAR environment variable, then searches the classpath for a JAR file
-    whose name starts with "cromwell". Defaults to "cromwell.jar" in the current
-    directory.
-    """
-    cromwell_jar = os.environ.get("CROMWELL_JAR")
-    if cromwell_jar:
-        path = Path(cromwell_jar)
-        if not path.exists():
-            raise FileNotFoundError(f"CROMWELL_JAR directory {path} does not exist")
-        return path
-
-    classpath = os.environ.get("CLASSPATH", ".")
-
-    for path_str in classpath.split(os.pathsep):
-        path = canonical_path(Path(path_str))
-        if path.exists():
-            if path.is_dir():
-                matches = list(path.glob("cromwell*.jar"))
-                if matches:
-                    if len(matches) > 1:
-                        LOG.warning(
-                            "Found multiple cromwell jar files: %s; returning "
-                            "the first one.", matches
-                        )
-                    return matches[0]
-            elif (
-                path.suffix == ".jar" and
-                path.name.lower().startswith("cromwell")
-            ):
-                return path
-
-    raise FileNotFoundError(f"Cromwell JAR file not found on CLASSPATH {classpath}")
-
-
-def cromwell_args() -> Optional[str]:
-    return os.environ.get("CROMWELL_ARGS")
-
-
-def workflow_data_resolver(
-    workflow_data_descriptors: dict,
-    cache_dir: Union[str, Path],
-    http_headers: Optional[dict],
-    proxies: Optional[dict]
-) -> DataResolver:
-    """
-    Provides access to test data files for tests in a module.
-
-    Args:
-        workflow_data_descriptors: workflow_data_descriptors fixture.
-        cache_dir: cache_dir fixture.
-        http_headers: http_headers fixture.
-        proxies: proxies fixture.
-    """
-    return DataResolver(
-        workflow_data_descriptors,
-        to_path(cache_dir),
-        http_headers,
-        proxies
-    )
-
-
-def workflow_data(
-    request: FixtureRequest, workflow_data_resolver: DataResolver
-) -> DataManager:
-    """
-    Provides an accessor for test data files, which may be local or in a remote
-    repository.
-
-    Args:
-        request: FixtureRequest object
-        workflow_data_resolver: Module-level test data configuration
-
-    Examples:
-        def workflow_data_descriptor_file():
-            return "tests/test_data.json"
-
-        def test_workflow(workflow_data):
-            print(workflow_data["myfile"])
-    """
-    datadirs = DataDirs(
-        to_path(request.fspath.dirpath(), canonicalize=True),
-        request.module,
-        request.function,
-        request.cls
-    )
-    return DataManager(workflow_data_resolver, datadirs)
-
-
-def cromwell_harness(
+def cromwell_executor(
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
-    java_bin: Union[str, Path],
-    java_args: Optional[str],
-    cromwell_jar_file: Union[str, Path],
-    cromwell_args: Optional[str]
-) -> CromwellHarness:
+    cromwell_config: CromwellConfig
+) -> CromwellExecutor:
     """
     Provides a harness for calling Cromwell on WDL scripts.
 
     Args:
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
-        java_bin: Java executable.
-        java_args: String with arguments (e.g. -Dfoo=bar) to pass to Java.
-        cromwell_jar_file: Path to Cromwell jar file.
-        cromwell_args: String with arguments to pass to Cromwell.
+        cromwell_config: Cromwell configuration
 
     Examples:
         def test_workflow(cromwell_harness):
             cromwell_harness.run_workflow(...)
     """
-    return CromwellHarness(
+    return CromwellExecutor(
         project_root=to_path(project_root),
         import_dirs=list(to_path(d) for d in import_dirs),
-        java_bin=to_path(java_bin),
-        java_args=java_args,
-        cromwell_jar_file=to_path(cromwell_jar_file),
-        cromwell_args=cromwell_args
+        cromwell_config
     )
 
 
 def workflow_runner(
-    cromwell_harness: CromwellHarness, execution_dir: Union[str, Path]
+    project_root: Union[str, Path], cromwell_executor: CromwellExecutor
 ):
     """
     Provides a callable that runs a workflow (with the same signature as
-    `CromwellHarness.run_workflow`) with the execution_dir being the one
-    provided by the `execution_dir` fixture.
+    `CromwellHarness.run_workflow`) with the execution directory being the
+    one specified by the `EXECUTION_DIR` environment variable.
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
@@ -368,8 +213,8 @@ def workflow_runner(
         expected: Optional[dict] = None,
         **kwargs
     ):
-        with chdir(to_path(execution_dir)):
-            cromwell_harness.run_workflow(
+        with env_dir("EXECUTION_DIR", project_root, change_dir=True):
+            cromwell_executor.run_workflow(
                 wdl_script, workflow_name, inputs, expected, **kwargs
             )
     return _run_workflow

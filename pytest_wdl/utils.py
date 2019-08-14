@@ -9,13 +9,42 @@ from pathlib import Path
 import shutil
 import stat
 import tempfile
-from typing import Optional, Sequence, Union, cast
+from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union, cast
 
+from pkg_resources import iter_entry_points
 from py._path.local import LocalPath
 
 
 LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
+
+UNSET = object()
+
+T = TypeVar("T")
+
+
+class PluginFactory(Generic[T]):
+    """
+    Lazily loads a plugin class associated with a data type.
+    """
+    def __init__(self, entry_point, return_type: Type[T]):
+        self.entry_point = entry_point
+        self.factory = None
+
+    def __call__(self, *args, **kwargs) -> T:
+        if self.factory is None:
+            module = __import__(
+                self.entry_point.module_name, fromlist=['__name__'], level=0
+            )
+            self.factory = getattr(module, self.entry_point.attrs[0])
+        return self.factory(*args, **kwargs)
+
+
+def plugin_factory_map(group: str, return_type: Type[T]) -> Dict[str, PluginFactory[T]]:
+    return dict(
+        (entry_point.name, PluginFactory(entry_point, return_type))
+        for entry_point in iter_entry_points(group=group)
+    )
 
 
 # def deprecated(f: Callable):
@@ -27,6 +56,22 @@ LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 #         LOG.warning(f"Function/method {f.__name__} is deprecated and will be removed")
 #         f(*args, **kwargs)
 #     return decorator
+
+
+@contextlib.contextmanager
+def chdir(todir: Path):
+    """
+    Context manager that temporarily changes directories.
+
+    Args:
+        todir: The directory to change to.
+    """
+    curdir = Path.cwd()
+    try:
+        os.chdir(todir)
+        yield todir
+    finally:
+        os.chdir(curdir)
 
 
 @contextlib.contextmanager
@@ -50,23 +95,9 @@ def tempdir(change_dir: bool = False) -> Path:
 
 
 @contextlib.contextmanager
-def chdir(todir: Path):
-    """
-    Context manager that temporarily changes directories.
-
-    Args:
-        todir: The directory to change to.
-    """
-    curdir = Path.cwd()
-    try:
-        os.chdir(todir)
-        yield todir
-    finally:
-        os.chdir(curdir)
-
-
-@contextlib.contextmanager
-def env_dir(envar: str, project_root: Optional[Path] = None) -> Path:
+def env_dir(
+    envar: str, project_root: Optional[Path] = None, change_dir: bool = False
+) -> Path:
     """
     Context manager that looks for a specific environment variable to specify a
     directory. If the environment variable is not set, a temporary directory is
@@ -75,24 +106,29 @@ def env_dir(envar: str, project_root: Optional[Path] = None) -> Path:
     Args:
         envar: The environment variable to look for.
         project_root: The root directory to use when the path is relative.
+        change_dir: Whether to change to the directory.
 
     Yields:
         A directory path.
     """
-    testdir = os.environ.get(envar)
+    envdir = os.environ.get(envar)
     cleanup = False
-    if not testdir:
-        testdir_path = Path(tempfile.mkdtemp())
+    if not envdir:
+        envdir_path = Path(tempfile.mkdtemp())
         cleanup = True
     else:
-        testdir_path = to_path(testdir, project_root)
-        if not testdir_path.exists():
-            testdir_path.mkdir(parents=True)
+        envdir_path = to_path(envdir, project_root, canonicalize=True)
+        if not envdir_path.exists():
+            envdir_path.mkdir(parents=True)
     try:
-        yield testdir_path
+        if change_dir:
+            with chdir(envdir_path):
+                yield envdir_path
+        else:
+            yield envdir_path
     finally:
-        if cleanup and testdir_path.exists():
-            shutil.rmtree(testdir_path)
+        if cleanup and envdir_path.exists():
+            shutil.rmtree(envdir_path)
 
 
 def to_path(
@@ -247,10 +283,23 @@ def find_executable_path(
             return None
     for path in search_path:
         exe_path = path / executable
-        if exe_path.exists() and (os.stat(exe_path).st_mode & stat.S_IXUSR):
+        if exe_path.exists() and is_executable(exe_path):
             return exe_path
     else:
         return None
+
+
+def is_executable(path: Path) -> bool:
+    """
+    Checks if a path is executable.
+
+    Args:
+        path: The path to check
+
+    Returns:
+        True if `path` exists and is executable by the user, otherwise False.
+    """
+    return path.exists() and os.stat(path).st_mode & stat.S_IXUSR
 
 
 def env_map(key_env_map: dict) -> dict:
