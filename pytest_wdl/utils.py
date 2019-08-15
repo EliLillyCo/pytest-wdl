@@ -6,17 +6,20 @@ import contextlib
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import tempfile
 from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union, cast
 
-from pkg_resources import iter_entry_points
+from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
 
 
 LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
+
+UNSAFE_RE = re.compile(r"[^\w.-]")
 
 UNSET = object()
 
@@ -27,8 +30,9 @@ class PluginFactory(Generic[T]):
     """
     Lazily loads a plugin class associated with a data type.
     """
-    def __init__(self, entry_point, return_type: Type[T]):
+    def __init__(self, entry_point: EntryPoint, return_type: Type[T]):
         self.entry_point = entry_point
+        self.return_type = return_type
         self.factory = None
 
     def __call__(self, *args, **kwargs) -> T:
@@ -37,14 +41,44 @@ class PluginFactory(Generic[T]):
                 self.entry_point.module_name, fromlist=['__name__'], level=0
             )
             self.factory = getattr(module, self.entry_point.attrs[0])
-        return self.factory(*args, **kwargs)
+        plugin = self.factory(*args, **kwargs)
+        if not isinstance(plugin, self.return_type):
+            raise RuntimeError(
+                f"Expected plugin {plugin} to be an instance of {self.return_type}"
+            )
+        return cast(self.return_type, plugin)
 
 
 def plugin_factory_map(group: str, return_type: Type[T]) -> Dict[str, PluginFactory[T]]:
+    """
+    Creates a mapping of entry point name to `PluginFactory` for all discovered
+    entry points in the specified group.
+
+    Args:
+        group: Entry point group name
+        return_type: Expected return type
+
+    Returns:
+        Dict mapping entry point name to `PluginFactory` instances
+    """
     return dict(
         (entry_point.name, PluginFactory(entry_point, return_type))
         for entry_point in iter_entry_points(group=group)
     )
+
+
+def safe_string(s: str, replacement: str = "_") -> str:
+    """
+    Makes a string safe by replacing non-word characters.
+
+    Args:
+        s: The string to make safe
+        replacement: The replacement stringj
+
+    Returns:
+        The safe string
+    """
+    return UNSAFE_RE.sub(replacement, s)
 
 
 # def deprecated(f: Callable):
@@ -95,8 +129,9 @@ def tempdir(change_dir: bool = False) -> Path:
 
 
 @contextlib.contextmanager
-def env_dir(
-    envar: str, project_root: Optional[Path] = None, change_dir: bool = False
+def context_dir(
+    path: Optional[Path] = None, change_dir: bool = False,
+    cleanup: Optional[bool] = None
 ) -> Path:
     """
     Context manager that looks for a specific environment variable to specify a
@@ -104,31 +139,30 @@ def env_dir(
     created and cleaned up upon return from the yield.
 
     Args:
-        envar: The environment variable to look for.
-        project_root: The root directory to use when the path is relative.
+        path: The environment variable to look for.
         change_dir: Whether to change to the directory.
+        cleanup: Whether to delete the directory when exiting the context. If None,
+            the directory is only deleted if a temporary directory is created.
 
     Yields:
         A directory path.
     """
-    envdir = os.environ.get(envar)
-    cleanup = False
-    if not envdir:
-        envdir_path = Path(tempfile.mkdtemp())
-        cleanup = True
-    else:
-        envdir_path = to_path(envdir, project_root, canonicalize=True)
-        if not envdir_path.exists():
-            envdir_path.mkdir(parents=True)
+    if cleanup is None:
+        cleanup = path is None
+    if not path:
+        path = Path(tempfile.mkdtemp())
+    elif not path.exists():
+        path.mkdir(parents=True)
+
     try:
         if change_dir:
-            with chdir(envdir_path):
-                yield envdir_path
+            with chdir(path):
+                yield path
         else:
-            yield envdir_path
+            yield path
     finally:
-        if cleanup and envdir_path.exists():
-            shutil.rmtree(envdir_path)
+        if cleanup and path.exists():
+            shutil.rmtree(path)
 
 
 def to_path(
@@ -302,14 +336,36 @@ def is_executable(path: Path) -> bool:
     return path.exists() and os.stat(path).st_mode & stat.S_IXUSR
 
 
-def env_map(key_env_map: dict) -> dict:
+def env_map(d: dict) -> dict:
     """
-    Given a mapping of keys to environment variables, creates a mapping of the keys
-    to the values of those environment variables (if they are set).
+    Given a mapping of keys to value descriptors, creates a mapping of the keys to
+    the described values.
     """
     envmap = {}
-    for name, ev in key_env_map.items():
-        value = os.environ.get(ev)
+    for name, value_descriptor in d.items():
+        value = resolve_value_descriptor(value_descriptor)
         if value:
             envmap[name] = value
     return envmap
+
+
+def resolve_value_descriptor(value_descriptor: Union[str, dict]) -> Optional:
+    """
+    Resolves the value of a value descriptor, which may be an environment variable
+    name, or a map with keys `env` (the environment variable name) and `value` (the
+    value to use if `env` is not specified or if the environment variable is unset.
+
+    Args:
+        value_descriptor:
+
+    Returns:
+
+    """
+    if isinstance(value_descriptor, str):
+        return os.environ.get(value_descriptor)
+    elif "env" in value_descriptor:
+        return os.environ.get(
+            value_descriptor["env"], value_descriptor.get("value")
+        )
+    else:
+        return value_descriptor.get("value")

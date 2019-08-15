@@ -12,21 +12,37 @@ from typing import List, Optional, Union
 
 from _pytest.fixtures import FixtureRequest
 
-from pytest_wdl.core import CromwellExecutor, DataResolver, DataManager, DataDirs
-from pytest_wdl.utils import (
-    LOG, chdir, to_path, env_dir, find_project_path, find_executable_path,
-    canonical_path, env_map
+from pytest_wdl.core import (
+    EXECUTORS, DataResolver, DataManager, DataDirs, Executor, WdlConfig
 )
+from pytest_wdl.utils import to_path, context_dir, find_project_path, canonical_path
 
 
-def wdl_config_file(request) -> Optional[Path]:
-    config_file = request.config.getoption("--wdl-config")
+def wdl_config_file() -> Optional[Path]:
+    """
+    Fixture that provides the value of 'WDL_CONFIG' environment variable. If
+    not specified, looks in the default location ($HOME/pytest_wdl_config.json).
+
+    Returns:
+        Path to the confif file, or None if not specified.
+    """
+    config_file = os.environ.get("WDL_CONFIG")
+    config_path = None
     if config_file:
-        return to_path(config_file)
+        config_path = to_path(config_file, canonicalize=True)
+    if not config_file:
+        default_config_path = Path.home() / "pytest_wdl_config.json"
+        if default_config_path.exists():
+            config_path = default_config_path
+    if config_path and not config_path.exists():
+        raise FileNotFoundError(f"Config file {config_path} does not exist")
+    return config_path
 
 
 def wdl_config(wdl_config_file: Optional[Path]) -> WdlConfig:
-    return WdlConfig(wdl_config_file)
+    config = WdlConfig(wdl_config_file)
+    yield config
+    config.cleanup()
 
 
 def project_root_files() -> List[str]:
@@ -84,14 +100,18 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         return json.load(inp)
 
 
-def workflow_data_resolver(workflow_data_descriptors: dict) -> DataResolver:
+def workflow_data_resolver(
+    workflow_data_descriptors: dict,
+    wdl_config: WdlConfig
+) -> DataResolver:
     """
     Provides access to test data files for tests in a module.
 
     Args:
         workflow_data_descriptors: workflow_data_descriptors fixture.
+        wdl_config:
     """
-    return DataResolver(workflow_data_descriptors)
+    return DataResolver(workflow_data_descriptors, wdl_config)
 
 
 def workflow_data(
@@ -121,17 +141,18 @@ def workflow_data(
     return DataManager(workflow_data_resolver, datadirs)
 
 
-def import_paths() -> Union[str, Path, None]:
+def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
     """
     Fixture that provides the path to a file that lists directories containing WDL
-    scripts to make avaialble as imports. This looks for the file at
+    scripts to make available as imports. This looks for the file at
     "tests/import_paths.txt" by default, and returns None if that file doesn't exist.
     """
-    return find_project_path(Path("tests") / "import_paths.txt")
+    import_paths_file = Path(request.fspath.dirpath()) / "import_paths.txt"
+    if import_paths_file.exists():
+        return import_paths_file
 
 
 def import_dirs(
-    request: FixtureRequest,
     project_root: Union[str, Path],
     import_paths: Optional[Union[str, Path]]
 ) -> List[Union[str, Path]]:
@@ -142,12 +163,11 @@ def import_dirs(
     of the test module.
 
     Args:
-        request: FixtureRequest object
         project_root: Project root directory
         import_paths: File listing paths to imports, one per line
     """
     if import_paths:
-        import_paths = to_path(import_paths)
+        import_paths = to_path(import_paths, canonicalize=True)
         if not import_paths.exists():
             raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
 
@@ -164,47 +184,41 @@ def import_dirs(
 
         return paths
     else:
-        # Fall back to importing WDL files in a parent of the test directory
-        path = find_project_path(
-            "*.wdl", start=Path(request.fspath.dirpath()).parent, return_parent=True
-        )
-        if path:
-            return [path]
-        else:
-            return []
+        return []
 
 
 def cromwell_executor(
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
-    cromwell_config: CromwellConfig
-) -> CromwellExecutor:
+    wdl_config: WdlConfig
+) -> Executor:
     """
     Provides a harness for calling Cromwell on WDL scripts.
 
     Args:
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
-        cromwell_config: Cromwell configuration
+        wdl_config:
 
     Examples:
-        def test_workflow(cromwell_harness):
-            cromwell_harness.run_workflow(...)
+        def test_workflow(cromwell_executor):
+            cromwell_executor.run_workflow(...)
     """
-    return CromwellExecutor(
-        project_root=to_path(project_root),
-        import_dirs=list(to_path(d) for d in import_dirs),
-        cromwell_config
+    executor_class = EXECUTORS.get("cromwell")
+    if not executor_class:
+        raise RuntimeError("Cromwell executor plugin is not installed")
+    return executor_class(
+        project_root=project_root,
+        import_dirs=import_dirs,
+        **wdl_config.get_executor_defaults("cromwell")
     )
 
 
-def workflow_runner(
-    project_root: Union[str, Path], cromwell_executor: CromwellExecutor
-):
+def workflow_runner(cromwell_executor: Executor, wdl_config: WdlConfig):
     """
     Provides a callable that runs a workflow (with the same signature as
     `CromwellHarness.run_workflow`) with the execution directory being the
-    one specified by the `EXECUTION_DIR` environment variable.
+    one specified by the `PYTEST_WDL_EXECUTION_DIR` environment variable.
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
@@ -213,7 +227,7 @@ def workflow_runner(
         expected: Optional[dict] = None,
         **kwargs
     ):
-        with env_dir("EXECUTION_DIR", project_root, change_dir=True):
+        with context_dir(wdl_config.default_execution_dir, change_dir=True):
             cromwell_executor.run_workflow(
                 wdl_script, workflow_name, inputs, expected, **kwargs
             )

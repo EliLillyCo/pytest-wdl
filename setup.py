@@ -24,7 +24,7 @@ setup(
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
         ],
         "pytest_wdl.executors": [
-            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutorFactory"
+            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor"
         ]
     },
     py_modules=["pytest_wdl"],

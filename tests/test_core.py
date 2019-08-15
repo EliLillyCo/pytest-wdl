@@ -1,10 +1,8 @@
 import gzip
-import json
 from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
-    get_workflow, get_workflow_imports, get_workflow_inputs
+    WdlConfig
 )
-import zipfile
 from pytest_wdl.utils import tempdir
 from . import no_internet
 import pytest
@@ -88,12 +86,12 @@ def test_url_localizer():
     bad_url = "foo"
     with tempdir() as d:
         foo = d / "foo"
-        UrlLocalizer(good_url).localize(foo)
+        UrlLocalizer(good_url, WdlConfig(None, cache_dir=d)).localize(foo)
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
 
     with pytest.raises(RuntimeError):
-        UrlLocalizer(bad_url).localize(foo)
+        UrlLocalizer(bad_url, WdlConfig(None, cache_dir=d)).localize(foo)
 
 
 def test_data_dirs():
@@ -151,7 +149,7 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d, mod, fun)
-        resolver = DataResolver(test_data)
+        resolver = DataResolver(test_data, WdlConfig(None, cache_dir=d))
         with pytest.raises(ValueError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
@@ -165,7 +163,7 @@ def test_data_resolver_create_from_contents():
                 "path": "foo.txt",
                 "contents": "foo"
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -177,7 +175,7 @@ def test_data_resolver_create_from_contents():
                 "name": "foo.txt",
                 "contents": "foo"
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -188,7 +186,7 @@ def test_data_resolver_create_from_contents():
             "foo": {
                 "contents": "foo"
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path.parent == d
         assert foo.path.exists()
@@ -203,7 +201,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "path": "sample.vcf"
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -215,7 +213,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "name": "sample.vcf"
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -226,7 +224,7 @@ def test_data_resolver_create_from_url():
             "foo": {
                 "url": GOOD_URL
             }
-        }, d)
+        }, WdlConfig(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "test_file"
         with open(foo.path, "rt") as inp:
@@ -258,7 +256,7 @@ def test_data_resolver_create_from_datadir():
                 "name": "burp.txt",
                 "path": "burp.txt"
             }
-        }, d1)
+        }, WdlConfig(None, cache_dir=d1))
         boink = d / "foo" / "bar" / "boink.txt"
         with open(boink, "wt") as out:
             out.write("boink")
@@ -276,99 +274,3 @@ def test_data_resolver_create_from_datadir():
 
         with pytest.raises(FileNotFoundError):
             resolver.resolve("bobble")
-
-
-def test_get_workflow():
-    with tempdir() as d:
-        wdl = d / "test.wdl"
-        with pytest.raises(FileNotFoundError):
-            get_workflow(d, "test.wdl")
-        with open(wdl, "wt") as out:
-            out.write("workflow test {}")
-        assert get_workflow(d, "test.wdl") == (wdl, "test")
-        assert get_workflow(d, "test.wdl", "foo") == (wdl, "foo")
-
-
-def test_get_workflow_inputs():
-    with tempdir() as d:
-        actual_inputs_dict, inputs_path = get_workflow_inputs("foo", {"bar": 1})
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == {
-            "foo.bar": 1
-        }
-
-    with tempdir() as d:
-        inputs_file = d / "inputs.json"
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", {"bar": 1}, inputs_file
-        )
-        assert inputs_file == inputs_path
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == {
-            "foo.bar": 1
-        }
-
-    with tempdir() as d:
-        inputs_file = d / "inputs.json"
-        inputs_dict = {"foo.bar": 1}
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out)
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", inputs_file=inputs_file
-        )
-        assert inputs_file == inputs_path
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == inputs_dict
-
-
-def test_get_workflow_imports():
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports([wdl_dir])
-        assert zip_path.exists()
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        zip_path = get_workflow_imports([wdl_dir], imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        with open(imports_file, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports(imports_file=imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file

@@ -87,6 +87,7 @@ The main fixtures are:
     * name: Filename to use when localizing the file; also used when none of [url,path,contents] are defined to find the data file within the tests directory, using the same directory structure defined by the [pytest-datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
     * type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
     * allowed\_diff\_lines: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
+    * http_headers: Optional dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
 * cromwell_harness: Provides a CromwellHarness object that runs a WDL workflow using Cromwell with given inputs, parses out the results, and compares them against expected values. The `run_workflow` method has the following parameters:
     * wdl_script: The WDL script to execute. The path should be relative to the project root.
     * workflow_name: The name of the workflow in the WDL script.
@@ -102,6 +103,8 @@ The main fixtures are:
 
 There are also fixtures for specifying required inputs to the two main fixtures.
 
+* wdl_config_file: Provides the path to the user config file. Looks for the file path in the `WDL_CONFIG` environment variable, and falls back to looking for the file in the default location ($HOME/pytest_wdl_config.json).
+* wdl_config: Provides a session WdlConfig object that is boostrapped from the wdl_config_file if one is specified.
 * project_root: The root directory of the project. All relative paths are relative to this directory.
 * workflow_data_descriptor_file: Path to the JSON file that describes the test data. Defaults to `tests/test_data.json`.
 * workflow_data_descriptors: Mapping of test data names to values. Each value may be a primitive, a map describing a data file, or a DataFile object.
@@ -127,13 +130,14 @@ The fixtures above can utilize environment variables. Technically, none are requ
 
 | variable name | recommended | description |
 | ------------- | ----------- | ----------- |
-| `CROMWELL_JAR` | yes         | path to cromwell jar. |
-| `JAVA_HOME` | yes | path to java executable |
-| `CACHE_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
-| `EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
-| `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
+| `PYTEST_WDL_CONFIG`  | yes         | path to user config file; can also be specified to 
+| `PYTEST_WDL_CACHE_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
+| `PYTEST_WDL_EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
 | `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-wdl` logger output at various levels. |
+| `JAVA_HOME` | yes | path to java executable |
 | `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
+| `CROMWELL_JAR` | yes         | path to cromwell jar. |
+| `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
 | `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
 
 Remember that environment variables can be set multiple ways, including inline before running the command, such as `EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
@@ -154,7 +158,13 @@ Test data is specified in a JSON file of the format:
     "name": "filename",
     "contents": "test",
     "type": "vcf|bam",
-    "allowed_diff_lines": 2
+    "allowed_diff_lines": 2,
+    "http_headers": {
+      "header1": {
+        "env": "HEADER1",
+        "value": "FOOBAR"
+      }
+    }
   }
 }
 ```
@@ -165,6 +175,9 @@ Test data is specified in a JSON file of the format:
 * contents: The contents of the file; the file will be written to `path` at runtime
 * type: For use with output data files; specifies the file type for special handling by a plugin
 * allowed_diff_lines: For use with output data files; specifies the number of lines that can be different between the actual and expected outputs and still have the test pass
+* http_headers: Map of http headers to add to the request when fetching contents from `url`. Keys are header names and values are maps consiting of one or both of two keys:
+    * env: The name of an environment variable to look in for the value.
+    * value: The value to use if `env` is not provided or the environment variable is unset.
 
 #### Data Types
 

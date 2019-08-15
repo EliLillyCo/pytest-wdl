@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from pytest_wdl.utils import (
-    tempdir, chdir, env_dir as _test_dir, to_path, resolve_file,
+    tempdir, chdir, context_dir, to_path, resolve_file,
     find_executable_path, find_project_path, env_map
 )
 from . import setenv, make_executable
@@ -28,18 +28,16 @@ def test_cd():
     assert Path.cwd() == curdir
 
 
-def test_test_dir():
+def test_context_dir():
     with tempdir() as d1:
-        os.environ.setdefault("FOO", str(d1))
-
-        with _test_dir("FOO") as d2:
+        with context_dir(d1 / "foo") as d2:
             foo = d2 / "foo"
             with open(foo, "wt") as out:
                 out.write("foo")
 
         assert foo.exists()
 
-        with _test_dir("BAR") as d3:
+        with context_dir() as d3:
             bar = d3 / "bar"
             with open(bar, "wt") as out:
                 out.write("bar")
@@ -48,9 +46,11 @@ def test_test_dir():
 
         d4 = d1 / "blorf"
         assert not d4.exists()
-        os.environ.setdefault("BLORF", str(d4))
-        with _test_dir("BLORF"):
+        with context_dir(d4):
             assert d4.exists()
+        with context_dir(d4, cleanup=True):
+            pass
+        assert not d4.exists()
 
     assert not foo.exists()
 

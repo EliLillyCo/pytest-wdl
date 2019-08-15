@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 from typing import Callable, List, Optional, Tuple, Type, Union, cast
@@ -10,7 +11,10 @@ import urllib.request
 
 import delegator
 
-from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path, plugin_factory_map
+from pytest_wdl.utils import (
+    LOG, UNSET, tempdir, to_path, canonical_path, plugin_factory_map, env_map,
+    resolve_value_descriptor
+)
 
 
 class WdlConfig:
@@ -22,14 +26,60 @@ class WdlConfig:
                 self._config.update(kwargs)
         else:
             self._config = kwargs
-        self._proxies = None
-        self._http_headers = None
+        self._cache_dir = UNSET
+        self._remove_cache_dir = False
+        self._execution_dir = UNSET
+        self._proxies = UNSET
+        self._http_headers = UNSET
 
     @property
-    def default_proxies(self) -> dict:
-        if self._proxies is None:
+    def cache_dir(self) -> Path:
+        """
+        PYTEST_WDL_CACHE_DIR
+        Returns:
+
+        """
+        if self._cache_dir is UNSET:
+            cache_dir = self._env_dir("PYTEST_WDL_CACHE_DIR", "cache_dir")
+            if cache_dir:
+                self._cache_dir = cache_dir
+            else:
+                self._cache_dir = Path(tempfile.mkdtemp())
+                self._remove_cache_dir = True
+
+        return self._cache_dir
+
+    @property
+    def default_execution_dir(self) -> Optional[Path]:
+        """
+        "PYTEST_WDL_EXECUTION_DIR"
+        Returns:
+
+        """
+        if self._execution_dir is UNSET:
+            self._execution_dir = self._env_dir(
+                "PYTEST_WDL_EXECUTION_DIR", "execution_dir"
+            )
+
+        return self._execution_dir
+
+    def _env_dir(self, envar: str, config_name: str) -> Optional[Path]:
+        env_dir = os.environ.get(envar, self._config.get(config_name))
+        if env_dir:
+            env_dir_path = to_path(env_dir, canonicalize=True)
+            if not env_dir_path.exists():
+                env_dir_path.mkdir(parents=True)
+            elif not env_dir_path.is_dir():
+                raise RuntimeError(
+                    f"Path {env_dir_path} exists and is not a directory"
+                )
+            return env_dir_path
+
+    @property
+    def proxies(self) -> dict:
+        if self._proxies is UNSET:
             if "proxies" in self._config:
-                self._proxies = envmap(self._config["proxies"])
+                self._proxies = env_map(self._config["proxies"])
             else:
                 self._proxies = {}
 
@@ -37,9 +87,12 @@ class WdlConfig:
 
     @property
     def default_http_headers(self) -> dict:
-        if self._http_headers is None:
+        if self._http_headers is UNSET:
             if "http_headers" in self._config:
-                self._http_headers = envmap(self._config["http_headers"])
+                self._http_headers = {
+                    re.compile(pattern): value
+                    for pattern, value in self._config["http_headers"].items()
+                }
             else:
                 self._http_headers = {}
 
@@ -47,7 +100,15 @@ class WdlConfig:
 
     def get_executor_defaults(self, executor_name: str) -> dict:
         if "executors" in self._config:
-            return self._config["executors"].get(executor_name)
+            executors = self._config["executors"]
+            if executor_name in executors:
+                return executors[executor_name]
+
+        return {}
+
+    def cleanup(self):
+        if self._remove_cache_dir:
+            shutil.rmtree(self._cache_dir)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -70,32 +131,48 @@ class UrlLocalizer(Localizer):
     Localizes a file specified by a URL.
     """
     def __init__(
-        self, url: str,
-        http_headers: Optional[dict] = None,
-        proxies: Optional[dict] = None
+        self, url: str, wdl_config: WdlConfig, http_headers: Optional[dict] = None
     ):
         self.url = url
+        self.wdl_config = wdl_config
         self.http_headers = http_headers
-        self.proxies = proxies
 
     def localize(self, destination: Path):
+        http_headers = self.get_http_headers()
+        proxies = self.wdl_config.proxies
         LOG.debug(
             f"Localizing url %s to %s with headers %s and proxies %s",
-            self.url, str(destination), str(self.http_headers), str(self.proxies)
+            self.url, str(destination), str(http_headers), str(proxies)
         )
         try:
             req = urllib.request.Request(self.url)
-            if self.http_headers:
-                for name, value in self.http_headers.items():
+            if http_headers:
+                for name, value in http_headers.items():
                     req.add_header(name, value)
-            if self.proxies:
-                for proxy_type, url in self.proxies.items():
+            if proxies:
+                for proxy_type, url in proxies.items():
                     req.set_proxy(url, proxy_type)
             rsp = urllib.request.urlopen(req)
             with open(destination, "wb") as out:
                 shutil.copyfileobj(rsp, out)
         except Exception as err:
             raise RuntimeError(f"Error localizing url {self.url}") from err
+
+    def get_http_headers(self) -> dict:
+        http_headers = {}
+
+        if self.http_headers:
+            http_headers.update(env_map(self.http_headers))
+
+        if self.wdl_config.default_http_headers:
+            for pattern, value_dict in self.wdl_config.default_http_headers.items():
+                name = value_dict.get("name")
+                if name not in http_headers and pattern.match(self.url):
+                    value = resolve_value_descriptor(value_dict)
+                    if value:
+                        http_headers[name] = value
+
+            return http_headers
 
 
 class StringLocalizer(Localizer):
@@ -225,7 +302,7 @@ class DataFile:
             )
 
 
-DATA_TYPES  = plugin_factory_map("pytest_wdl.data_type", DataFile)
+DATA_TYPES = plugin_factory_map("pytest_wdl.data_types", DataFile)
 """Data type plugin modules from the discovered entry points."""
 
 
@@ -261,20 +338,16 @@ class DataDirs:
         if self._paths is None:
             def add_datadir_paths(root: Path):
                 testdir = root / self.module
-                print(f"Checking {testdir}")
                 if testdir.exists():
                     if self.cls is not None:
                         clsdir = testdir / self.cls
-                        print(f"Checking {clsdir}")
                         if clsdir.exists():
                             fndir = clsdir / self.function
-                            print(f"Checking {fndir}")
                             if fndir.exists():
                                 self._paths.append(fndir)
                             self._paths.append(clsdir)
                     else:
                         fndir = testdir / self.function
-                        print(f"Checking {fndir}")
                         if fndir.exists():
                             self._paths.append(fndir)
                     self._paths.append(testdir)
@@ -297,10 +370,6 @@ class DataResolver:
         self.data_descriptors = data_descriptors
         self.wdl_config = wdl_config
 
-        self.cache_dir = cache_dir
-        self.http_headers = http_headers
-        self.proxies = proxies
-
     def resolve(
         self, name: str, datadirs: Optional[DataDirs] = None
     ) -> DataFile:
@@ -321,6 +390,7 @@ class DataResolver:
         url: Optional[str] = None,
         contents: Optional[str] = None,
         datadirs: Optional[DataDirs] = None,
+        http_headers: Optional[dict] = None,
         **kwargs
     ) -> DataFile:
         data_file_class = DATA_TYPES.get(type, DataFile)
@@ -328,24 +398,24 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = to_path(path, self.cache_dir)
+            local_path = to_path(path, self.wdl_config.cache_dir, canonicalize=True)
 
         if url:
-            localizer = UrlLocalizer(url, self.http_headers, self.proxies)
+            localizer = UrlLocalizer(url, self.wdl_config, http_headers)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.cache_dir / name)
+                    local_path = canonical_path(self.wdl_config.cache_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = canonical_path(self.cache_dir / filename)
+                    local_path = canonical_path(self.wdl_config.cache_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.cache_dir / name)
+                    local_path = canonical_path(self.wdl_config.cache_dir / name)
                 else:
                     local_path = canonical_path(
-                        Path(tempfile.mktemp(dir=self.cache_dir))
+                        Path(tempfile.mktemp(dir=self.wdl_config.cache_dir))
                     )
         elif name and datadirs:
             for dd in datadirs.paths:
@@ -387,6 +457,9 @@ class DataManager:
 
 
 class Executor(metaclass=ABCMeta):
+    """
+    Base class for WDL workflow executors.
+    """
     @abstractmethod
     def run_workflow(
         self,

@@ -50,15 +50,15 @@ class BamDataFile(DataFile):
 
 def _bam_to_sam(input_bam: Path, output_sam: Path):
     """Use PySAM to convert bam to sam."""
-    samfile = pysam.view('-h', str(input_bam))
+    samfile = pysam.view("-h", str(input_bam))
     # avoid trailing newline.
-    newline = ''
-    with open(output_sam, 'w') as file_handle:
+    newline = ""
+    with open(output_sam, "w") as file_handle:
         for row in samfile.splitlines():
             file_handle.write(newline + _remove_samtools_randomness(row))
-            newline = '\n'
+            newline = "\n"
 
 
 def _remove_samtools_randomness(sam_line):
     """Replace the random IDs added by samtools."""
-    return re.sub(r'UNSET-\w*\b', 'UNSET-placeholder', sam_line)
+    return re.sub(r"UNSET-\w*\b", "UNSET-placeholder", sam_line)
