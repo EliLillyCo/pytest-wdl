@@ -3,6 +3,7 @@
 Utility functions for pytest-wdl.
 """
 import contextlib
+import fnmatch
 import logging
 import os
 from pathlib import Path
@@ -19,9 +20,11 @@ from py._path.local import LocalPath
 LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 
-UNSAFE_RE = re.compile(r"[^\w.-]")
+ENV_PATH = "PATH"
+ENV_CLASSPATH = "CLASSPATH"
+DEFAULT_CLASSPATH = "."
 
-UNSET = object()
+UNSAFE_RE = re.compile(r"[^\w.-]")
 
 T = TypeVar("T")
 
@@ -117,7 +120,7 @@ def tempdir(change_dir: bool = False) -> Path:
     Args:
         change_dir: Whether to temporarily change to the temp dir.
     """
-    temp = canonical_path(Path(tempfile.mkdtemp()))
+    temp = ensure_path(tempfile.mkdtemp())
     try:
         if change_dir:
             with chdir(temp):
@@ -165,9 +168,11 @@ def context_dir(
             shutil.rmtree(path)
 
 
-def to_path(
+def ensure_path(
     path: Union[str, LocalPath, Path], root: Optional[Path] = None,
-    canonicalize: bool = False
+    canonicalize: bool = True, exists: Optional[bool] = None,
+    is_file: Optional[bool] = None, executable: Optional[bool] = None,
+    create: bool = False
 ) -> Path:
     """
     Converts a string path or :class:`py.path.local.LocalPath` to a
@@ -176,7 +181,16 @@ def to_path(
     Args:
         path: The path to convert.
         root: Root directory to use to make `path` absolute if it is not already.
-        canonicalize: Whether to return the canonicalized version of the path.
+        canonicalize: Whether to return the canonicalized version of the path -
+            expand home directory shortcut (~), make absolute, and resolve symlinks.
+        exists: If True, raise an exception if the path does not exist; if False,
+            raise an exception if the path does exist.
+        is_file: If True, raise an exception if the path is not a file; if False,
+            raise an exception if the path is not a directory.
+        executable: If True and `is_file` is True and the file exists, raise an
+            exception if it is not executable.
+        create: Create the directory (or parent, if `path` is an existing file) if
+            it does not exist. Ignored if `exists` is True.
 
     Returns:
         A `pathlib.Path` object.
@@ -188,17 +202,29 @@ def to_path(
     if root and not p.is_absolute():
         p = root / p
         canonicalize = True
+
     if canonicalize:
-        p = canonical_path(p)
+        p = p.expanduser().absolute().resolve()
+
+    if p.exists():
+        if exists is False:
+            raise FileExistsError(f"Path {p} already exists")
+        if is_file is True:
+            if p.is_dir():
+                raise IsADirectoryError(f"Path {p} is not a file")
+            elif executable and not is_executable(p):
+                raise OSError(f"File {p} is not executable")
+        elif is_file is False and not p.is_dir():
+            raise NotADirectoryError(f"Path {p} is not a directory")
+    elif exists is True:
+        raise FileNotFoundError(f"Path {p} does not exist")
+    elif create:
+        if is_file:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            p.mkdir(parents=True, exist_ok=True)
+
     return p
-
-
-def canonical_path(path: Path) -> Path:
-    """
-    Get the canonical path for a Path - esxpand home directory shortcut (~),
-    make absolute, and resolve symlinks.
-    """
-    return path.expanduser().absolute().resolve()
 
 
 def resolve_file(
@@ -219,14 +245,14 @@ def resolve_file(
     Raises:
         FileNotFoundError if the file cannot be found and `assert_exists` is True.
     """
-    path = to_path(filename)
+    path = ensure_path(filename, canonicalize=False)
     is_abs = path.is_absolute()
 
     if is_abs and path.exists():
         return path
 
     if not is_abs:
-        check_path = canonical_path(project_root / path)
+        check_path = ensure_path(project_root / path)
         if check_path.exists():
             return check_path
         # Search in cwd
@@ -311,8 +337,8 @@ def find_executable_path(
         Absolute path of the executable, or None if no matching executable was found.
     """
     if search_path is None:
-        if "PATH" in os.environ:
-            search_path = [Path(p) for p in os.environ["PATH"].split(os.pathsep)]
+        if ENV_PATH in os.environ:
+            search_path = [Path(p) for p in os.environ[ENV_PATH].split(os.pathsep)]
         else:
             return None
     for path in search_path:
@@ -334,6 +360,35 @@ def is_executable(path: Path) -> bool:
         True if `path` exists and is executable by the user, otherwise False.
     """
     return path.exists() and os.stat(path).st_mode & stat.S_IXUSR
+
+
+def find_in_classpath(glob: str) -> Optional[Path]:
+    """
+    Attempts to find a .jar file matching the specified glob pattern in the
+    Java classpath.
+
+    Args:
+        glob: JAR filename pattern
+
+    Returns:
+        Path to the JAR file, or None if a matching file is not found.
+    """
+    classpath = os.environ.get(ENV_CLASSPATH, DEFAULT_CLASSPATH)
+
+    for path_str in classpath.split(os.pathsep):
+        path = ensure_path(path_str)
+        if path.exists():
+            if path.is_dir():
+                matches = list(path.glob(glob))
+                if matches:
+                    if len(matches) > 1:
+                        LOG.warning(
+                            "Found multiple jar files matching pattern %s: %s;"
+                            "returning the first one.", glob, matches
+                        )
+                    return matches[0]
+            elif path.exists() and fnmatch.fnmatch(path.name, glob):
+                return path
 
 
 def env_map(d: dict) -> dict:

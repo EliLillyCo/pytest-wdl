@@ -24,10 +24,10 @@ def setenv(envvars: dict):
             if v is None:
                 os.environ.pop(k)
             else:
-                os.environ[k] = v
+                os.environ[k] = str(v)
         elif v is not None:
             to_remove.append(k)
-            os.environ[k] = v
+            os.environ[k] = str(v)
     try:
         yield
     finally:

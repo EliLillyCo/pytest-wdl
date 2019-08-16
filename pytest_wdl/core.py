@@ -6,109 +6,88 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, List, Optional, Tuple, Type, Union, cast
+from typing import Callable, Dict, List, Optional, Pattern, Type, Union, cast
 import urllib.request
 
 import delegator
 
 from pytest_wdl.utils import (
-    LOG, UNSET, tempdir, to_path, canonical_path, plugin_factory_map, env_map,
+    LOG, tempdir, ensure_path, plugin_factory_map, env_map,
     resolve_value_descriptor
 )
 
 
+ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
+KEY_CACHE_DIR = "cache_dir"
+ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
+KEY_EXECUTION_DIR = "execution_dir"
+KEY_PROXIES = "proxies"
+KEY_HTTP_HEADERS = "http_headers"
+KEY_EXECUTORS = "executors"
+
+
 class WdlConfig:
-    def __init__(self, config_file: Optional[Path] = None, **kwargs):
-        self.config_file = config_file
+    def __init__(
+        self,
+        config_file: Optional[Path] = None,
+        cache_dir: Optional[Path] = None,
+        execution_dir: Optional[Path] = None,
+        proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
+        http_headers: Optional[Dict[Pattern, Dict[str, str]]] = None,
+        executor_defaults: Optional[Dict[str, dict]] = None,
+    ):
         if config_file:
             with open(config_file, "rt") as inp:
-                self._config = json.load(inp)
-                self._config.update(kwargs)
+                defaults = json.load(inp)
         else:
-            self._config = kwargs
-        self._cache_dir = UNSET
-        self._remove_cache_dir = False
-        self._execution_dir = UNSET
-        self._proxies = UNSET
-        self._http_headers = UNSET
+            defaults = {}
 
-    @property
-    def cache_dir(self) -> Path:
-        """
-        PYTEST_WDL_CACHE_DIR
-        Returns:
+        if not cache_dir:
+            cache_dir_str = os.environ.get(ENV_CACHE_DIR, defaults.get(KEY_CACHE_DIR))
+            if cache_dir_str:
+                cache_dir = ensure_path(cache_dir_str)
+        if cache_dir:
+            self.cache_dir = ensure_path(cache_dir, is_file=False, create=True)
+        else:
+            self.cache_dir = Path(tempfile.mkdtemp())
+            self.remove_cache_dir = True
 
-        """
-        if self._cache_dir is UNSET:
-            cache_dir = self._env_dir("PYTEST_WDL_CACHE_DIR", "cache_dir")
-            if cache_dir:
-                self._cache_dir = cache_dir
-            else:
-                self._cache_dir = Path(tempfile.mkdtemp())
-                self._remove_cache_dir = True
-
-        return self._cache_dir
-
-    @property
-    def default_execution_dir(self) -> Optional[Path]:
-        """
-        "PYTEST_WDL_EXECUTION_DIR"
-        Returns:
-
-        """
-        if self._execution_dir is UNSET:
-            self._execution_dir = self._env_dir(
-                "PYTEST_WDL_EXECUTION_DIR", "execution_dir"
+        if not execution_dir:
+            execution_dir_str = os.environ.get(
+                ENV_EXECUTION_DIR, defaults.get(KEY_EXECUTION_DIR)
             )
+            if execution_dir_str:
+                execution_dir = ensure_path(execution_dir_str)
+        if execution_dir:
+            self.default_execution_dir = ensure_path(
+                execution_dir, is_file=False, create=True
+            )
+        else:
+            self.default_execution_dir = None
 
-        return self._execution_dir
+        if not proxies and KEY_PROXIES in defaults:
+            proxies = env_map(defaults[KEY_PROXIES])
+        self.proxies = proxies or {}
 
-    def _env_dir(self, envar: str, config_name: str) -> Optional[Path]:
-        env_dir = os.environ.get(envar, self._config.get(config_name))
-        if env_dir:
-            env_dir_path = to_path(env_dir, canonicalize=True)
-            if not env_dir_path.exists():
-                env_dir_path.mkdir(parents=True)
-            elif not env_dir_path.is_dir():
-                raise RuntimeError(
-                    f"Path {env_dir_path} exists and is not a directory"
-                )
-            return env_dir_path
+        if not http_headers and KEY_HTTP_HEADERS in defaults:
+            http_headers = {
+                re.compile(d["pattern"]): d
+                for d in defaults[KEY_HTTP_HEADERS]
+            }
+        self.default_http_headers = http_headers or {}
 
-    @property
-    def proxies(self) -> dict:
-        if self._proxies is UNSET:
-            if "proxies" in self._config:
-                self._proxies = env_map(self._config["proxies"])
-            else:
-                self._proxies = {}
-
-        return self._proxies
-
-    @property
-    def default_http_headers(self) -> dict:
-        if self._http_headers is UNSET:
-            if "http_headers" in self._config:
-                self._http_headers = {
-                    re.compile(pattern): value
-                    for pattern, value in self._config["http_headers"].items()
-                }
-            else:
-                self._http_headers = {}
-
-        return self._http_headers
+        self.executor_defaults = executor_defaults or {}
+        if "executors" in defaults:
+            for name, d in defaults["executors"].items():
+                if name not in self.executor_defaults:
+                    self.executor_defaults[name] = d
 
     def get_executor_defaults(self, executor_name: str) -> dict:
-        if "executors" in self._config:
-            executors = self._config["executors"]
-            if executor_name in executors:
-                return executors[executor_name]
-
-        return {}
+        return self.executor_defaults.get(executor_name, {})
 
     def cleanup(self):
-        if self._remove_cache_dir:
-            shutil.rmtree(self._cache_dir)
+        if self.remove_cache_dir:
+            shutil.rmtree(self.cache_dir)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -172,7 +151,7 @@ class UrlLocalizer(Localizer):
                     if value:
                         http_headers[name] = value
 
-            return http_headers
+        return http_headers
 
 
 class StringLocalizer(Localizer):
@@ -398,24 +377,24 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = to_path(path, self.wdl_config.cache_dir, canonicalize=True)
+            local_path = ensure_path(path, self.wdl_config.cache_dir)
 
         if url:
             localizer = UrlLocalizer(url, self.wdl_config, http_headers)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.wdl_config.cache_dir / name)
+                    local_path = ensure_path(self.wdl_config.cache_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = canonical_path(self.wdl_config.cache_dir / filename)
+                    local_path = ensure_path(self.wdl_config.cache_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.wdl_config.cache_dir / name)
+                    local_path = ensure_path(self.wdl_config.cache_dir / name)
                 else:
-                    local_path = canonical_path(
-                        Path(tempfile.mktemp(dir=self.wdl_config.cache_dir))
+                    local_path = ensure_path(
+                        tempfile.mktemp(dir=self.wdl_config.cache_dir)
                     )
         elif name and datadirs:
             for dd in datadirs.paths:

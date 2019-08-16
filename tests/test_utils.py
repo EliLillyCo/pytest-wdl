@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from pytest_wdl.utils import (
-    tempdir, chdir, context_dir, to_path, resolve_file,
+    tempdir, chdir, context_dir, ensure_path, resolve_file,
     find_executable_path, find_project_path, env_map
 )
 from . import setenv, make_executable
@@ -57,10 +57,10 @@ def test_context_dir():
 
 def test_to_path():
     cwd = Path.cwd()
-    assert to_path(cwd) == cwd
+    assert ensure_path(cwd) == cwd
     cwd_str = str(cwd)
-    assert to_path(cwd_str) == cwd
-    assert to_path(cwd.name, cwd.parent) == cwd
+    assert ensure_path(cwd_str) == cwd
+    assert ensure_path(cwd.name, cwd.parent) == cwd
 
 
 def test_resolve_file():

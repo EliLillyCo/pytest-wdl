@@ -1,17 +1,80 @@
 import gzip
+import json
+import re
+from typing import cast
+from unittest.mock import Mock
+import pytest
 from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
     WdlConfig
 )
 from pytest_wdl.utils import tempdir
-from . import no_internet
-import pytest
-from unittest.mock import Mock
+from . import no_internet, setenv
 
 
 # TODO: switch after repo is made public
 # GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/sample.vcf"
 GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
+
+
+def test_wdl_config_no_defaults():
+    with tempdir() as d:
+        config = WdlConfig()
+        assert config.remove_cache_dir is True
+        assert config.cache_dir.exists()
+        config.cleanup()
+        assert not config.cache_dir.exists()
+
+
+def test_wdl_config_from_file():
+    with tempdir() as d, setenv({
+        "HTTPS_PROXY": "http://foo.com/https",
+        "FOO_HEADER": "bar"
+    }):
+        cache_dir = d / "cache"
+        execution_dir = d / "execution"
+        config_dict = {
+            "cache_dir": str(cache_dir),
+            "execution_dir": str(execution_dir),
+            "proxies": {
+                "http": {
+                    "value": "http://foo.com/http"
+                },
+                "https": {
+                    "env": "HTTPS_PROXY"
+                }
+            },
+            "http_headers": [
+                {
+                    "pattern": "http://foo.com/.*",
+                    "name": "foo",
+                    "env": "FOO_HEADER"
+                }
+            ],
+            "executors": {
+                "foo": {
+                    "bar": 1
+                }
+            }
+        }
+        config_file = d / "config.json"
+        with open(config_file, "wt") as out:
+            json.dump(config_dict, out)
+        config = WdlConfig(config_file)
+        assert config.cache_dir == cache_dir
+        assert config.default_execution_dir == execution_dir
+        assert config.proxies == {
+            "http": "http://foo.com/http",
+            "https": "http://foo.com/https"
+        }
+        assert config.default_http_headers == {
+            re.compile("http://foo.com/.*"): {
+                "pattern": "http://foo.com/.*",
+                "name": "foo",
+                "env": "FOO_HEADER"
+            }
+        }
+        assert config.get_executor_defaults("foo") == {"bar": 1}
 
 
 def test_link_localizer():
@@ -274,3 +337,49 @@ def test_data_resolver_create_from_datadir():
 
         with pytest.raises(FileNotFoundError):
             resolver.resolve("bobble")
+
+
+def test_http_header_set_in_workflow_data():
+    """
+    Test that workflow data file can define the HTTP Headers. This is
+    important because the URLs referenced can be from different hosts and
+    require different headers, so setting them at this level allows that
+    fine-grained control.
+    """
+    with tempdir() as d:
+        config = WdlConfig(cache_dir=d)
+        assert not config.default_http_headers
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        }, config)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
+
+    with setenv({"TOKEN": "this_is_the_token"}), tempdir() as d:
+        config = WdlConfig(cache_dir=d)
+        assert not config.default_http_headers
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        },  config)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        assert isinstance(foo.localizer, UrlLocalizer)
+        assert cast(UrlLocalizer, foo.localizer).get_http_headers() == {
+            "Auth-Header-Token": "this_is_the_token"
+        }
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"

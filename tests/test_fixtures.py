@@ -1,8 +1,27 @@
 from pathlib import Path
-from pytest_wdl.fixtures import import_dirs
+from pytest_wdl.fixtures import (
+    ENV_WDL_CONFIG, DEFAULT_WDL_CONFIG_FILE, import_dirs, wdl_config_file
+)
 from pytest_wdl.utils import tempdir
 import pytest
-from unittest.mock import Mock
+from . import setenv
+
+
+def test_wdl_config_file():
+    with tempdir() as d:
+        config = d / "config.json"
+        with setenv({ENV_WDL_CONFIG: config}):
+            with pytest.raises(FileNotFoundError):
+                wdl_config_file()
+            with open(config, "wt") as out:
+                out.write("foo")
+            assert wdl_config_file() == config
+
+    with tempdir() as d, setenv({"HOME": str(d)}):
+        config = d / DEFAULT_WDL_CONFIG_FILE
+        with open(config, "wt") as out:
+            out.write("foo")
+        assert wdl_config_file() == config
 
 
 def test_fixtures(workflow_data, workflow_runner):

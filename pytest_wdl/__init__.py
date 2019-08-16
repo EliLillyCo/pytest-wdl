@@ -7,13 +7,6 @@ from pytest_wdl import fixtures
 import pytest
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--wdl-config", default=None,
-        help="Path to JSON file with environment-specifc configuration."
-    )
-
-
 wdl_config_file = pytest.fixture(scope="session")(fixtures.wdl_config_file)
 wdl_config = pytest.fixture(scope="session")(fixtures.wdl_config)
 project_root_files = pytest.fixture(scope="module")(fixtures.project_root_files)

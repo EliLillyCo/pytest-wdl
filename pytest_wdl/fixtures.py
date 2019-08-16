@@ -15,7 +15,13 @@ from _pytest.fixtures import FixtureRequest
 from pytest_wdl.core import (
     EXECUTORS, DataResolver, DataManager, DataDirs, Executor, WdlConfig
 )
-from pytest_wdl.utils import to_path, context_dir, find_project_path, canonical_path
+from pytest_wdl.utils import ensure_path, context_dir, find_project_path
+
+
+ENV_WDL_CONFIG = "PYTEST_WDL_CONFIG"
+DEFAULT_WDL_CONFIG_FILE = "pytest_wdl_config.json"
+DEFAULT_TEST_DATA_FILE = "test_data.json"
+DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
 
 
 def wdl_config_file() -> Optional[Path]:
@@ -26,12 +32,12 @@ def wdl_config_file() -> Optional[Path]:
     Returns:
         Path to the confif file, or None if not specified.
     """
-    config_file = os.environ.get("WDL_CONFIG")
+    config_file = os.environ.get(ENV_WDL_CONFIG)
     config_path = None
     if config_file:
-        config_path = to_path(config_file, canonicalize=True)
-    if not config_file:
-        default_config_path = Path.home() / "pytest_wdl_config.json"
+        config_path = ensure_path(config_file)
+    else:
+        default_config_path = Path.home() / DEFAULT_WDL_CONFIG_FILE
         if default_config_path.exists():
             config_path = default_config_path
     if config_path and not config_path.exists():
@@ -79,10 +85,10 @@ def workflow_data_descriptor_file() -> Union[str, Path]:
     """
     tests = find_project_path(Path("tests"))
     if tests:
-        test_data = tests / "test_data.json"
+        test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():
             return test_data
-    raise FileNotFoundError("Could not find test_data.json file")
+    raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
 
 
 def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
@@ -96,7 +102,7 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         A dict with keys as test data names and each value either a
         primitive, a map describing a data file, or a DataFile object.
     """
-    with open(to_path(workflow_data_descriptor_file), "rt") as inp:
+    with open(ensure_path(workflow_data_descriptor_file), "rt") as inp:
         return json.load(inp)
 
 
@@ -133,7 +139,7 @@ def workflow_data(
             print(workflow_data["myfile"])
     """
     datadirs = DataDirs(
-        to_path(request.fspath.dirpath(), canonicalize=True),
+        ensure_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
         request.function,
         request.cls
@@ -147,7 +153,7 @@ def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
     scripts to make available as imports. This looks for the file at
     "tests/import_paths.txt" by default, and returns None if that file doesn't exist.
     """
-    import_paths_file = Path(request.fspath.dirpath()) / "import_paths.txt"
+    import_paths_file = Path(request.fspath.dirpath()) / DEFAULT_IMPORT_PATHS_FILE
     if import_paths_file.exists():
         return import_paths_file
 
@@ -167,7 +173,7 @@ def import_dirs(
         import_paths: File listing paths to imports, one per line
     """
     if import_paths:
-        import_paths = to_path(import_paths, canonicalize=True)
+        import_paths = ensure_path(import_paths, canonicalize=True)
         if not import_paths.exists():
             raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
 
@@ -177,7 +183,7 @@ def import_dirs(
             for path_str in inp.read().splitlines(keepends=False):
                 path = Path(path_str)
                 if not path.is_absolute():
-                    path = canonical_path(project_root / path)
+                    path = ensure_path(project_root / path)
                 if not path.exists():
                     raise FileNotFoundError(f"Invalid import path: {path}")
                 paths.append(path)
