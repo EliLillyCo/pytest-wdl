@@ -6,6 +6,7 @@ cromwell-executions/
 __pycache__/
 *.pyc
 .coverage
+coverage.xml
 .idea
 docs/build
 docs/source/modules.rst
