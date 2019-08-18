@@ -48,6 +48,7 @@ class WdlConfig:
                 cache_dir = ensure_path(cache_dir_str)
         if cache_dir:
             self.cache_dir = ensure_path(cache_dir, is_file=False, create=True)
+            self.remove_cache_dir = False
         else:
             self.cache_dir = Path(tempfile.mkdtemp())
             self.remove_cache_dir = True
