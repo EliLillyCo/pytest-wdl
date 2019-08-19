@@ -7,7 +7,7 @@ import re
 import shutil
 import tempfile
 from typing import Callable, Dict, List, Optional, Pattern, Type, Union, cast
-import urllib.request
+from urllib import request
 
 import delegator
 
@@ -27,10 +27,36 @@ KEY_EXECUTORS = "executors"
 
 
 class WdlConfig:
+    """
+    Stores pytest-wdl configuration. If configuration options are specified both in
+    the config file and as arguments to the constructor, the latter take precedence.
+
+    Args:
+        config_file: JSON file from which to load default values.
+        cache_dir: The directory in which to cache localized files; defaults to using
+            a temporary directory that is specific to each module and deleted
+            afterwards.
+        remove_cache_dir: Whether to remove the cache directory; if None, takes the
+            value True if a temp directory is used for caching, and False, if
+            a value for `cache_dir` is specified.
+        execution_dir: The directory in which to run workflows. Defaults to None,
+            which signals that a different temporary directory should be used for
+            each workflow run.
+        proxies: Mapping of proxy type (typically 'http' or 'https' to either an
+            environment variable, or a dict with either/both keys 'env' and 'value',
+            where the value is taken from the environment variable ('env') first, and
+            from 'value' if the environment variable is not specified or is unset.
+        http_headers: A mapping of URI pattern to dict with keys 'name', 'env', 'value',
+            where 'name' is the header name and 'env' and 'value' are interpreted the
+            same as for `proxies`.
+        executor_defaults: Mapping of executor name to dict of executor-specific
+            configuration options.
+    """
     def __init__(
         self,
         config_file: Optional[Path] = None,
         cache_dir: Optional[Path] = None,
+        remove_cache_dir: Optional[bool] = None,
         execution_dir: Optional[Path] = None,
         proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
         http_headers: Optional[Dict[Pattern, Dict[str, str]]] = None,
@@ -48,10 +74,13 @@ class WdlConfig:
                 cache_dir = ensure_path(cache_dir_str)
         if cache_dir:
             self.cache_dir = ensure_path(cache_dir, is_file=False, create=True)
-            self.remove_cache_dir = False
+            if remove_cache_dir is None:
+                remove_cache_dir = False
         else:
             self.cache_dir = Path(tempfile.mkdtemp())
-            self.remove_cache_dir = True
+            if remove_cache_dir is None:
+                remove_cache_dir = True
+        self.remove_cache_dir = remove_cache_dir
 
         if not execution_dir:
             execution_dir_str = os.environ.get(
@@ -84,9 +113,22 @@ class WdlConfig:
                     self.executor_defaults[name] = d
 
     def get_executor_defaults(self, executor_name: str) -> dict:
+        """
+        Get default configuration values for the given executor.
+
+        Args:
+            executor_name: The executor name
+
+        Returns:
+            A dict with the executor configuration values, if any.
+        """
         return self.executor_defaults.get(executor_name, {})
 
-    def cleanup(self):
+    def cleanup(self) -> None:
+        """
+        Preforms cleanup operations, such as deleting the cache directory if
+        `self.remove_cache_dir` is True.
+        """
         if self.remove_cache_dir:
             shutil.rmtree(self.cache_dir)
 
@@ -118,27 +160,18 @@ class UrlLocalizer(Localizer):
         self.http_headers = http_headers
 
     def localize(self, destination: Path):
-        http_headers = self.get_http_headers()
-        proxies = self.wdl_config.proxies
-        LOG.debug(
-            f"Localizing url %s to %s with headers %s and proxies %s",
-            self.url, str(destination), str(http_headers), str(proxies)
-        )
+        LOG.debug(f"Localizing url %s to %s", self.url, str(destination))
         try:
-            req = urllib.request.Request(self.url)
-            if http_headers:
-                for name, value in http_headers.items():
-                    req.add_header(name, value)
-            if proxies:
-                for proxy_type, url in proxies.items():
-                    req.set_proxy(url, proxy_type)
-            rsp = urllib.request.urlopen(req)
+            req = request.Request(self.url)
+            self.add_http_headers(req)
+            self.set_proxies(req)
+            rsp = request.urlopen(req)
             with open(destination, "wb") as out:
                 shutil.copyfileobj(rsp, out)
         except Exception as err:
             raise RuntimeError(f"Error localizing url {self.url}") from err
 
-    def get_http_headers(self) -> dict:
+    def add_http_headers(self, req: request.Request):
         http_headers = {}
 
         if self.http_headers:
@@ -152,7 +185,15 @@ class UrlLocalizer(Localizer):
                     if value:
                         http_headers[name] = value
 
-        return http_headers
+        if http_headers:
+            for name, value in http_headers.items():
+                req.add_header(name, value)
+
+    def set_proxies(self, req: request.Request):
+        proxies = self.wdl_config.proxies
+        if proxies:
+            for proxy_type, url in proxies.items():
+                req.set_proxy(url, proxy_type)
 
 
 class StringLocalizer(Localizer):

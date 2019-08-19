@@ -55,13 +55,51 @@ def test_context_dir():
     assert not foo.exists()
 
 
-def test_to_path():
+def test_ensure_path():
     cwd = Path.cwd()
     assert ensure_path(cwd) == cwd
+
     cwd_str = str(cwd)
     assert ensure_path(cwd_str) == cwd
     assert ensure_path(cwd.name, cwd.parent) == cwd
 
+    assert ensure_path(cwd.name, cwd.parent) == cwd
+
+    home = Path.home()
+    assert ensure_path("~", canonicalize=False) == Path("~")
+    assert ensure_path("~", canonicalize=True) == home
+
+    with tempdir() as d:
+        with pytest.raises(FileNotFoundError):
+            ensure_path(d / "foo", exists=True)
+
+        foo = d / "foo"
+        assert not foo.exists()
+        bar = foo / "bar"
+        ensure_path(bar, is_file=True, create=True)
+        assert foo.exists()
+
+        with open(bar, "wt") as out:
+            out.write("foo")
+        ensure_path(bar, exists=True, is_file=True)
+        with pytest.raises(NotADirectoryError):
+            ensure_path(bar, exists=True, is_file=False)
+        with pytest.raises(OSError):
+            ensure_path(bar, exists=True, is_file=True, executable=True)
+        os.chmod(bar, bar.stat().st_mode | stat.S_IEXEC)
+        ensure_path(bar, exists=True, is_file=True, executable=True)
+
+        baz = d / "baz"
+        assert not baz.exists()
+        ensure_path(baz, is_file=False, create=True)
+        assert baz.exists()
+        assert baz.is_dir()
+
+        with pytest.raises(FileExistsError):
+            ensure_path(baz, exists=False)
+
+        with pytest.raises(IsADirectoryError):
+            ensure_path(baz, exists=True, is_file=True)
 
 def test_resolve_file():
     with tempdir() as d:

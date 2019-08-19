@@ -157,6 +157,57 @@ def test_url_localizer():
         UrlLocalizer(bad_url, WdlConfig(None, cache_dir=d)).localize(foo)
 
 
+def test_url_localizer_add_headers():
+    with setenv({
+       "FOO": "bar"
+    }):
+        localizer = UrlLocalizer(
+            "http://foo.com/bork",
+            WdlConfig(http_headers={
+                re.compile(r"http://foo.com/.*"): {
+                    "name": "beep",
+                    "env": "FOO",
+                    "value": "baz"
+                },
+                re.compile(r"http://foo.*/bork"): {
+                    "name": "boop",
+                    "env": "BAR",
+                    "value": "blorf"
+                }
+            }),
+            {
+                "boop": {
+                    "value": "blammo"
+                }
+            }
+        )
+        headers = {}
+        def add_header(name, value):
+            headers[name] = value
+        req = Mock()
+        req.add_header = add_header
+        localizer.add_http_headers(req)
+        assert len(headers) == 2
+        assert set(headers.keys()) == {"beep", "boop"}
+        assert headers["beep"] == "bar"
+        assert headers["boop"] == "blammo"
+
+
+def test_url_localizer_set_proxies():
+    localizer = UrlLocalizer("http://foo.com", WdlConfig(proxies={
+        "https": "https://foo.com/proxy"
+    }))
+    proxies = {}
+    def set_proxy(url, proxy_type):
+        proxies[proxy_type] = url
+    req = Mock()
+    req.set_proxy = set_proxy
+    localizer.set_proxies(req)
+    assert len(proxies) == 1
+    assert "https" in proxies
+    assert proxies["https"] == "https://foo.com/proxy"
+
+
 def test_data_dirs():
     with tempdir() as d:
         mod = Mock()
@@ -378,7 +429,14 @@ def test_http_header_set_in_workflow_data():
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         assert isinstance(foo.localizer, UrlLocalizer)
-        assert cast(UrlLocalizer, foo.localizer).get_http_headers() == {
+        headers = {}
+        def add_header(name, value):
+            headers[name] = value
+
+        req = Mock()
+        req.add_header = add_header
+        cast(UrlLocalizer, foo.localizer).add_http_headers(req)
+        assert headers == {
             "Auth-Header-Token": "this_is_the_token"
         }
         with open(foo.path, "rt") as inp:
