@@ -473,8 +473,20 @@ class DataManager:
         self.data_resolver = data_resolver
         self.datadirs = datadirs
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str):
         return self.data_resolver.resolve(name, self.datadirs)
+
+    def get_dict(self, *names: str) -> dict:
+        """
+        Creates a dict with one or more entries from this DataManager.
+
+        Args:
+            *names: Names of test data entries to add to the dict.
+
+        Returns:
+            Dict mapping `name` to `self[name]` for all specified names.
+        """
+        return {name: self[name] for name in names}
 
 
 class Executor(metaclass=ABCMeta):

@@ -10,6 +10,7 @@ Welcome to pytest-wdl's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   manual.md
    modules.rst
 
 
