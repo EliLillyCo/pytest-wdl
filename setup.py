@@ -2,6 +2,18 @@ import codecs
 import os
 from setuptools import setup, find_packages
 
+
+extras_require = {
+    "bam": ["pysam"],
+    "progress": ["tqdm"]
+}
+extras_require["all"] = [
+    lib
+    for lib_array in extras_require.values()
+    for lib in lib_array
+]
+
+
 setup(
     name="pytest-wdl",
     use_scm_version=True,
@@ -33,8 +45,5 @@ setup(
         "pytest",
         "delegator.py"
     ],
-    extras_require={
-        "all": ["pysam"],
-        "bam": ["pysam"]
-    }
+    extras_require=extras_require
 )

@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
-    WdlConfig
+    UserConfiguration
 )
 from pytest_wdl.utils import tempdir
 from . import no_internet, setenv
@@ -17,16 +17,16 @@ from . import no_internet, setenv
 GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
 
 
-def test_wdl_config_no_defaults():
+def test_user_config_no_defaults():
     with tempdir() as d:
-        config = WdlConfig()
+        config = UserConfiguration()
         assert config.remove_cache_dir is True
         assert config.cache_dir.exists()
         config.cleanup()
         assert not config.cache_dir.exists()
 
 
-def test_wdl_config_from_file():
+def test_user_config_from_file():
     with tempdir() as d, setenv({
         "HTTPS_PROXY": "http://foo.com/https",
         "FOO_HEADER": "bar"
@@ -60,7 +60,7 @@ def test_wdl_config_from_file():
         config_file = d / "config.json"
         with open(config_file, "wt") as out:
             json.dump(config_dict, out)
-        config = WdlConfig(config_file)
+        config = UserConfiguration(config_file)
         assert config.cache_dir == cache_dir
         assert config.default_execution_dir == execution_dir
         assert config.proxies == {
@@ -149,12 +149,12 @@ def test_url_localizer():
     bad_url = "foo"
     with tempdir() as d:
         foo = d / "foo"
-        UrlLocalizer(good_url, WdlConfig(None, cache_dir=d)).localize(foo)
+        UrlLocalizer(good_url, UserConfiguration(None, cache_dir=d)).localize(foo)
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
 
     with pytest.raises(RuntimeError):
-        UrlLocalizer(bad_url, WdlConfig(None, cache_dir=d)).localize(foo)
+        UrlLocalizer(bad_url, UserConfiguration(None, cache_dir=d)).localize(foo)
 
 
 def test_url_localizer_add_headers():
@@ -163,7 +163,7 @@ def test_url_localizer_add_headers():
     }):
         localizer = UrlLocalizer(
             "http://foo.com/bork",
-            WdlConfig(http_headers={
+            UserConfiguration(http_headers={
                 re.compile(r"http://foo.com/.*"): {
                     "name": "beep",
                     "env": "FOO",
@@ -181,12 +181,7 @@ def test_url_localizer_add_headers():
                 }
             }
         )
-        headers = {}
-        def add_header(name, value):
-            headers[name] = value
-        req = Mock()
-        req.add_header = add_header
-        localizer.add_http_headers(req)
+        headers = localizer.http_headers
         assert len(headers) == 2
         assert set(headers.keys()) == {"beep", "boop"}
         assert headers["beep"] == "bar"
@@ -194,15 +189,10 @@ def test_url_localizer_add_headers():
 
 
 def test_url_localizer_set_proxies():
-    localizer = UrlLocalizer("http://foo.com", WdlConfig(proxies={
+    localizer = UrlLocalizer("http://foo.com", UserConfiguration(proxies={
         "https": "https://foo.com/proxy"
     }))
-    proxies = {}
-    def set_proxy(url, proxy_type):
-        proxies[proxy_type] = url
-    req = Mock()
-    req.set_proxy = set_proxy
-    localizer.set_proxies(req)
+    proxies = localizer.proxies
     assert len(proxies) == 1
     assert "https" in proxies
     assert proxies["https"] == "https://foo.com/proxy"
@@ -263,11 +253,55 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d, mod, fun)
-        resolver = DataResolver(test_data, WdlConfig(None, cache_dir=d))
+        resolver = DataResolver(test_data, UserConfiguration(None, cache_dir=d))
         with pytest.raises(ValueError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
         assert resolver.resolve("bar", dd) == 1
+
+
+def test_data_resolver_env():
+    with tempdir() as d:
+        path = d / "foo.txt"
+        with open(path, "wt") as out:
+            out.write("foo")
+        with setenv({"FOO": str(path)}):
+            resolver = DataResolver({
+                "foo": {
+                    "env": "FOO"
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == path
+
+            bar = d / "bar.txt"
+            resolver = DataResolver({
+                "foo": {
+                    "env": "FOO",
+                    "path": bar
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == bar
+
+
+def test_data_resolver_local_path():
+    with tempdir() as d:
+        path = d / "foo.txt"
+        with open(path, "wt") as out:
+            out.write("foo")
+        resolver = DataResolver({
+            "foo": {
+                "path": "foo.txt"
+            }
+        }, UserConfiguration(None, cache_dir=d))
+        assert resolver.resolve("foo").path == path
+
+        with setenv({"MYPATH": str(d)}):
+            resolver = DataResolver({
+                "foo": {
+                    "path": "${MYPATH}/foo.txt"
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == path
 
 
 def test_data_resolver_create_from_contents():
@@ -277,7 +311,7 @@ def test_data_resolver_create_from_contents():
                 "path": "foo.txt",
                 "contents": "foo"
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -289,7 +323,7 @@ def test_data_resolver_create_from_contents():
                 "name": "foo.txt",
                 "contents": "foo"
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -300,7 +334,7 @@ def test_data_resolver_create_from_contents():
             "foo": {
                 "contents": "foo"
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path.parent == d
         assert foo.path.exists()
@@ -315,7 +349,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "path": "sample.vcf"
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -327,7 +361,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "name": "sample.vcf"
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -338,7 +372,7 @@ def test_data_resolver_create_from_url():
             "foo": {
                 "url": GOOD_URL
             }
-        }, WdlConfig(None, cache_dir=d))
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "test_file"
         with open(foo.path, "rt") as inp:
@@ -370,7 +404,7 @@ def test_data_resolver_create_from_datadir():
                 "name": "burp.txt",
                 "path": "burp.txt"
             }
-        }, WdlConfig(None, cache_dir=d1))
+        }, UserConfiguration(None, cache_dir=d1))
         boink = d / "foo" / "bar" / "boink.txt"
         with open(boink, "wt") as out:
             out.write("boink")
@@ -398,7 +432,7 @@ def test_http_header_set_in_workflow_data():
     fine-grained control.
     """
     with tempdir() as d:
-        config = WdlConfig(cache_dir=d)
+        config = UserConfiguration(cache_dir=d)
         assert not config.default_http_headers
         resolver = DataResolver({
             "foo": {
@@ -415,7 +449,7 @@ def test_http_header_set_in_workflow_data():
             assert inp.read() == "foo"
 
     with setenv({"TOKEN": "this_is_the_token"}), tempdir() as d:
-        config = WdlConfig(cache_dir=d)
+        config = UserConfiguration(cache_dir=d)
         assert not config.default_http_headers
         resolver = DataResolver({
             "foo": {
@@ -429,14 +463,7 @@ def test_http_header_set_in_workflow_data():
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         assert isinstance(foo.localizer, UrlLocalizer)
-        headers = {}
-        def add_header(name, value):
-            headers[name] = value
-
-        req = Mock()
-        req.add_header = add_header
-        cast(UrlLocalizer, foo.localizer).add_http_headers(req)
-        assert headers == {
+        assert cast(UrlLocalizer, foo.localizer).http_headers == {
             "Auth-Header-Token": "this_is_the_token"
         }
         with open(foo.path, "rt") as inp:

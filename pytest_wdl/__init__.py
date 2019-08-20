@@ -7,8 +7,8 @@ from pytest_wdl import fixtures
 import pytest
 
 
-wdl_config_file = pytest.fixture(scope="session")(fixtures.wdl_config_file)
-wdl_config = pytest.fixture(scope="session")(fixtures.wdl_config)
+user_config_file = pytest.fixture(scope="session")(fixtures.user_config_file)
+user_config = pytest.fixture(scope="session")(fixtures.user_config)
 project_root_files = pytest.fixture(scope="module")(fixtures.project_root_files)
 project_root = pytest.fixture(scope="module")(fixtures.project_root)
 workflow_data_descriptor_file = pytest.fixture(scope="module")(fixtures.workflow_data_descriptor_file)

@@ -115,8 +115,7 @@ Input and output data are defined in a `test_data.json` file in the same directo
     "url": "http://example.com/my.bam.bai"
   },
   "index_fa": {
-    "url": "http://example.com/GRCh38.fasta",
-    "path": "references/GRCh38.fasta"
+    "name": "chr22.fasta"
   },
   "vcf": {
     "url": "http://example.com/expected.vcf.gz",

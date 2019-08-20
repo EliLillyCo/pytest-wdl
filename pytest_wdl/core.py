@@ -7,13 +7,12 @@ import re
 import shutil
 import tempfile
 from typing import Callable, Dict, List, Optional, Pattern, Type, Union, cast
-from urllib import request
 
 import delegator
 
 from pytest_wdl.utils import (
     LOG, tempdir, ensure_path, plugin_factory_map, env_map,
-    resolve_value_descriptor
+    resolve_value_descriptor, download_file
 )
 
 
@@ -23,10 +22,11 @@ ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
 KEY_EXECUTION_DIR = "execution_dir"
 KEY_PROXIES = "proxies"
 KEY_HTTP_HEADERS = "http_headers"
+KEY_SHOW_PROGRESS = "show_progress"
 KEY_EXECUTORS = "executors"
 
 
-class WdlConfig:
+class UserConfiguration:
     """
     Stores pytest-wdl configuration. If configuration options are specified both in
     the config file and as arguments to the constructor, the latter take precedence.
@@ -49,6 +49,8 @@ class WdlConfig:
         http_headers: A mapping of URI pattern to dict with keys 'name', 'env', 'value',
             where 'name' is the header name and 'env' and 'value' are interpreted the
             same as for `proxies`.
+        show_progress: Whether to show progress bars when downloading remote test data
+            files.
         executor_defaults: Mapping of executor name to dict of executor-specific
             configuration options.
     """
@@ -60,6 +62,7 @@ class WdlConfig:
         execution_dir: Optional[Path] = None,
         proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
         http_headers: Optional[Dict[Pattern, Dict[str, str]]] = None,
+        show_progress: Optional[bool] = None,
         executor_defaults: Optional[Dict[str, dict]] = None,
     ):
         if config_file:
@@ -105,6 +108,10 @@ class WdlConfig:
                 for d in defaults[KEY_HTTP_HEADERS]
             }
         self.default_http_headers = http_headers or {}
+
+        self.show_progress = show_progress
+        if self.show_progress is None:
+            self.show_progress = defaults.get(KEY_SHOW_PROGRESS)
 
         self.executor_defaults = executor_defaults or {}
         if "executors" in defaults:
@@ -153,47 +160,47 @@ class UrlLocalizer(Localizer):
     Localizes a file specified by a URL.
     """
     def __init__(
-        self, url: str, wdl_config: WdlConfig, http_headers: Optional[dict] = None
+        self,
+        url: str,
+        user_config: UserConfiguration,
+        http_headers: Optional[dict] = None
     ):
         self.url = url
-        self.wdl_config = wdl_config
-        self.http_headers = http_headers
+        self.user_config = user_config
+        self._http_headers = http_headers
 
     def localize(self, destination: Path):
-        LOG.debug(f"Localizing url %s to %s", self.url, str(destination))
         try:
-            req = request.Request(self.url)
-            self.add_http_headers(req)
-            self.set_proxies(req)
-            rsp = request.urlopen(req)
-            with open(destination, "wb") as out:
-                shutil.copyfileobj(rsp, out)
+            download_file(
+                self.url,
+                destination,
+                http_headers=self.http_headers,
+                proxies=self.user_config.proxies,
+                show_progress=self.user_config.show_progress
+            )
         except Exception as err:
             raise RuntimeError(f"Error localizing url {self.url}") from err
 
-    def add_http_headers(self, req: request.Request):
+    @property
+    def http_headers(self) -> dict:
         http_headers = {}
 
-        if self.http_headers:
-            http_headers.update(env_map(self.http_headers))
+        if self._http_headers:
+            http_headers.update(env_map(self._http_headers))
 
-        if self.wdl_config.default_http_headers:
-            for pattern, value_dict in self.wdl_config.default_http_headers.items():
+        if self.user_config.default_http_headers:
+            for pattern, value_dict in self.user_config.default_http_headers.items():
                 name = value_dict.get("name")
                 if name not in http_headers and pattern.match(self.url):
                     value = resolve_value_descriptor(value_dict)
                     if value:
                         http_headers[name] = value
 
-        if http_headers:
-            for name, value in http_headers.items():
-                req.add_header(name, value)
+        return http_headers
 
-    def set_proxies(self, req: request.Request):
-        proxies = self.wdl_config.proxies
-        if proxies:
-            for proxy_type, url in proxies.items():
-                req.set_proxy(url, proxy_type)
+    @property
+    def proxies(self) -> dict:
+        return self.user_config.proxies
 
 
 class StringLocalizer(Localizer):
@@ -387,9 +394,9 @@ class DataResolver:
     """
     Resolves data files that may need to be localized.
     """
-    def __init__(self, data_descriptors: dict, wdl_config: WdlConfig):
+    def __init__(self, data_descriptors: dict, user_config: UserConfiguration):
         self.data_descriptors = data_descriptors
-        self.wdl_config = wdl_config
+        self.user_config = user_config
 
     def resolve(
         self, name: str, datadirs: Optional[DataDirs] = None
@@ -410,6 +417,7 @@ class DataResolver:
         path: Optional[str] = None,
         url: Optional[str] = None,
         contents: Optional[str] = None,
+        env: Optional[str] = None,
         datadirs: Optional[DataDirs] = None,
         http_headers: Optional[dict] = None,
         **kwargs
@@ -419,24 +427,32 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = ensure_path(path, self.wdl_config.cache_dir)
+            local_path = ensure_path(path, self.user_config.cache_dir)
 
-        if url:
-            localizer = UrlLocalizer(url, self.wdl_config, http_headers)
+        if local_path and local_path.exists():
+            pass
+        elif env and env in os.environ:
+            env_path = ensure_path(os.environ[env], exists=True)
+            if not local_path:
+                local_path = env_path
+            else:
+                localizer = LinkLocalizer(env_path)
+        elif url:
+            localizer = UrlLocalizer(url, self.user_config, http_headers)
             if not local_path:
                 if name:
-                    local_path = ensure_path(self.wdl_config.cache_dir / name)
+                    local_path = ensure_path(self.user_config.cache_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = ensure_path(self.wdl_config.cache_dir / filename)
+                    local_path = ensure_path(self.user_config.cache_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = ensure_path(self.wdl_config.cache_dir / name)
+                    local_path = ensure_path(self.user_config.cache_dir / name)
                 else:
                     local_path = ensure_path(
-                        tempfile.mktemp(dir=self.wdl_config.cache_dir)
+                        tempfile.mktemp(dir=self.user_config.cache_dir)
                     )
         elif name and datadirs:
             for dd in datadirs.paths:
@@ -476,17 +492,23 @@ class DataManager:
     def __getitem__(self, name: str):
         return self.data_resolver.resolve(name, self.datadirs)
 
-    def get_dict(self, *names: str) -> dict:
+    def get_dict(self, *names: str, **params) -> dict:
         """
         Creates a dict with one or more entries from this DataManager.
 
         Args:
             *names: Names of test data entries to add to the dict.
+            **params: Mapping of workflow parameter names to test data entry names.
 
         Returns:
-            Dict mapping `name` to `self[name]` for all specified names.
+            Dict mapping parameter names to test data entries for all specified names.
         """
-        return {name: self[name] for name in names}
+        d = {}
+        for name in names:
+            d[name] = self[name]
+        for param, name in params.items():
+            d[param] = self[name]
+        return d
 
 
 class Executor(metaclass=ABCMeta):
