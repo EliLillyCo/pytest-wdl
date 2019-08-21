@@ -23,7 +23,8 @@ class VcfDataFile(DataFile):
     @classmethod
     def _diff(cls, file1: Path, file2: Path):
         """
-        Special handling for VCF files to only compare the first 5 columns.
+        Special handling for VCF files to ignore QUAL, INFO, and FORMAT, and only
+        compares genotypes in the first sample column
 
         Args:
             file1: First file to compare

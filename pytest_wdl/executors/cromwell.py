@@ -112,7 +112,6 @@ class CromwellExecutor(Executor):
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
             kwargs: Additional keyword arguments, mostly for debugging:
-                * execution_dir: DEPRECATED
                 * inputs_file: Path to the Cromwell inputs file to use. Inputs are
                     written to this file only if it doesn't exist.
                 * imports_file: Path to the WDL imports file to use. Imports are
@@ -127,13 +126,6 @@ class CromwellExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        if "execution_dir" in kwargs:
-            LOG.warning(
-                f"Parameter execution_dir is deprecated and will be removed. Use "
-                f"the `chdir` context manager instead."
-            )
-            os.chdir(kwargs["execution_dir"])
-
         wdl_path, workflow_name = get_workflow(
             self.project_root, wdl_script, workflow_name,
         )

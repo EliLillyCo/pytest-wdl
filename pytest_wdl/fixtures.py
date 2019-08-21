@@ -193,48 +193,39 @@ def import_dirs(
         return []
 
 
-def cromwell_executor(
+def workflow_runner(
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
     user_config: UserConfiguration
-) -> Executor:
+):
     """
-    Provides a harness for calling Cromwell on WDL scripts.
+    Provides a callable that runs a workflow (with the same signature as
+    `Executor.run_workflow`).
 
     Args:
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
         user_config:
-
-    Examples:
-        def test_workflow(cromwell_executor):
-            cromwell_executor.run_workflow(...)
-    """
-    executor_class = EXECUTORS.get("cromwell")
-    if not executor_class:
-        raise RuntimeError("Cromwell executor plugin is not installed")
-    return executor_class(
-        project_root=project_root,
-        import_dirs=import_dirs,
-        **user_config.get_executor_defaults("cromwell")
-    )
-
-
-def workflow_runner(cromwell_executor: Executor, user_config: UserConfiguration):
-    """
-    Provides a callable that runs a workflow (with the same signature as
-    `CromwellHarness.run_workflow`) with the execution directory being the
-    one specified by the `PYTEST_WDL_EXECUTION_DIR` environment variable.
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
         workflow_name: Optional[str] = None,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
+        executor_name: str = "cromwell",
         **kwargs
     ):
+        executor_class = EXECUTORS.get(executor_name)
+        if not executor_class:
+            raise RuntimeError(f"{executor_name} executor plugin is not installed")
+        executor = executor_class(
+            project_root=project_root,
+            import_dirs=import_dirs,
+            **user_config.get_executor_defaults(executor_name)
+        )
         with context_dir(user_config.default_execution_dir, change_dir=True):
-            cromwell_executor.run_workflow(
+            executor.run_workflow(
                 wdl_script, workflow_name, inputs, expected, **kwargs
             )
+
     return _run_workflow
