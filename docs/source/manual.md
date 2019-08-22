@@ -4,7 +4,7 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 
 ## Fixtures
 
-All functionality of pytest-wdl is provided via [fixtures](https://docs.pytest.org/en/latest/fixture.html). As long as pytest-wdl is in your PYTHONPATH, its fixtures will be discovered and made available when you run pytest.
+All functionality of pytest-wdl is provided via [fixtures](https://docs.pytest.org/en/latest/fixture.html). As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
 
 The two most important fixtures are:
 
@@ -58,19 +58,19 @@ Below is an example `test_data.json` file that demonstrates different ways to de
 
 The available keys for configuring file inputs/outputs are:
 
-* name: Filename to use when localizing the file; when none of {url, path, contents} are defined, `name` is also used to search for the data file within the tests directory, using the same directory structure defined by the [datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
-* path: The local path to the file. If the path does not already exist, the file will be localized to this path. Typically, this is defined as a relative path that will be prefixed with the [cache directory](#cache) path. Environment variables can be used to enable the user to configure an environment-specific path.
-* env: The name of an environment variable in which to look up the local path of the file.
-* url: A URL that can be resolved by [urllib](https://docs.python.org/3/library/urllib.html).
-    * http_headers: Optional dict mapping header names to values. These headers are used for file download requests. Keys are header names and values are either strings (environment variable name) or dict with the following keys:
-        * env: The name of an environment variable in which to look up the header value.
-        * value: The header value; only used if an environment variable is not specified or is unset.
-* contents: The contents of the file, specified as a string. The file is written to `path` the first time it is requested.
+* `name`: Filename to use when localizing the file; when none of `url`, `path`, or `contents` are defined, `name` is also used to search for the data file within the tests directory, using the same directory structure defined by the [datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
+* `path`: The local path to the file. If the path does not already exist, the file will be localized to this path. Typically, this is defined as a relative path that will be prefixed with the [cache directory](#cache) path. Environment variables can be used to enable the user to configure an environment-specific path.
+* `env`: The name of an environment variable in which to look up the local path of the file.
+* `url`: A URL that can be resolved by [urllib](https://docs.python.org/3/library/urllib.html).
+    * `http_headers`: Optional dict mapping header names to values. These headers are used for file download requests. Keys are header names and values are either strings (environment variable name) or mappings with the following keys:
+        * `env`: The name of an environment variable in which to look up the header value.
+        * `value`: The header value; only used if an environment variable is not specified or is unset.
+* `contents`: The contents of the file, specified as a string. The file is written to `path` the first time it is requested.
 
 In addition, the following keys are recognized for output files only:
 
-* type: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
-* allowed\_diff\_lines: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
+* `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
+* `allowed_diff_lines`: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
 
 #### Data Types
 
@@ -96,19 +96,19 @@ An Executor is a wrapper around a WDL workflow execution engine that prepares in
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and several additional optional arguments:
 
-* wdl_script: Required; the WDL script to execute. The path must either be absolute or (more commonly) relative to the project root.
-* workflow_name: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
-* inputs: Dict that will be serialized to JSON and provided to Cromwell as the workflow inputs. If not specified, the workflow must not have any required inputs.
-* expected: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
+* `wdl_script`: Required; the WDL script to execute. The path must either be absolute or (more commonly) relative to the project root.
+* `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
+* `inputs`: Dict that will be serialized to JSON and provided to Cromwell as the workflow inputs. If not specified, the workflow must not have any required inputs.
+* `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
 
 ### Executor-specific options
 
 #### Cromwell
 
-* inputs_file: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
-* imports_file: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file.
-* java_args: Override the default Java arguments.
-* cromwell_args: Override the default Cromwell arguments.
+* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+* `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file.
+* `java_args`: Override the default Java arguments.
+* `cromwell_args`: Override the default Cromwell arguments.
 
 ## Configuration
 
@@ -165,8 +165,8 @@ The available configuration options are listed in the following table:
 
 In the proxies section of the configuration file, you can define the proxy servers for schemes used in data file URLs. The keys are scheme names and the values are either strings - environment variable names - or mappings with the following keys:
 
-* env: The name of an environment variable in which to look for the proxy server address.
-* value: The value to use for the proxy server address, if the environment variable is not defined or is unset.
+* `env`: The name of an environment variable in which to look for the proxy server address.
+* `value`: The value to use for the proxy server address, if the environment variable is not defined or is unset.
 
 ```json
 {
@@ -186,8 +186,8 @@ In the proxies section of the configuration file, you can define the proxy serve
 
 In the http_headers section of the configuration file, you can define a list of headers to use when downloading data files. In addition to `env` and `value` keys (which are interpreted the same as for [proxies](#proxies), two additional keys are allowed:
 
-* name: Required; the header name
-* pattern: A regular expression used to match the URL; if not specified, the header is used with all URLs.
+* `name`: Required; the header name
+* `pattern`: A regular expression used to match the URL; if not specified, the header is used with all URLs.
 
 ```json
 {
@@ -227,27 +227,57 @@ There are two fixtures that control the loading of the user configuration:
 
 ### Creating new data types
 
-To create a new data type plugin, add a module in the data_types directory.
+To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-This should subclass the `pytest_wdl.core.DataFile` class and override its methods for _assert_contents_equal() and _diff to define the behavior for this file type.
+Your plugin should subclass the `pytest_wdl.core.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
-Next, add an entry point in setup.py. If the data type requires more dependencies be installed, make sure to use a Try/Except ImportError to warn about this and add the extra dependencies under the setup.py's `extras_require`. For example:
+Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require`. For example:
+
+```python
+# plugin.py
+try:
+    import mylib
+except ImportError:
+    logger.warning(
+        "mytype is not available because the mylib library is not "
+        "installed"
+    )
+```
 
 ```python
 setup(
     ...,
     entry_points={
-        "pytest_wdl": [
-            "bam = pytest_wdl.data_types.bam:BamDataFile"
+        "pytest_wdl.data_types": [
+            "mydata = pytest_wdl.data_types.mytype:MyDataFile"
         ]
     },
     extras_require={
-        "bam": ["pysam"]
+        "mydata": ["mylib"]
     }
 )
 ```
 
-In this example, the extra dependencies can be installed with `pip install pytest-wdl[bam]`.
+In this example, the extra dependencies can be installed with `pip install pytest-wdl[mydata]`.
 
 ### Creating new executors
 
+To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
+
+Your plugin should subclass `pytest_wdl.core.Executor` and implement the `run_workflow()` method.
+
+Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
+
+```python
+setup(
+    ...,
+    entry_points={
+        "pytest_wdl.executors": [
+            "myexec = pytest_wdl.executors.myexec:MyExecutor"
+        ]
+    },
+    extras_require={
+        "myexec": ["mylib"]
+    }
+)
+```
