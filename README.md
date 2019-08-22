@@ -1,5 +1,7 @@
 # pytest-wdl
 
+[![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
+
 This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl).
 
 ## Dependencies
@@ -50,7 +52,7 @@ $ pip install pytest-wdl[<data_type>]
 To do this locally, you can clone the repo and run:
 
 ```commandline
-$ pip install -e .[<data_type>]`
+$ pip install -e .[<data_type>]
 ```
 
 To install pytest-wdl and **all** extras dependencies:
@@ -125,7 +127,7 @@ Input and output data are defined in a `test_data.json` file in the same directo
 }
 ```
 
-For details, [read the docs](docs/index.html).
+For details, [read the docs](https://pytest-wdl.readthedocs.io).
 
 ## Development
 
