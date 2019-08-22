@@ -163,18 +163,20 @@ def test_url_localizer_add_headers():
     }):
         localizer = UrlLocalizer(
             "http://foo.com/bork",
-            UserConfiguration(http_headers={
-                re.compile(r"http://foo.com/.*"): {
+            UserConfiguration(http_headers=[
+                {
                     "name": "beep",
+                    "pattern": re.compile(r"http://foo.com/.*"),
                     "env": "FOO",
                     "value": "baz"
                 },
-                re.compile(r"http://foo.*/bork"): {
+                {
                     "name": "boop",
+                    "pattern": re.compile(r"http://foo.*/bork"),
                     "env": "BAR",
                     "value": "blorf"
                 }
-            }),
+            ]),
             {
                 "boop": {
                     "value": "blammo"
