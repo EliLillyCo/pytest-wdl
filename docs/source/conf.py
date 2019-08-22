@@ -37,8 +37,12 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
-    'sphinx_markdown_tables'
+    'sphinx_markdown_tables',
+    'sphinxcontrib.apidoc'
 ]
+
+apidoc_module_dir = '../../pytest_wdl/'
+apidoc_output_dir = '.'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
