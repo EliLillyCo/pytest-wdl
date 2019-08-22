@@ -125,7 +125,7 @@ Input and output data are defined in a `test_data.json` file in the same directo
 }
 ```
 
-For details, [read the docs](docs/index.html).
+For details, [read the docs](https://pytest-wdl.readthedocs.io).
 
 ## Development
 
