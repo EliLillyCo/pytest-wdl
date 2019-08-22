@@ -50,7 +50,7 @@ $ pip install pytest-wdl[<data_type>]
 To do this locally, you can clone the repo and run:
 
 ```commandline
-$ pip install -e .[<data_type>]`
+$ pip install -e .[<data_type>]
 ```
 
 To install pytest-wdl and **all** extras dependencies:
