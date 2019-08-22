@@ -67,13 +67,13 @@ def test_user_config_from_file():
             "http": "http://foo.com/http",
             "https": "http://foo.com/https"
         }
-        assert config.default_http_headers == {
-            re.compile("http://foo.com/.*"): {
-                "pattern": "http://foo.com/.*",
+        assert config.default_http_headers == [
+            {
+                "pattern": re.compile("http://foo.com/.*"),
                 "name": "foo",
                 "env": "FOO_HEADER"
             }
-        }
+        ]
         assert config.get_executor_defaults("foo") == {"bar": 1}
 
 

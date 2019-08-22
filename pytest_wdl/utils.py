@@ -13,7 +13,7 @@ import shutil
 import stat
 import tempfile
 from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union, cast
-from urllib import request
+from urllib import request, parse
 
 from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
@@ -453,6 +453,10 @@ def download_file(
         for name, value in http_headers.items():
             req.add_header(name, value)
     if proxies:
+        # TODO: Should we only set the proxy associated with the URL scheme?
+        #  Should we raise an exception if there is not a proxy defined for
+        #  the URL scheme?
+        # parsed = parse.urlparse(url)
         for proxy_type, url in proxies.items():
             req.set_proxy(url, proxy_type)
     rsp = request.urlopen(req)

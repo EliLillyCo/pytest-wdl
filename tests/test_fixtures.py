@@ -1,6 +1,6 @@
 from pathlib import Path
 from pytest_wdl.fixtures import (
-    ENV_user_config, DEFAULT_user_config_FILE, import_dirs, user_config_file
+    ENV_USER_CONFIG, DEFAULT_USER_CONFIG_FILE, import_dirs, user_config_file
 )
 from pytest_wdl.utils import tempdir
 import pytest
@@ -10,7 +10,7 @@ from . import setenv
 def test_user_config_file():
     with tempdir() as d:
         config = d / "config.json"
-        with setenv({ENV_user_config: config}):
+        with setenv({ENV_USER_CONFIG: config}):
             with pytest.raises(FileNotFoundError):
                 user_config_file()
             with open(config, "wt") as out:
@@ -18,7 +18,7 @@ def test_user_config_file():
             assert user_config_file() == config
 
     with tempdir() as d, setenv({"HOME": str(d)}):
-        config = d / DEFAULT_user_config_FILE
+        config = d / DEFAULT_USER_CONFIG_FILE
         with open(config, "wt") as out:
             out.write("foo")
         assert user_config_file() == config

@@ -18,8 +18,8 @@ from pytest_wdl.core import (
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
 
-ENV_user_config = "PYTEST_user_config"
-DEFAULT_user_config_FILE = "pytest_user_config.json"
+ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
+DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
 DEFAULT_TEST_DATA_FILE = "test_data.json"
 DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
 
@@ -32,12 +32,12 @@ def user_config_file() -> Optional[Path]:
     Returns:
         Path to the confif file, or None if not specified.
     """
-    config_file = os.environ.get(ENV_user_config)
+    config_file = os.environ.get(ENV_USER_CONFIG)
     config_path = None
     if config_file:
         config_path = ensure_path(config_file)
     else:
-        default_config_path = Path.home() / DEFAULT_user_config_FILE
+        default_config_path = Path.home() / DEFAULT_USER_CONFIG_FILE
         if default_config_path.exists():
             config_path = default_config_path
     if config_path and not config_path.exists():

@@ -46,9 +46,11 @@ class UserConfiguration:
             environment variable, or a dict with either/both keys 'env' and 'value',
             where the value is taken from the environment variable ('env') first, and
             from 'value' if the environment variable is not specified or is unset.
-        http_headers: A mapping of URI pattern to dict with keys 'name', 'env', 'value',
-            where 'name' is the header name and 'env' and 'value' are interpreted the
-            same as for `proxies`.
+        http_headers: A list of dicts, each of which defines a header. The allowed
+            keys are 'pattern', 'name', 'env', and 'value', where pattern is a URL
+            pattern to match, 'name' is the header name and 'env' and 'value' are
+            interpreted the same as for `proxies`. If no pattern is provided, the
+            header is used for all URLs.
         show_progress: Whether to show progress bars when downloading remote test data
             files.
         executor_defaults: Mapping of executor name to dict of executor-specific
@@ -61,7 +63,7 @@ class UserConfiguration:
         remove_cache_dir: Optional[bool] = None,
         execution_dir: Optional[Path] = None,
         proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
-        http_headers: Optional[Dict[Pattern, Dict[str, str]]] = None,
+        http_headers: Optional[List[dict]] = None,
         show_progress: Optional[bool] = None,
         executor_defaults: Optional[Dict[str, dict]] = None,
     ):
@@ -103,11 +105,11 @@ class UserConfiguration:
         self.proxies = proxies or {}
 
         if not http_headers and KEY_HTTP_HEADERS in defaults:
-            http_headers = {
-                re.compile(d["pattern"]): d
-                for d in defaults[KEY_HTTP_HEADERS]
-            }
-        self.default_http_headers = http_headers or {}
+            http_headers = defaults[KEY_HTTP_HEADERS]
+            for d in http_headers:
+                if "pattern" in d:
+                    d["pattern"] = re.compile(d.pop("pattern"))
+        self.default_http_headers = http_headers or []
 
         self.show_progress = show_progress
         if self.show_progress is None:
@@ -189,9 +191,12 @@ class UrlLocalizer(Localizer):
             http_headers.update(env_map(self._http_headers))
 
         if self.user_config.default_http_headers:
-            for pattern, value_dict in self.user_config.default_http_headers.items():
-                name = value_dict.get("name")
-                if name not in http_headers and pattern.match(self.url):
+            for value_dict in self.user_config.default_http_headers:
+                name = value_dict["name"]
+                pattern = value_dict.get("pattern")
+                if name not in http_headers and (
+                    pattern is None or pattern.match(self.url)
+                ):
                     value = resolve_value_descriptor(value_dict)
                     if value:
                         http_headers[name] = value

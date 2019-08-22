@@ -133,44 +133,94 @@ Configuration at the project level is handled by overriding fixtures, either in 
 
 ### Environment-specific configuration
 
+There are several aspects of pytest-wdl that can be configured to the local environment, for example to enable the same tests to run both on a user's development machine and in a continuous integration environment.
 
-The local cache directory may be specified using the `CACHE_DIR` environment variable; otherwise a temporary directory is used and is deleted at the end of the test session. 
+Environment-specific configuration is specified either or both of two places: a JSON configuration file and environment variables. Environment variables always take precendence over values in the configuration file. Keep in mind that (on a *nix system), environment variables can be set (semi-)permanently (using `export`) or temporarily (using `env`):
 
+```commandline
+# Set environment variable durably
+$ export FOO=bar
 
-* user_config_file: Provides the path to the user config file. Looks for the file path in the `user_config` environment variable, and falls back to looking for the file in the default location ($HOME/pytest_user_config.json).
-* user_config: Provides a session WdlConfig object that is boostrapped from the user_config_file if one is specified.
+# Set environment variable only in the context of a single command
+$ env FOO=bar echo "foo is $FOO"
+```
 
-* cache_dir: Local directory for caching test data. The `CACHE_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to cache test data for the test module.
-* execution_dir: Local directory in which tests are executed. The `EXECUTION_DIR` environment variable takes precedence, otherwise by default this fixture creates a temporary directory that is used to run the test function and is cleaned up afterwards.
-* http_headers: Dict mapping header names to environment variable names. These are the headers used in file download requests, and the environment variables can be used to specify the defaults.
-* proxies: Dict mapping proxy names to environment variables.
+#### Configuration file
 
-* java_bin: Path to the java executable. Defaults to `$JAVA_HOME/bin/java`.
-* cromwell_jar_file: By default this fixture first looks for the `$CROMWELL_JAR` enironment variable. It then searches the classpath for a JAR file that begins with 'cromwell' (case-insensitive). If the JAR file is not found in either place, it is expected to be located in the same directory as the tests are executed from (i.e. `./cromwell.jar`).
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/pytest_wdl_config.json).
 
+The available configuration options are listed in the following table:
 
-These fixtures have sensible defaults, but can be overridden in two different ways:
+| configuration file key | environment variable | description | default | recommendation|
+| -------------| ------------- | ----------- | ----------- | ----------- |
+| `cache_dir` | `PYTEST_WDL_CACHE_DIR` | Directory to use for localizing test data files. | Temporary directory; a separate directory is used for each test module | pro: saves time when multiple tests rely on the same test data files; con: can cause conflicts, if tests use different files with the same name |
+| `execution_dir` | `PYTEST_WDL_EXECUTION_DIR` | Directory in which tests are executed | Temporary directory; a separate directory is used for each test function | Only use for debugging; use an absolute path |
+| `proxies` | Configurable | Proxy server information; see details below | None | Use environment variable(s) to configure your proxy server(s), if any |
+| `http_headers` | Configurable | HTTP header configuration that applies to all URLs matching a given pattern; see details below | None | Configure headers by URL pattern; configure headers for specific URLs in the test_data.json file |
+| `executors` |Executor-dependent | Configuration options specific to each executor; see below | None | |
+| N/A | `LOGLEVEL` | Level of detail to log; can set to 'DEBUG', 'INFO', 'WARNING', or 'ERROR' | 'WARNING' | Use 'DEBUG' when developing plugins/fixtures/etc., otherwise 'WARNING' |
 
-* Define them in the test module
-* Define them in a conftest.py module at or above the level of the test modules
+##### Proxies
 
-#### Environment Variables
+In the proxies section of the configuration file, you can define the proxy servers for schemes used in data file URLs. The keys are scheme names and the values are either strings - environment variable names - or mappings with the following keys:
 
-The fixtures above can utilize environment variables. Technically, none are required and this can be run without them if your environment is setup to meet the needs of each fixture. Many can be set in other ways, like overriding a fixture. Below is a table of possible variables you can set though and which are recommended:
+* env: The name of an environment variable in which to look for the proxy server address.
+* value: The value to use for the proxy server address, if the environment variable is not defined or is unset.
 
-| variable name | recommended | description |
-| ------------- | ----------- | ----------- |
-| `PYTEST_user_config`  | yes         | path to user config file; can also be specified to 
-| `PYTEST_WDL_CACHE_DIR` | no, use for testing and development | where to store test data, default is temp. If you define this, use an absolute path. |
-| `PYTEST_WDL_EXECUTION_DIR` | no, use for testing and development | where cromwell should execute, default is temp. If you define this, use an absolute path. | 
-| `LOGLEVEL` | no, use for debug | default is `WARNING`. Can set to `INFO`, `DEBUG`, `ERROR` to enable `pytest-wdl` logger output at various levels. |
-| `JAVA_HOME` | yes | path to java executable |
-| `CLASSPATH` | only if you do not specify `CROMWELL_JAR` | java classpath |
-| `CROMWELL_JAR` | yes         | path to cromwell jar. |
-| `CROMWELL_CONFIG` | no, only when needed | define a cromwell configuration file to use for the test run |
-| `CROMWELL_ARGS` | no, only when needed | add additional arguments into the cromwell run command |
+```json
+{
+  "proxies": {
+    "http": {
+      "env": "HTTP_PROXY"
+    },
+    "https": {
+      "value": "https://foo.com/proxy",
+      "env": "HTTPS_PROXY"
+    }
+  }
+}
+```
 
-Remember that environment variables can be set multiple ways, including inline before running the command, such as `EXECUTION_DIR=$(pwd) python -m pytest -s tests/`
+##### HTTP(S) Headers
+
+In the http_headers section of the configuration file, you can define a list of headers to use when downloading data files. In addition to `env` and `value` keys (which are interpreted the same as for [proxies](#proxies), two additional keys are allowed:
+
+* name: Required; the header name
+* pattern: A regular expression used to match the URL; if not specified, the header is used with all URLs.
+
+```json
+{
+  "http_headers": [
+    {
+      "name": "X-JFrog-Art-Api",
+      "pattern": "http://my.company.com/artifactory/*",
+      "env": "TOKEN"
+    }
+  ]
+}
+```
+
+##### Executor-specific configuration
+
+###### Cromwell
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `java_bin` | `JAVA_HOME` | Path to java executable; If not specified, then Java executable is expected to be in $JAVA_HOME/bin/java | None |
+| `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (if `cromwell_config_file` is specified |
+| `cromwell_jar` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
+| N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
+| `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
+| `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; recommended to use `-Ddocker.hash-lookup.enabled=false` to disable Docker lookup by hash |
+
+##### Fixtures
+
+There are two fixtures that control the loading of the user configuration:
+
+| fixture name | scope | description | default |
+| -------------| ----- | ----------- | ------- |
+| `user_config_file` | session | The location of the user configuration file | The value of the `PYTEST_WDL_CONFIG` environment variable if set, otherwise `$HOME/pytest_wdl_config.json`  |
+| `user_config` | session | Provides a `UserConfiguration` object that is used by other fixtures to access configuration values | Default values are loaded from `user_config_file`, but most values can be overridden via environment variables (see below) |
 
 ## Plugins
 
