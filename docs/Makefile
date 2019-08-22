@@ -20,6 +20,5 @@ help:
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 html:
-	cd .. pip install .[all] && cd - && pip install -r requirements.txt
-	sphinx-apidoc -f -o $(SOURCEDIR) ../pytest_wdl/
+	cd .. && pip install .[all] && cd - && pip install -r requirements.txt
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
