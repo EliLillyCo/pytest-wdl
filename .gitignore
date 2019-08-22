@@ -6,11 +6,13 @@ cromwell-executions/
 __pycache__/
 *.pyc
 .coverage
+coverage.xml
 .idea
 docs/build
 docs/source/modules.rst
 docs/source/pytest_wdl.rst
 docs/source/pytest_wdl.data_types.rst
+docs/source/pytest_wdl.executors.rst
 
 # Environments
 .env

@@ -1,19 +1,80 @@
 import gzip
 import json
+import re
+from typing import cast
+from unittest.mock import Mock
+import pytest
 from pytest_wdl.core import (
     LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
-    get_workflow, get_workflow_imports, get_workflow_inputs
+    UserConfiguration
 )
-import zipfile
 from pytest_wdl.utils import tempdir
-from . import no_internet
-import pytest
-from unittest.mock import Mock
+from . import no_internet, setenv
 
 
 # TODO: switch after repo is made public
 # GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/sample.vcf"
 GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
+
+
+def test_user_config_no_defaults():
+    with tempdir() as d:
+        config = UserConfiguration()
+        assert config.remove_cache_dir is True
+        assert config.cache_dir.exists()
+        config.cleanup()
+        assert not config.cache_dir.exists()
+
+
+def test_user_config_from_file():
+    with tempdir() as d, setenv({
+        "HTTPS_PROXY": "http://foo.com/https",
+        "FOO_HEADER": "bar"
+    }):
+        cache_dir = d / "cache"
+        execution_dir = d / "execution"
+        config_dict = {
+            "cache_dir": str(cache_dir),
+            "execution_dir": str(execution_dir),
+            "proxies": {
+                "http": {
+                    "value": "http://foo.com/http"
+                },
+                "https": {
+                    "env": "HTTPS_PROXY"
+                }
+            },
+            "http_headers": [
+                {
+                    "pattern": "http://foo.com/.*",
+                    "name": "foo",
+                    "env": "FOO_HEADER"
+                }
+            ],
+            "executors": {
+                "foo": {
+                    "bar": 1
+                }
+            }
+        }
+        config_file = d / "config.json"
+        with open(config_file, "wt") as out:
+            json.dump(config_dict, out)
+        config = UserConfiguration(config_file)
+        assert config.cache_dir == cache_dir
+        assert config.default_execution_dir == execution_dir
+        assert config.proxies == {
+            "http": "http://foo.com/http",
+            "https": "http://foo.com/https"
+        }
+        assert config.default_http_headers == [
+            {
+                "pattern": re.compile("http://foo.com/.*"),
+                "name": "foo",
+                "env": "FOO_HEADER"
+            }
+        ]
+        assert config.get_executor_defaults("foo") == {"bar": 1}
 
 
 def test_link_localizer():
@@ -88,12 +149,55 @@ def test_url_localizer():
     bad_url = "foo"
     with tempdir() as d:
         foo = d / "foo"
-        UrlLocalizer(good_url).localize(foo)
+        UrlLocalizer(good_url, UserConfiguration(None, cache_dir=d)).localize(foo)
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
 
     with pytest.raises(RuntimeError):
-        UrlLocalizer(bad_url).localize(foo)
+        UrlLocalizer(bad_url, UserConfiguration(None, cache_dir=d)).localize(foo)
+
+
+def test_url_localizer_add_headers():
+    with setenv({
+       "FOO": "bar"
+    }):
+        localizer = UrlLocalizer(
+            "http://foo.com/bork",
+            UserConfiguration(http_headers=[
+                {
+                    "name": "beep",
+                    "pattern": re.compile(r"http://foo.com/.*"),
+                    "env": "FOO",
+                    "value": "baz"
+                },
+                {
+                    "name": "boop",
+                    "pattern": re.compile(r"http://foo.*/bork"),
+                    "env": "BAR",
+                    "value": "blorf"
+                }
+            ]),
+            {
+                "boop": {
+                    "value": "blammo"
+                }
+            }
+        )
+        headers = localizer.http_headers
+        assert len(headers) == 2
+        assert set(headers.keys()) == {"beep", "boop"}
+        assert headers["beep"] == "bar"
+        assert headers["boop"] == "blammo"
+
+
+def test_url_localizer_set_proxies():
+    localizer = UrlLocalizer("http://foo.com", UserConfiguration(proxies={
+        "https": "https://foo.com/proxy"
+    }))
+    proxies = localizer.proxies
+    assert len(proxies) == 1
+    assert "https" in proxies
+    assert proxies["https"] == "https://foo.com/proxy"
 
 
 def test_data_dirs():
@@ -151,11 +255,55 @@ def test_data_resolver():
         fun = Mock()
         fun.__name__ = "test_foo"
         dd = DataDirs(d, mod, fun)
-        resolver = DataResolver(test_data)
+        resolver = DataResolver(test_data, UserConfiguration(None, cache_dir=d))
         with pytest.raises(ValueError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
         assert resolver.resolve("bar", dd) == 1
+
+
+def test_data_resolver_env():
+    with tempdir() as d:
+        path = d / "foo.txt"
+        with open(path, "wt") as out:
+            out.write("foo")
+        with setenv({"FOO": str(path)}):
+            resolver = DataResolver({
+                "foo": {
+                    "env": "FOO"
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == path
+
+            bar = d / "bar.txt"
+            resolver = DataResolver({
+                "foo": {
+                    "env": "FOO",
+                    "path": bar
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == bar
+
+
+def test_data_resolver_local_path():
+    with tempdir() as d:
+        path = d / "foo.txt"
+        with open(path, "wt") as out:
+            out.write("foo")
+        resolver = DataResolver({
+            "foo": {
+                "path": "foo.txt"
+            }
+        }, UserConfiguration(None, cache_dir=d))
+        assert resolver.resolve("foo").path == path
+
+        with setenv({"MYPATH": str(d)}):
+            resolver = DataResolver({
+                "foo": {
+                    "path": "${MYPATH}/foo.txt"
+                }
+            }, UserConfiguration(None, cache_dir=d))
+            assert resolver.resolve("foo").path == path
 
 
 def test_data_resolver_create_from_contents():
@@ -165,7 +313,7 @@ def test_data_resolver_create_from_contents():
                 "path": "foo.txt",
                 "contents": "foo"
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -177,7 +325,7 @@ def test_data_resolver_create_from_contents():
                 "name": "foo.txt",
                 "contents": "foo"
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "foo.txt"
         with open(foo.path, "rt") as inp:
@@ -188,7 +336,7 @@ def test_data_resolver_create_from_contents():
             "foo": {
                 "contents": "foo"
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path.parent == d
         assert foo.path.exists()
@@ -203,7 +351,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "path": "sample.vcf"
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -215,7 +363,7 @@ def test_data_resolver_create_from_url():
                 "url": GOOD_URL,
                 "name": "sample.vcf"
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "sample.vcf"
         with open(foo.path, "rt") as inp:
@@ -226,7 +374,7 @@ def test_data_resolver_create_from_url():
             "foo": {
                 "url": GOOD_URL
             }
-        }, d)
+        }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
         assert foo.path == d / "test_file"
         with open(foo.path, "rt") as inp:
@@ -258,7 +406,7 @@ def test_data_resolver_create_from_datadir():
                 "name": "burp.txt",
                 "path": "burp.txt"
             }
-        }, d1)
+        }, UserConfiguration(None, cache_dir=d1))
         boink = d / "foo" / "bar" / "boink.txt"
         with open(boink, "wt") as out:
             out.write("boink")
@@ -278,97 +426,47 @@ def test_data_resolver_create_from_datadir():
             resolver.resolve("bobble")
 
 
-def test_get_workflow():
+def test_http_header_set_in_workflow_data():
+    """
+    Test that workflow data file can define the HTTP Headers. This is
+    important because the URLs referenced can be from different hosts and
+    require different headers, so setting them at this level allows that
+    fine-grained control.
+    """
     with tempdir() as d:
-        wdl = d / "test.wdl"
-        with pytest.raises(FileNotFoundError):
-            get_workflow(d, "test.wdl")
-        with open(wdl, "wt") as out:
-            out.write("workflow test {}")
-        assert get_workflow(d, "test.wdl") == (wdl, "test")
-        assert get_workflow(d, "test.wdl", "foo") == (wdl, "foo")
+        config = UserConfiguration(cache_dir=d)
+        assert not config.default_http_headers
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        }, config)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"
 
-
-def test_get_workflow_inputs():
-    with tempdir() as d:
-        actual_inputs_dict, inputs_path = get_workflow_inputs("foo", {"bar": 1})
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == {
-            "foo.bar": 1
+    with setenv({"TOKEN": "this_is_the_token"}), tempdir() as d:
+        config = UserConfiguration(cache_dir=d)
+        assert not config.default_http_headers
+        resolver = DataResolver({
+            "foo": {
+                "url": GOOD_URL,
+                "path": "sample.vcf",
+                "http_headers": {
+                    "Auth-Header-Token": "TOKEN"
+                }
+            }
+        },  config)
+        foo = resolver.resolve("foo")
+        assert foo.path == d / "sample.vcf"
+        assert isinstance(foo.localizer, UrlLocalizer)
+        assert cast(UrlLocalizer, foo.localizer).http_headers == {
+            "Auth-Header-Token": "this_is_the_token"
         }
-
-    with tempdir() as d:
-        inputs_file = d / "inputs.json"
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", {"bar": 1}, inputs_file
-        )
-        assert inputs_file == inputs_path
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == {
-            "foo.bar": 1
-        }
-
-    with tempdir() as d:
-        inputs_file = d / "inputs.json"
-        inputs_dict = {"foo.bar": 1}
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out)
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", inputs_file=inputs_file
-        )
-        assert inputs_file == inputs_path
-        assert inputs_path.exists()
-        with open(inputs_path, "rt") as inp:
-            assert json.load(inp) == actual_inputs_dict
-        assert actual_inputs_dict == inputs_dict
-
-
-def test_get_workflow_imports():
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports([wdl_dir])
-        assert zip_path.exists()
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        zip_path = get_workflow_imports([wdl_dir], imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        with open(imports_file, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports(imports_file=imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file
+        with open(foo.path, "rt") as inp:
+            assert inp.read() == "foo"

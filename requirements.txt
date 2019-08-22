@@ -1,0 +1,4 @@
+coverage
+delegator.py
+pysam
+pytest

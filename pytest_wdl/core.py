@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-import glob
 import hashlib
 import json
 import os
@@ -7,16 +6,140 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, List, Optional, Tuple, Type, Union, cast
-import urllib.request
+from typing import Callable, Dict, List, Optional, Pattern, Type, Union, cast
 
 import delegator
-from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, tempdir, to_path, canonical_path
+from pytest_wdl.utils import (
+    LOG, tempdir, ensure_path, plugin_factory_map, env_map,
+    resolve_value_descriptor, download_file
+)
 
 
-UNSAFE_RE = re.compile(r"[^\w.-]")
+ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
+KEY_CACHE_DIR = "cache_dir"
+ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
+KEY_EXECUTION_DIR = "execution_dir"
+KEY_PROXIES = "proxies"
+KEY_HTTP_HEADERS = "http_headers"
+KEY_SHOW_PROGRESS = "show_progress"
+KEY_EXECUTORS = "executors"
+
+
+class UserConfiguration:
+    """
+    Stores pytest-wdl configuration. If configuration options are specified both in
+    the config file and as arguments to the constructor, the latter take precedence.
+
+    Args:
+        config_file: JSON file from which to load default values.
+        cache_dir: The directory in which to cache localized files; defaults to using
+            a temporary directory that is specific to each module and deleted
+            afterwards.
+        remove_cache_dir: Whether to remove the cache directory; if None, takes the
+            value True if a temp directory is used for caching, and False, if
+            a value for `cache_dir` is specified.
+        execution_dir: The directory in which to run workflows. Defaults to None,
+            which signals that a different temporary directory should be used for
+            each workflow run.
+        proxies: Mapping of proxy type (typically 'http' or 'https' to either an
+            environment variable, or a dict with either/both keys 'env' and 'value',
+            where the value is taken from the environment variable ('env') first, and
+            from 'value' if the environment variable is not specified or is unset.
+        http_headers: A list of dicts, each of which defines a header. The allowed
+            keys are 'pattern', 'name', 'env', and 'value', where pattern is a URL
+            pattern to match, 'name' is the header name and 'env' and 'value' are
+            interpreted the same as for `proxies`. If no pattern is provided, the
+            header is used for all URLs.
+        show_progress: Whether to show progress bars when downloading remote test data
+            files.
+        executor_defaults: Mapping of executor name to dict of executor-specific
+            configuration options.
+    """
+    def __init__(
+        self,
+        config_file: Optional[Path] = None,
+        cache_dir: Optional[Path] = None,
+        remove_cache_dir: Optional[bool] = None,
+        execution_dir: Optional[Path] = None,
+        proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
+        http_headers: Optional[List[dict]] = None,
+        show_progress: Optional[bool] = None,
+        executor_defaults: Optional[Dict[str, dict]] = None,
+    ):
+        if config_file:
+            with open(config_file, "rt") as inp:
+                defaults = json.load(inp)
+        else:
+            defaults = {}
+
+        if not cache_dir:
+            cache_dir_str = os.environ.get(ENV_CACHE_DIR, defaults.get(KEY_CACHE_DIR))
+            if cache_dir_str:
+                cache_dir = ensure_path(cache_dir_str)
+        if cache_dir:
+            self.cache_dir = ensure_path(cache_dir, is_file=False, create=True)
+            if remove_cache_dir is None:
+                remove_cache_dir = False
+        else:
+            self.cache_dir = Path(tempfile.mkdtemp())
+            if remove_cache_dir is None:
+                remove_cache_dir = True
+        self.remove_cache_dir = remove_cache_dir
+
+        if not execution_dir:
+            execution_dir_str = os.environ.get(
+                ENV_EXECUTION_DIR, defaults.get(KEY_EXECUTION_DIR)
+            )
+            if execution_dir_str:
+                execution_dir = ensure_path(execution_dir_str)
+        if execution_dir:
+            self.default_execution_dir = ensure_path(
+                execution_dir, is_file=False, create=True
+            )
+        else:
+            self.default_execution_dir = None
+
+        if not proxies and KEY_PROXIES in defaults:
+            proxies = env_map(defaults[KEY_PROXIES])
+        self.proxies = proxies or {}
+
+        if not http_headers and KEY_HTTP_HEADERS in defaults:
+            http_headers = defaults[KEY_HTTP_HEADERS]
+            for d in http_headers:
+                if "pattern" in d:
+                    d["pattern"] = re.compile(d.pop("pattern"))
+        self.default_http_headers = http_headers or []
+
+        self.show_progress = show_progress
+        if self.show_progress is None:
+            self.show_progress = defaults.get(KEY_SHOW_PROGRESS)
+
+        self.executor_defaults = executor_defaults or {}
+        if "executors" in defaults:
+            for name, d in defaults["executors"].items():
+                if name not in self.executor_defaults:
+                    self.executor_defaults[name] = d
+
+    def get_executor_defaults(self, executor_name: str) -> dict:
+        """
+        Get default configuration values for the given executor.
+
+        Args:
+            executor_name: The executor name
+
+        Returns:
+            A dict with the executor configuration values, if any.
+        """
+        return self.executor_defaults.get(executor_name, {})
+
+    def cleanup(self) -> None:
+        """
+        Preforms cleanup operations, such as deleting the cache directory if
+        `self.remove_cache_dir` is True.
+        """
+        if self.remove_cache_dir:
+            shutil.rmtree(self.cache_dir)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -39,32 +162,50 @@ class UrlLocalizer(Localizer):
     Localizes a file specified by a URL.
     """
     def __init__(
-        self, url: str,
-        http_headers: Optional[dict] = None,
-        proxies: Optional[dict] = None
+        self,
+        url: str,
+        user_config: UserConfiguration,
+        http_headers: Optional[dict] = None
     ):
         self.url = url
-        self.http_headers = http_headers
-        self.proxies = proxies
+        self.user_config = user_config
+        self._http_headers = http_headers
 
     def localize(self, destination: Path):
-        LOG.debug(
-            f"Localizing url %s to %s with headers %s and proxies %s",
-            self.url, str(destination), str(self.http_headers), str(self.proxies)
-        )
         try:
-            req = urllib.request.Request(self.url)
-            if self.http_headers:
-                for name, value in self.http_headers.items():
-                    req.add_header(name, value)
-            if self.proxies:
-                for proxy_type, url in self.proxies.items():
-                    req.set_proxy(url, proxy_type)
-            rsp = urllib.request.urlopen(req)
-            with open(destination, "wb") as out:
-                shutil.copyfileobj(rsp, out)
+            download_file(
+                self.url,
+                destination,
+                http_headers=self.http_headers,
+                proxies=self.user_config.proxies,
+                show_progress=self.user_config.show_progress
+            )
         except Exception as err:
             raise RuntimeError(f"Error localizing url {self.url}") from err
+
+    @property
+    def http_headers(self) -> dict:
+        http_headers = {}
+
+        if self._http_headers:
+            http_headers.update(env_map(self._http_headers))
+
+        if self.user_config.default_http_headers:
+            for value_dict in self.user_config.default_http_headers:
+                name = value_dict["name"]
+                pattern = value_dict.get("pattern")
+                if name not in http_headers and (
+                    pattern is None or pattern.match(self.url)
+                ):
+                    value = resolve_value_descriptor(value_dict)
+                    if value:
+                        http_headers[name] = value
+
+        return http_headers
+
+    @property
+    def proxies(self) -> dict:
+        return self.user_config.proxies
 
 
 class StringLocalizer(Localizer):
@@ -194,27 +335,7 @@ class DataFile:
             )
 
 
-class _PluginFactory:
-    """
-    Lazily loads a DataFile plugin class associated with a data type.
-    """
-    def __init__(self, entry_point):
-        self.entry_point = entry_point
-        self.factory = None
-
-    def __call__(self, *args, **kwargs):
-        if self.factory is None:
-            module = __import__(
-                self.entry_point.module_name, fromlist=['__name__'], level=0
-            )
-            self.factory = getattr(module, self.entry_point.attrs[0])
-        return self.factory(*args, **kwargs)
-
-
-DATA_TYPES = dict(
-    (entry_point.name, _PluginFactory(entry_point))
-    for entry_point in iter_entry_points(group="pytest_wdl")
-)
+DATA_TYPES = plugin_factory_map("pytest_wdl.data_types", DataFile)
 """Data type plugin modules from the discovered entry points."""
 
 
@@ -250,20 +371,16 @@ class DataDirs:
         if self._paths is None:
             def add_datadir_paths(root: Path):
                 testdir = root / self.module
-                print(f"Checking {testdir}")
                 if testdir.exists():
                     if self.cls is not None:
                         clsdir = testdir / self.cls
-                        print(f"Checking {clsdir}")
                         if clsdir.exists():
                             fndir = clsdir / self.function
-                            print(f"Checking {fndir}")
                             if fndir.exists():
                                 self._paths.append(fndir)
                             self._paths.append(clsdir)
                     else:
                         fndir = testdir / self.function
-                        print(f"Checking {fndir}")
                         if fndir.exists():
                             self._paths.append(fndir)
                     self._paths.append(testdir)
@@ -282,17 +399,9 @@ class DataResolver:
     """
     Resolves data files that may need to be localized.
     """
-    def __init__(
-        self,
-        data_descriptors: dict,
-        cache_dir: Optional[Path] = None,
-        http_headers: Optional[dict] = None,
-        proxies: Optional[dict] = None
-    ):
+    def __init__(self, data_descriptors: dict, user_config: UserConfiguration):
         self.data_descriptors = data_descriptors
-        self.cache_dir = cache_dir
-        self.http_headers = http_headers
-        self.proxies = proxies
+        self.user_config = user_config
 
     def resolve(
         self, name: str, datadirs: Optional[DataDirs] = None
@@ -313,7 +422,9 @@ class DataResolver:
         path: Optional[str] = None,
         url: Optional[str] = None,
         contents: Optional[str] = None,
+        env: Optional[str] = None,
         datadirs: Optional[DataDirs] = None,
+        http_headers: Optional[dict] = None,
         **kwargs
     ) -> DataFile:
         data_file_class = DATA_TYPES.get(type, DataFile)
@@ -321,24 +432,32 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = to_path(path, self.cache_dir)
+            local_path = ensure_path(path, self.user_config.cache_dir)
 
-        if url:
-            localizer = UrlLocalizer(url, self.http_headers, self.proxies)
+        if local_path and local_path.exists():
+            pass
+        elif env and env in os.environ:
+            env_path = ensure_path(os.environ[env], exists=True)
+            if not local_path:
+                local_path = env_path
+            else:
+                localizer = LinkLocalizer(env_path)
+        elif url:
+            localizer = UrlLocalizer(url, self.user_config, http_headers)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.cache_dir / name)
+                    local_path = ensure_path(self.user_config.cache_dir / name)
                 else:
                     filename = url.rsplit("/", 1)[1]
-                    local_path = canonical_path(self.cache_dir / filename)
+                    local_path = ensure_path(self.user_config.cache_dir / filename)
         elif contents:
             localizer = StringLocalizer(contents)
             if not local_path:
                 if name:
-                    local_path = canonical_path(self.cache_dir / name)
+                    local_path = ensure_path(self.user_config.cache_dir / name)
                 else:
-                    local_path = canonical_path(
-                        Path(tempfile.mktemp(dir=self.cache_dir))
+                    local_path = ensure_path(
+                        tempfile.mktemp(dir=self.user_config.cache_dir)
                     )
         elif name and datadirs:
             for dd in datadirs.paths:
@@ -375,42 +494,33 @@ class DataManager:
         self.data_resolver = data_resolver
         self.datadirs = datadirs
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str):
         return self.data_resolver.resolve(name, self.datadirs)
 
+    def get_dict(self, *names: str, **params) -> dict:
+        """
+        Creates a dict with one or more entries from this DataManager.
 
-class CromwellHarness:
+        Args:
+            *names: Names of test data entries to add to the dict.
+            **params: Mapping of workflow parameter names to test data entry names.
+
+        Returns:
+            Dict mapping parameter names to test data entries for all specified names.
+        """
+        d = {}
+        for name in names:
+            d[name] = self[name]
+        for param, name in params.items():
+            d[param] = self[name]
+        return d
+
+
+class Executor(metaclass=ABCMeta):
     """
-    Manages the running of WDL workflows using Cromwell.
-
-    Args:
-        project_root: The root path to which non-absolute WDL script paths are
-            relative.
-        import_dirs: Relative or absolute paths to directories containing WDL
-            scripts that should be available as imports.
-        java_bin: Path to the java executable.
-        java_args: Default Java arguments to use; can be overidden by passing
-            `java_args=...` to `run_workflow`.
-        cromwell_jar_file: Path to the Cromwell JAR file.
-        cromwell_args: Default Cromwell arguments to use; can be overridden by
-            passing `cromwell_args=...` to `run_workflow`.
+    Base class for WDL workflow executors.
     """
-    def __init__(
-        self,
-        project_root: Path,
-        java_bin: Path,
-        cromwell_jar_file: Path,
-        import_dirs: Optional[List[Path]] = None,
-        java_args: Optional[str] = None,
-        cromwell_args: Optional[str] = None
-    ):
-        self.project_root = project_root
-        self.import_dirs = import_dirs
-        self.java_bin = java_bin
-        self.java_args = java_args
-        self.cromwell_jar = cromwell_jar_file
-        self.cromwell_args = cromwell_args
-
+    @abstractmethod
     def run_workflow(
         self,
         wdl_script: Union[str, Path],
@@ -443,190 +553,10 @@ class CromwellHarness:
             Dict of outputs.
 
         Raises:
-            Exception: if there was an error executing Cromwell
+            Exception: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        if "execution_dir" in kwargs:
-            LOG.warning(
-                f"Parameter execution_dir is deprecated and will be removed. Use "
-                f"the `chdir` context manager instead."
-            )
-            os.chdir(kwargs["execution_dir"])
-
-        wdl_path, workflow_name = get_workflow(
-            self.project_root, wdl_script, workflow_name,
-        )
-
-        inputs_dict, inputs_file = get_workflow_inputs(
-            workflow_name, inputs, kwargs.get("inputs_file")
-        )
-
-        imports_file = get_workflow_imports(
-            self.import_dirs, kwargs.get("imports_file")
-        )
-
-        inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
-        imports_zip_arg = f"-p {imports_file}" if imports_file else ""
-        java_args = kwargs.get("java_args", self.java_args) or ""
-        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
-
-        cmd = (
-            f"{self.java_bin} {java_args} -jar {self.cromwell_jar} run "
-            f"{cromwell_args} {inputs_arg} {imports_zip_arg} {wdl_path}"
-        )
-        LOG.info(
-            f"Executing cromwell command '{cmd}' with inputs "
-            f"{json.dumps(inputs_dict, default=str)}"
-        )
-        exe = delegator.run(cmd, block=True)
-        if not exe.ok:
-            raise Exception(
-                f"Cromwell command failed; stdout={exe.out}; stderr={exe.err}"
-            )
-
-        outputs = CromwellHarness.get_cromwell_outputs(exe.out)
-
-        if expected:
-            for name, expected_value in expected.items():
-                key = f"{workflow_name}.{name}"
-                if key not in outputs:
-                    raise AssertionError(f"Workflow did not generate output {key}")
-                if isinstance(expected_value, DataFile):
-                    expected_value.assert_contents_equal(outputs[key])
-                else:
-                    assert expected_value == outputs[key]
-
-        return outputs
-
-    @staticmethod
-    def get_cromwell_outputs(output):
-        lines = output.splitlines(keepends=False)
-        start = None
-        for i, line in enumerate(lines):
-            if line == "{" and lines[i+1].lstrip().startswith('"outputs":'):
-                start = i
-            elif line == "}" and start is not None:
-                end = i
-                break
-        else:
-            raise AssertionError("No outputs JSON found in Cromwell stdout")
-        return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
 
 
-def get_workflow(
-    project_root: Path, wdl_file: Union[str, Path], workflow_name: Optional[str] = None
-) -> Tuple[Path, str]:
-    """
-    Resolve the WDL file and workflow name.
-
-    TODO: if `workflow_name` is None, parse the WDL file and extract the name
-     of the workflow.
-
-    Args:
-        project_root: The root directory to which `wdl_file` might be relative.
-        wdl_file: Path to the WDL file.
-        workflow_name: The workflow name; if None, the filename without ".wdl"
-            extension is used.
-
-    Returns:
-        A tuple (wdl_path, workflow_name)
-    """
-    wdl_path = to_path(wdl_file, project_root, canonicalize=True)
-    if not wdl_path.exists():
-        raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
-
-    if not workflow_name:
-        workflow_name = UNSAFE_RE.sub("_", wdl_path.stem)
-
-    return wdl_path, workflow_name
-
-
-def get_workflow_inputs(
-    workflow_name: str, inputs_dict: Optional[dict] = None,
-    inputs_file: Optional[Path] = None
-) -> Tuple[dict, Path]:
-    """
-    Persist workflow inputs to a file, or load workflow inputs from a file.
-
-    Args:
-        workflow_name: Name of the workflow; used to prefix the input parameters when
-            creating the inputs file from the inputs dict.
-        inputs_dict: Dict of input names/values.
-        inputs_file: JSON file with workflow inputs.
-
-    Returns:
-        A tuple (inputs_dict, inputs_file)
-    """
-    if inputs_file:
-        inputs_file = to_path(inputs_file, canonicalize=True)
-        if inputs_file.exists():
-            with open(inputs_file, "rt") as inp:
-                inputs_dict = json.load(inp)
-                return inputs_dict, inputs_file
-
-    if inputs_dict:
-        inputs_dict = dict(
-            (
-                f"{workflow_name}.{key}",
-                value.path if isinstance(value, DataFile) else value
-            )
-            for key, value in inputs_dict.items()
-        )
-
-        if inputs_file:
-            inputs_file.parent.mkdir(parents=True, exist_ok=True)
-        else:
-            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out, default=str)
-
-    return inputs_dict, inputs_file
-
-
-def get_workflow_imports(
-    import_dirs: Optional[List[Path]] = None, imports_file: Optional[Path] = None
-) -> Path:
-    """
-    Creates a ZIP file with all WDL files to be imported.
-
-    Args:
-        import_dirs: Directories from which to import WDL files.
-        imports_file: Text file naming import directories/files - one per line.
-
-    Returns:
-        Path to the ZIP file.
-    """
-    write_imports = bool(import_dirs)
-    imports_path = None
-
-    if imports_file:
-        imports_path = to_path(imports_file, canonicalize=True)
-        if imports_path.exists():
-            write_imports = False
-
-    if write_imports and import_dirs:
-        imports = [
-            wdl
-            for path in import_dirs
-            for wdl in glob.glob(str(path / "*.wdl"))
-        ]
-        if imports:
-            if imports_path:
-                imports_path.parent.mkdir(parents=True, exist_ok=True)
-            else:
-                imports_path = Path(tempfile.mkstemp(suffix=".zip")[1])
-
-            imports_str = " ".join(imports)
-
-            LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
-            exe = delegator.run(
-                f"zip -j - {imports_str} > {imports_path}", block=True
-            )
-            if not exe.ok:
-                raise Exception(
-                    f"Error creating imports zip file; stdout={exe.out}; "
-                    f"stderr={exe.err}"
-                )
-
-    return imports_path
+EXECUTORS = plugin_factory_map("pytest_wdl.executors", Executor)
+"""Executor plugin modules from the discovered entry points."""

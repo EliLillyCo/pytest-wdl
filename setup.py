@@ -2,6 +2,18 @@ import codecs
 import os
 from setuptools import setup, find_packages
 
+
+extras_require = {
+    "bam": ["pysam"],
+    "progress": ["tqdm"]
+}
+extras_require["all"] = [
+    lib
+    for lib_array in extras_require.values()
+    for lib in lib_array
+]
+
+
 setup(
     name="pytest-wdl",
     use_scm_version=True,
@@ -19,9 +31,12 @@ setup(
         "pytest11": [
             "pytest_wdl = pytest_wdl"
         ],
-        "pytest_wdl": [
+        "pytest_wdl.data_types": [
             "bam = pytest_wdl.data_types.bam:BamDataFile",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
+        ],
+        "pytest_wdl.executors": [
+            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor"
         ]
     },
     py_modules=["pytest_wdl"],
@@ -30,8 +45,5 @@ setup(
         "pytest",
         "delegator.py"
     ],
-    extras_require={
-        "all": ["pysam"],
-        "bam": ["pysam"]
-    }
+    extras_require=extras_require
 )

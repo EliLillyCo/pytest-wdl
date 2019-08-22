@@ -12,11 +12,43 @@ from typing import List, Optional, Union
 
 from _pytest.fixtures import FixtureRequest
 
-from pytest_wdl.core import CromwellHarness, DataResolver, DataManager, DataDirs
-from pytest_wdl.utils import (
-    LOG, chdir, to_path, env_dir, find_project_path, find_executable_path,
-    canonical_path, env_map
+from pytest_wdl.core import (
+    EXECUTORS, DataResolver, DataManager, DataDirs, Executor, UserConfiguration
 )
+from pytest_wdl.utils import ensure_path, context_dir, find_project_path
+
+
+ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
+DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
+DEFAULT_TEST_DATA_FILE = "test_data.json"
+DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
+
+
+def user_config_file() -> Optional[Path]:
+    """
+    Fixture that provides the value of 'user_config' environment variable. If
+    not specified, looks in the default location ($HOME/pytest_user_config.json).
+
+    Returns:
+        Path to the confif file, or None if not specified.
+    """
+    config_file = os.environ.get(ENV_USER_CONFIG)
+    config_path = None
+    if config_file:
+        config_path = ensure_path(config_file)
+    else:
+        default_config_path = Path.home() / DEFAULT_USER_CONFIG_FILE
+        if default_config_path.exists():
+            config_path = default_config_path
+    if config_path and not config_path.exists():
+        raise FileNotFoundError(f"Config file {config_path} does not exist")
+    return config_path
+
+
+def user_config(user_config_file: Optional[Path]) -> UserConfiguration:
+    config = UserConfiguration(user_config_file)
+    yield config
+    config.cleanup()
 
 
 def project_root_files() -> List[str]:
@@ -53,10 +85,10 @@ def workflow_data_descriptor_file() -> Union[str, Path]:
     """
     tests = find_project_path(Path("tests"))
     if tests:
-        test_data = tests / "test_data.json"
+        test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():
             return test_data
-    raise FileNotFoundError("Could not find test_data.json file")
+    raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
 
 
 def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
@@ -70,227 +102,22 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         A dict with keys as test data names and each value either a
         primitive, a map describing a data file, or a DataFile object.
     """
-    with open(to_path(workflow_data_descriptor_file), "rt") as inp:
+    with open(ensure_path(workflow_data_descriptor_file), "rt") as inp:
         return json.load(inp)
-
-
-def cache_dir(project_root: Union[str, Path]) -> Union[str, Path]:
-    """
-    Fixture that provides the directory in which to cache the test data. If the
-    "CACHE_DIR" environment variable is set, the value will be used as the
-    execution directory path, otherwise a temporary directory is used.
-
-    Args:
-        project_root: The root directory to use when the test data directory is
-            specified as a relative path.
-    """
-    with env_dir("CACHE_DIR", project_root) as data_dir:
-        yield data_dir
-
-
-def execution_dir(project_root: Union[str, Path]) -> Union[str, Path]:
-    """
-    Fixture that provides the directory in which the test is to be executed. If the
-    "EXECUTION_DIR" environment variable is set, the value will be used as the
-    execution directory path, otherwise a temporary directory is used.
-
-    Args:
-        project_root: The root directory to use when the execution directory is
-            specified as a relative path.
-    """
-    with env_dir("EXECUTION_DIR", project_root) as execution_dir:
-        yield execution_dir
-
-
-def http_header_map() -> dict:
-    """
-    Fixture that provides a mapping from HTTP header name to the environment variable
-    from which the value should be retrieved.
-    """
-    return {}
-
-
-def http_headers(http_header_map: dict) -> dict:
-    """
-    Fixture that provides request HTTP headers to use when downloading files.
-    """
-    return env_map(http_header_map)
-
-
-def proxy_map() -> dict:
-    """
-    Fixture that provides a mapping from proxy name to the environment variable
-    from which the value should be retrieved.
-    """
-    return {}
-
-
-def proxies(proxy_map: dict) -> dict:
-    """
-    Fixture that provides the proxies to use when downloading files.
-    """
-    return env_map(proxy_map)
-
-
-def import_paths() -> Union[str, Path, None]:
-    """
-    Fixture that provides the path to a file that lists directories containing WDL
-    scripts to make avaialble as imports. This looks for the file at
-    "tests/import_paths.txt" by default, and returns None if that file doesn't exist.
-    """
-    return find_project_path(Path("tests") / "import_paths.txt")
-
-
-def import_dirs(
-    request: FixtureRequest,
-    project_root: Union[str, Path],
-    import_paths: Optional[Union[str, Path]]
-) -> List[Union[str, Path]]:
-    """
-    Fixture that provides a list of directories containing WDL scripts to make
-    avaialble as imports. Uses the file provided by `import_paths` fixture if
-    it is not None, otherwise returns a list containing the parent directory
-    of the test module.
-
-    Args:
-        request: FixtureRequest object
-        project_root: Project root directory
-        import_paths: File listing paths to imports, one per line
-    """
-    if import_paths:
-        import_paths = to_path(import_paths)
-        if not import_paths.exists():
-            raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
-
-        paths = []
-
-        with open(import_paths, "rt") as inp:
-            for path_str in inp.read().splitlines(keepends=False):
-                path = Path(path_str)
-                if not path.is_absolute():
-                    path = canonical_path(project_root / path)
-                if not path.exists():
-                    raise FileNotFoundError(f"Invalid import path: {path}")
-                paths.append(path)
-
-        return paths
-    else:
-        # Fall back to importing WDL files in a parent of the test directory
-        path = find_project_path(
-            "*.wdl", start=Path(request.fspath.dirpath()).parent, return_parent=True
-        )
-        if path:
-            return [path]
-        else:
-            return []
-
-
-def java_bin() -> Union[str, Path]:
-    """
-    Fixture that provides the path to the java binary.
-    """
-    java_home = os.environ.get("JAVA_HOME")
-    if java_home:
-        path = to_path(java_home, canonicalize=True)
-        if not path.exists():
-            raise FileNotFoundError(f"JAVA_HOME directory {path} does not exist")
-        bin_path = path / "bin" / "java"
-    else:
-        bin_path = find_executable_path("java")
-
-    if not (bin_path and bin_path.exists()):
-        raise FileNotFoundError(f"java executable not found at {bin_path}")
-
-    return bin_path
-
-
-def cromwell_config_file() -> Union[str, Path, None]:
-    """
-    Fixture that returns the path to a cromwell config file, if any. By default
-    it looks for the CROMWELL_CONFIG_FILE environment variable.
-    """
-    config_file = os.environ.get("CROMWELL_CONFIG_FILE")
-    if config_file:
-        path = Path(config_file)
-        if not path.exists():
-            raise FileNotFoundError(f"CROMWELL_CONFIG_FILE {path} does not exist")
-        return path
-    else:
-        return None
-
-
-def java_args(cromwell_config_file: Optional[Union[str, Path]]) -> Optional[str]:
-    if cromwell_config_file:
-        if cromwell_config_file.exists():
-            return f"-Dconfig.file={cromwell_config_file}"
-        else:
-            raise FileNotFoundError(
-                f"Cromwell config file not found: {cromwell_config_file}"
-            )
-
-
-def cromwell_jar_file() -> Union[str, Path]:
-    """
-    Fixture that provides the path to the Cromwell JAR file. First looks for the
-    CROMWELL_JAR environment variable, then searches the classpath for a JAR file
-    whose name starts with "cromwell". Defaults to "cromwell.jar" in the current
-    directory.
-    """
-    cromwell_jar = os.environ.get("CROMWELL_JAR")
-    if cromwell_jar:
-        path = Path(cromwell_jar)
-        if not path.exists():
-            raise FileNotFoundError(f"CROMWELL_JAR directory {path} does not exist")
-        return path
-
-    classpath = os.environ.get("CLASSPATH", ".")
-
-    for path_str in classpath.split(os.pathsep):
-        path = canonical_path(Path(path_str))
-        if path.exists():
-            if path.is_dir():
-                matches = list(path.glob("cromwell*.jar"))
-                if matches:
-                    if len(matches) > 1:
-                        LOG.warning(
-                            "Found multiple cromwell jar files: %s; returning "
-                            "the first one.", matches
-                        )
-                    return matches[0]
-            elif (
-                path.suffix == ".jar" and
-                path.name.lower().startswith("cromwell")
-            ):
-                return path
-
-    raise FileNotFoundError(f"Cromwell JAR file not found on CLASSPATH {classpath}")
-
-
-def cromwell_args() -> Optional[str]:
-    return os.environ.get("CROMWELL_ARGS")
 
 
 def workflow_data_resolver(
     workflow_data_descriptors: dict,
-    cache_dir: Union[str, Path],
-    http_headers: Optional[dict],
-    proxies: Optional[dict]
+    user_config: UserConfiguration
 ) -> DataResolver:
     """
     Provides access to test data files for tests in a module.
 
     Args:
         workflow_data_descriptors: workflow_data_descriptors fixture.
-        cache_dir: cache_dir fixture.
-        http_headers: http_headers fixture.
-        proxies: proxies fixture.
+        user_config:
     """
-    return DataResolver(
-        workflow_data_descriptors,
-        to_path(cache_dir),
-        http_headers,
-        proxies
-    )
+    return DataResolver(workflow_data_descriptors, user_config)
 
 
 def workflow_data(
@@ -312,7 +139,7 @@ def workflow_data(
             print(workflow_data["myfile"])
     """
     datadirs = DataDirs(
-        to_path(request.fspath.dirpath(), canonicalize=True),
+        ensure_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
         request.function,
         request.cls
@@ -320,56 +147,85 @@ def workflow_data(
     return DataManager(workflow_data_resolver, datadirs)
 
 
-def cromwell_harness(
+def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
+    """
+    Fixture that provides the path to a file that lists directories containing WDL
+    scripts to make available as imports. This looks for the file at
+    "tests/import_paths.txt" by default, and returns None if that file doesn't exist.
+    """
+    import_paths_file = Path(request.fspath.dirpath()) / DEFAULT_IMPORT_PATHS_FILE
+    if import_paths_file.exists():
+        return import_paths_file
+
+
+def import_dirs(
+    project_root: Union[str, Path],
+    import_paths: Optional[Union[str, Path]]
+) -> List[Union[str, Path]]:
+    """
+    Fixture that provides a list of directories containing WDL scripts to make
+    avaialble as imports. Uses the file provided by `import_paths` fixture if
+    it is not None, otherwise returns a list containing the parent directory
+    of the test module.
+
+    Args:
+        project_root: Project root directory
+        import_paths: File listing paths to imports, one per line
+    """
+    if import_paths:
+        import_paths = ensure_path(import_paths, canonicalize=True)
+        if not import_paths.exists():
+            raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
+
+        paths = []
+
+        with open(import_paths, "rt") as inp:
+            for path_str in inp.read().splitlines(keepends=False):
+                path = Path(path_str)
+                if not path.is_absolute():
+                    path = ensure_path(project_root / path)
+                if not path.exists():
+                    raise FileNotFoundError(f"Invalid import path: {path}")
+                paths.append(path)
+
+        return paths
+    else:
+        return []
+
+
+def workflow_runner(
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
-    java_bin: Union[str, Path],
-    java_args: Optional[str],
-    cromwell_jar_file: Union[str, Path],
-    cromwell_args: Optional[str]
-) -> CromwellHarness:
+    user_config: UserConfiguration
+):
     """
-    Provides a harness for calling Cromwell on WDL scripts.
+    Provides a callable that runs a workflow (with the same signature as
+    `Executor.run_workflow`).
 
     Args:
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
-        java_bin: Java executable.
-        java_args: String with arguments (e.g. -Dfoo=bar) to pass to Java.
-        cromwell_jar_file: Path to Cromwell jar file.
-        cromwell_args: String with arguments to pass to Cromwell.
-
-    Examples:
-        def test_workflow(cromwell_harness):
-            cromwell_harness.run_workflow(...)
-    """
-    return CromwellHarness(
-        project_root=to_path(project_root),
-        import_dirs=list(to_path(d) for d in import_dirs),
-        java_bin=to_path(java_bin),
-        java_args=java_args,
-        cromwell_jar_file=to_path(cromwell_jar_file),
-        cromwell_args=cromwell_args
-    )
-
-
-def workflow_runner(
-    cromwell_harness: CromwellHarness, execution_dir: Union[str, Path]
-):
-    """
-    Provides a callable that runs a workflow (with the same signature as
-    `CromwellHarness.run_workflow`) with the execution_dir being the one
-    provided by the `execution_dir` fixture.
+        user_config:
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
         workflow_name: Optional[str] = None,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
+        executor_name: str = "cromwell",
         **kwargs
     ):
-        with chdir(to_path(execution_dir)):
-            cromwell_harness.run_workflow(
+        executor_class = EXECUTORS.get(executor_name)
+        if not executor_class:
+            raise RuntimeError(f"{executor_name} executor plugin is not installed")
+        executor = executor_class(
+            project_root=project_root,
+            import_dirs=import_dirs,
+            **user_config.get_executor_defaults(executor_name)
+        )
+        with context_dir(user_config.default_execution_dir, change_dir=True):
+            executor.run_workflow(
                 wdl_script, workflow_name, inputs, expected, **kwargs
             )
+
     return _run_workflow
