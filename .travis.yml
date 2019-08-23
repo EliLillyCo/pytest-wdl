@@ -4,23 +4,31 @@ language: python
 addons:
   apt:
     packages:
-      - openjdk-8-jdk
+    - openjdk-8-jdk
 services:
-  - docker
+- docker
 cache:
   directories:
   - "$HOME/.cache/pip"
 python:
-  - "3.6"
-  - "3.7"
+- '3.6'
+- '3.7'
 install:
 - pip install --upgrade pip wheel
 - pip install -r requirements.txt
 - make install
 before_script:
-  - wget https://github.com/broadinstitute/cromwell/releases/download/45/cromwell-45.jar -O /tmp/cromwell-45.jar
-  - export CROMWELL_JAR=/tmp/cromwell-45.jar
+- wget https://github.com/broadinstitute/cromwell/releases/download/45/cromwell-45.jar -O /tmp/cromwell-45.jar
+- export CROMWELL_JAR=/tmp/cromwell-45.jar
 script:
 - make test
 after_success:
-  - bash <(curl -s https://codecov.io/bash)
+- bash <(curl -s https://codecov.io/bash)
+deploy:
+  provider: pypi
+  user: __token__
+  password:
+    secure: CXAuiF1PzaHmprgHQ/N4HVGd3hAqjrLy+x2p+QHjOCpxr25jbwRdD+hFetY6FnObpHtgc4RQl8h+c2qU+BNyY/8GJO+J/TFyWt4FBjlEFt57ac8E+xWlIOnX1grfHG79EyMHTxJU+3nYv5yrbIOUuQklZvL2w92/+cDdf2c5uuKb9Ls+w4g7zVTcZNY5TR+xRLWmljRvjk7QnMvAVMB8679i9NYujDGVLb7r4AxUryvCU8+n21qh24rXINUNapoeFTKOrKXGgYba4FktzvIxXPGlEPyKUGzDh3ggIttIbKvrr/XQ8SIPldw6L3XUWc1tNve8JMn5aF8WMiJlphv1/tfZ/y3zSMGhPxECA15Q0NkdGmSoazMP5qj1jAE+kKLC38lLdBCiwLLNh7KfuV8rKE13QTIGDiP/Wxh0KCRY6EFMv+GBe3FHx15KOW7MIVBzCtZL7KZ7vWyvS/yrrvG1QFkt1OiEK98knp9YnAc3EDUdygGvJ3v32AaFvvC8+RgfARYt+7VgrjnGLIY4MB/2bSNpyIleVe+cTCS5W/lv/bV352nxBZEd1XdjP0ZKaCtCOItFy+Tc5E8pc2gU80PW1Eqm0a2PaNTkF79Pzch6VipyGxG8M4uEZ9iZHAFb10z4bYshQ0xuwSBZxq1+zE1+Kc//RZmgnt5cwh+vHYGhDC4=
+  on:
+    tags: true
+    branch: master
