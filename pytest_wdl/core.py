@@ -349,7 +349,7 @@ class DataFile:
             )
 
 
-DATA_TYPES = plugin_factory_map("pytest_wdl.data_types", DataFile)
+DATA_TYPES = plugin_factory_map(DataFile, "pytest_wdl.data_types")
 """Data type plugin modules from the discovered entry points."""
 
 
@@ -572,5 +572,5 @@ class Executor(metaclass=ABCMeta):
         """
 
 
-EXECUTORS = plugin_factory_map("pytest_wdl.executors", Executor)
+EXECUTORS = plugin_factory_map(Executor, "pytest_wdl.executors")
 """Executor plugin modules from the discovered entry points."""

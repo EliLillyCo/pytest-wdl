@@ -17,6 +17,7 @@
 """
 Utility functions for pytest-wdl.
 """
+from collections import defaultdict
 import contextlib
 import fnmatch
 import functools
@@ -27,8 +28,10 @@ import re
 import shutil
 import stat
 import tempfile
-from typing import Dict, Generic, Optional, Sequence, Type, TypeVar, Union, cast
-from urllib import request, parse
+from typing import (
+    Dict, Generic, Iterable, Optional, Sequence, Type, TypeVar, Union, cast
+)
+from urllib import request
 
 from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
@@ -80,7 +83,11 @@ class PluginFactory(Generic[T]):
         return cast(self.return_type, plugin)
 
 
-def plugin_factory_map(group: str, return_type: Type[T]) -> Dict[str, PluginFactory[T]]:
+def plugin_factory_map(
+    return_type: Type[T],
+    group: Optional[str] = None,
+    entry_points: Optional[Iterable[EntryPoint]] = None
+) -> Dict[str, PluginFactory[T]]:
     """
     Creates a mapping of entry point name to `PluginFactory` for all discovered
     entry points in the specified group.
@@ -92,10 +99,29 @@ def plugin_factory_map(group: str, return_type: Type[T]) -> Dict[str, PluginFact
     Returns:
         Dict mapping entry point name to `PluginFactory` instances
     """
-    return dict(
-        (entry_point.name, PluginFactory(entry_point, return_type))
-        for entry_point in iter_entry_points(group=group)
-    )
+    if entry_points is None:
+        entry_points = iter_entry_points(group=group)
+
+    entry_point_map = defaultdict(list)
+    for entry_point in entry_points:
+        entry_point_map[entry_point.name].append(entry_point)
+
+    factory_map = {}
+    for name, points in entry_point_map.items():
+        if len(points) > 1:
+            # Filter out built-ins
+            points = list(filter(
+                lambda point: not point.module_name.startswith("pytest_wdl"), points
+            ))
+            if len(points) > 1:
+                raise RuntimeError(
+                    f"Multiple third-party plugins found in group {group} with the "
+                    f"same name: {name}"
+                )
+
+        factory_map[name] = PluginFactory(points[0], return_type)
+
+    return factory_map
 
 
 def safe_string(s: str, replacement: str = "_") -> str:
