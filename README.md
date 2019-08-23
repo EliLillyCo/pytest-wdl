@@ -1,6 +1,7 @@
 # pytest-wdl
 
 [![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=master)](https://travis-ci.com/EliLillyCo/pytest-wdl)
+[![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
 
 This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl).
