@@ -225,6 +225,8 @@ There are two fixtures that control the loading of the user configuration:
 
 ## Plugins
 
+pytest-wdl provides the ability to implement 3rd-party plugins for data types and executors. When two plugins with the same name are present, the third-party plugin takes precedence over the built-in plugin (however, if there are two conflicting third-party plugins, an exception is raised).
+
 ### Creating new data types
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
