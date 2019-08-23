@@ -19,6 +19,7 @@ setup(
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     description="Fixtures for pytest for running WDL workflows using Cromwell.",
+    long_description_content_type="text/markdown",
     long_description=codecs.open(
         os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
