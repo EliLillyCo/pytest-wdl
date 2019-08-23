@@ -42,16 +42,7 @@ clean:
 	rm -Rf $(package).egg-info
 	rm -Rf cromwell-workflow-logs
 
-docker:
-	# build
-	docker build -f Dockerfile -t $(repo):$(version) .
-	# add alternate tags
-	docker tag $(repo):$(version) $(repo):latest
-	# push to Docker Hub
-	docker login -u jdidion && \
-	docker push $(repo)
 release:
-
 	$(clean)
 	# tag
 	git tag $(version)
@@ -63,7 +54,6 @@ release:
 	python setup.py sdist upload -r omics-pypi
 	git push origin --tags
 	$(github_release)
-	#$(docker)
 
 github_release:
 	curl -v -i -X POST \
