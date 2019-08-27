@@ -57,6 +57,7 @@ def test_vcf_data_file_different():
 
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
+@pytest.mark.integration
 def test_vcf(workflow_data, workflow_runner):
     workflow_runner(
         wdl_script="tests/test_vcf/test_vcf.wdl",

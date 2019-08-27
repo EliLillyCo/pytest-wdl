@@ -33,6 +33,7 @@ def workflow_data_descriptor_file(project_root):
 
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
+@pytest.mark.integration
 def test_bam(workflow_data, workflow_runner):
     workflow_runner(
         wdl_script="tests/test_bam/test_bam.wdl",
@@ -42,6 +43,7 @@ def test_bam(workflow_data, workflow_runner):
     )
 
 
+@pytest.mark.integration
 def test_bam_removing_randomness(workflow_data, workflow_runner):
     """Test that BAMs with the only difference being random IDs
     added by samtools are evaluated as equal."""

@@ -18,7 +18,7 @@ from pytest_wdl.fixtures import (
 )
 from pytest_wdl.utils import tempdir
 import pytest
-from . import setenv
+from . import setenv, mock_request
 
 
 def test_user_config_file():
@@ -38,6 +38,7 @@ def test_user_config_file():
         assert user_config_file() == config
 
 
+@pytest.mark.integration
 def test_fixtures(workflow_data, workflow_runner):
     inputs = {
         "in_txt": workflow_data["in_txt"],
@@ -51,17 +52,23 @@ def test_fixtures(workflow_data, workflow_runner):
 
 
 def test_import_dirs():
+    cwd = Path.cwd()
+    req = mock_request(cwd)
+
     with pytest.raises(FileNotFoundError):
-        import_dirs(Path.cwd(), "foo")
+        import_dirs(req, cwd, "foo")
 
     with tempdir() as d:
         foo = d / "foo"
         with open(foo, "wt") as out:
             out.write("bar")
         with pytest.raises(FileNotFoundError):
-            import_dirs(d, foo)
+            import_dirs(req, d, foo)
 
-    with tempdir(change_dir=True) as cwd:
-        tests = cwd / "tests"
+    with tempdir(change_dir=True) as tmp_cwd:
+        tests = tmp_cwd / "tests"
         tests.mkdir()
-        assert import_dirs(None, None) == []
+        assert import_dirs(req, None, None) == [cwd]
+
+    with tempdir(change_dir=True) as tmp_cwd:
+        assert import_dirs(mock_request(tmp_cwd), None, None) == []

@@ -93,11 +93,14 @@ def project_root(
         return path.parent
 
 
-def workflow_data_descriptor_file() -> Union[str, Path]:
+def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
+
+    Args:
+        request: A FixtureRequest object
     """
-    tests = find_project_path(Path("tests"))
+    tests = find_project_path("tests", start=Path(request.fspath.dirpath()))
     if tests:
         test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():

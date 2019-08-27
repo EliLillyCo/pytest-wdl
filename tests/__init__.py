@@ -17,6 +17,7 @@ import os
 import socket
 from pathlib import Path
 import stat
+from unittest.mock import Mock
 
 
 try:
@@ -53,3 +54,11 @@ def setenv(envvars: dict):
 def make_executable(path: Path):
     current_permissions = stat.S_IMODE(os.lstat(path).st_mode)
     os.chmod(path, current_permissions | stat.S_IXUSR)
+
+
+def mock_request(dirpath: Path):
+    fspath = Mock()
+    fspath.dirpath = lambda: dirpath
+    req = Mock()
+    req.fspath = fspath
+    return req
