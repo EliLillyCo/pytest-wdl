@@ -25,7 +25,8 @@ from pytest_wdl.utils import LOG, ensure_path, safe_string
 
 
 def get_workflow(
-    project_root: Path, wdl_file: Union[str, Path], workflow_name: Optional[str] = None
+    search_paths: Sequence[Path], wdl_file: Union[str, Path],
+    workflow_name: Optional[str] = None
 ) -> Tuple[Path, str]:
     """
     Resolve the WDL file and workflow name.
@@ -34,7 +35,7 @@ def get_workflow(
      of the workflow.
 
     Args:
-        project_root: The root directory to which `wdl_file` might be relative.
+        search_paths: The root directory(s) to which `wdl_file` might be relative.
         wdl_file: Path to the WDL file.
         workflow_name: The workflow name; if None, the filename without ".wdl"
             extension is used.
@@ -42,9 +43,7 @@ def get_workflow(
     Returns:
         A tuple (wdl_path, workflow_name)
     """
-    wdl_path = ensure_path(wdl_file, project_root, canonicalize=True)
-    if not wdl_path.exists():
-        raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
+    wdl_path = ensure_path(wdl_file, search_paths, is_file=True, exists=True)
 
     if not workflow_name:
         workflow_name = safe_string(wdl_path.stem)

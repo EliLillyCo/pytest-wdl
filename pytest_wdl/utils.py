@@ -223,7 +223,7 @@ def context_dir(
 
 
 def ensure_path(
-    path: Union[str, LocalPath, Path], root: Optional[Path] = None,
+    path: Union[str, LocalPath, Path], search_paths: Optional[Sequence[Path]] = None,
     canonicalize: bool = True, exists: Optional[bool] = None,
     is_file: Optional[bool] = None, executable: Optional[bool] = None,
     create: bool = False
@@ -234,7 +234,9 @@ def ensure_path(
 
     Args:
         path: The path to convert.
-        root: Root directory to use to make `path` absolute if it is not already.
+        search_paths: Directories to search for `path` if it is not already absolute.
+            If `exists` is True, looks for the first search path that contains the file,
+            otherwise just uses the first search path.
         canonicalize: Whether to return the canonicalized version of the path -
             expand home directory shortcut (~), make absolute, and resolve symlinks.
         exists: If True, raise an exception if the path does not exist; if False,
@@ -258,8 +260,17 @@ def ensure_path(
 
     if canonicalize:
         p = p.expanduser()
-        if root and not p.is_absolute():
-            p = (root / p).absolute()
+
+        if search_paths and not p.is_absolute():
+            if exists:
+                for search_path in search_paths:
+                    p_tmp = search_path / p
+                    if p_tmp.exists():
+                        p = p_tmp.absolute()
+                        break
+            else:
+                p = (search_paths[0] / p).absolute()
+
         p = p.resolve()
 
     if p.exists():
