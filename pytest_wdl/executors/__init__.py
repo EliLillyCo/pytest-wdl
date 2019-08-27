@@ -16,7 +16,7 @@ import glob
 import json
 from pathlib import Path
 import tempfile
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import delegator
 
@@ -77,10 +77,7 @@ def get_workflow_inputs(
 
     if inputs_dict:
         inputs_dict = dict(
-            (
-                f"{workflow_name}.{key}",
-                value.path if isinstance(value, DataFile) else value
-            )
+            (f"{workflow_name}.{key}", make_serializable(value))
             for key, value in inputs_dict.items()
         )
 
@@ -93,6 +90,31 @@ def get_workflow_inputs(
             json.dump(inputs_dict, out, default=str)
 
     return inputs_dict, inputs_file
+
+
+def make_serializable(value):
+    """
+    Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+    Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+    method, otherwise they are converted to strings.
+
+    Args:
+        value: The value to make serializable.
+
+    Returns:
+        The serializable value.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, DataFile):
+        return value.path
+    if isinstance(value, dict):
+        return dict((k, make_serializable(v)) for k, v in value.items())
+    if isinstance(value, Sequence):
+        return [make_serializable(v) for v in value]
+    if hasattr(value, "as_dict"):
+        return value.as_dict()
+    return value
 
 
 def get_workflow_imports(
