@@ -77,7 +77,7 @@ def test_variant_caller(workflow_data, workflow_runner):
     }
     expected = workflow_data.get_dict("vcf")
     workflow_runner(
-        "variant_caller/variant_caller.wdl",
+        "variant_caller.wdl",
         "call_variants",
         inputs,
         expected
