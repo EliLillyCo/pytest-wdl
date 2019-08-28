@@ -50,10 +50,6 @@ def test_bam_removing_randomness(workflow_data, workflow_runner):
     workflow_runner(
         wdl_script="tests/test_bam/test_bam_norandom.wdl",
         workflow_name="test_bam_no_random",
-        inputs={
-            "bam": workflow_data["random_id_bam_input"]
-        },
-        expected={
-            "output_bam": workflow_data["random_id_bam_output"]
-        }
+        inputs=workflow_data.get_dict(bam="random_id_bam_input"),
+        expected=workflow_data.get_dict(output_bam="random_id_bam_output")
     )
