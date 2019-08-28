@@ -15,14 +15,17 @@
 import json
 from pathlib import Path
 import zipfile
+
 from pytest_wdl.utils import tempdir
 import pytest
 
+from pytest_wdl.core import DataFile
 from pytest_wdl.utils import ENV_PATH, ENV_CLASSPATH
-from pytest_wdl.executors import get_workflow, get_workflow_imports, get_workflow_inputs
+from pytest_wdl.executors import (
+    get_workflow, get_workflow_imports, get_workflow_inputs, make_serializable
+)
 from pytest_wdl.executors.cromwell import (
-    ENV_CROMWELL_CONFIG, ENV_JAVA_HOME, ENV_CROMWELL_ARGS, ENV_CROMWELL_JAR,
-    CromwellExecutor
+    ENV_CROMWELL_CONFIG, ENV_JAVA_HOME, ENV_CROMWELL_JAR, CromwellExecutor
 )
 from . import setenv, make_executable
 
@@ -120,11 +123,11 @@ def test_get_workflow():
     with tempdir() as d:
         wdl = d / "test.wdl"
         with pytest.raises(FileNotFoundError):
-            get_workflow(d, "test.wdl")
+            get_workflow([d], "test.wdl")
         with open(wdl, "wt") as out:
             out.write("workflow test {}")
-        assert get_workflow(d, "test.wdl") == (wdl, "test")
-        assert get_workflow(d, "test.wdl", "foo") == (wdl, "foo")
+        assert get_workflow([d], "test.wdl") == (wdl, "test")
+        assert get_workflow([d], "test.wdl", "foo") == (wdl, "foo")
 
 
 def test_get_workflow_inputs():
@@ -209,3 +212,31 @@ def test_get_workflow_imports():
         zip_path = get_workflow_imports(imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
+
+
+def test_make_serializable():
+    assert make_serializable(1) == 1
+    assert make_serializable("foo") == "foo"
+    assert make_serializable((1.1, 2.2)) == [1.1, 2.2]
+
+    with tempdir() as d:
+        foo = d / "foo"
+        with open(foo, "wt") as out:
+            out.write("foo")
+        df = DataFile(foo)
+        assert make_serializable(df) == foo
+        assert make_serializable([df]) == [foo]
+        assert make_serializable({"a": df}) == {"a": foo}
+
+    class Obj:
+        def __init__(self, a: str, b: int):
+            self.a = a
+            self.b = b
+
+        def as_dict(self):
+            return {
+                "a": self.a,
+                "b": self.b
+            }
+
+    assert make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}

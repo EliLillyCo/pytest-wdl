@@ -446,7 +446,7 @@ class DataResolver:
         localizer = None
 
         if path:
-            local_path = ensure_path(path, self.user_config.cache_dir)
+            local_path = ensure_path(path, [self.user_config.cache_dir])
 
         if local_path and local_path.exists():
             pass

@@ -16,7 +16,7 @@ import glob
 import json
 from pathlib import Path
 import tempfile
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import delegator
 
@@ -25,7 +25,8 @@ from pytest_wdl.utils import LOG, ensure_path, safe_string
 
 
 def get_workflow(
-    project_root: Path, wdl_file: Union[str, Path], workflow_name: Optional[str] = None
+    search_paths: Sequence[Path], wdl_file: Union[str, Path],
+    workflow_name: Optional[str] = None
 ) -> Tuple[Path, str]:
     """
     Resolve the WDL file and workflow name.
@@ -34,7 +35,7 @@ def get_workflow(
      of the workflow.
 
     Args:
-        project_root: The root directory to which `wdl_file` might be relative.
+        search_paths: The root directory(s) to which `wdl_file` might be relative.
         wdl_file: Path to the WDL file.
         workflow_name: The workflow name; if None, the filename without ".wdl"
             extension is used.
@@ -42,9 +43,7 @@ def get_workflow(
     Returns:
         A tuple (wdl_path, workflow_name)
     """
-    wdl_path = ensure_path(wdl_file, project_root, canonicalize=True)
-    if not wdl_path.exists():
-        raise FileNotFoundError(f"WDL file not found at path {wdl_path}")
+    wdl_path = ensure_path(wdl_file, search_paths, is_file=True, exists=True)
 
     if not workflow_name:
         workflow_name = safe_string(wdl_path.stem)
@@ -77,10 +76,7 @@ def get_workflow_inputs(
 
     if inputs_dict:
         inputs_dict = dict(
-            (
-                f"{workflow_name}.{key}",
-                value.path if isinstance(value, DataFile) else value
-            )
+            (f"{workflow_name}.{key}", make_serializable(value))
             for key, value in inputs_dict.items()
         )
 
@@ -93,6 +89,31 @@ def get_workflow_inputs(
             json.dump(inputs_dict, out, default=str)
 
     return inputs_dict, inputs_file
+
+
+def make_serializable(value):
+    """
+    Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+    Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+    method, otherwise they are converted to strings.
+
+    Args:
+        value: The value to make serializable.
+
+    Returns:
+        The serializable value.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, DataFile):
+        return value.path
+    if isinstance(value, dict):
+        return dict((k, make_serializable(v)) for k, v in value.items())
+    if isinstance(value, Sequence):
+        return [make_serializable(v) for v in value]
+    if hasattr(value, "as_dict"):
+        return value.as_dict()
+    return value
 
 
 def get_workflow_imports(

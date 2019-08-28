@@ -5,6 +5,7 @@ tests = tests
 #pytestopts = --full-trace
 #pytestopts = -ra --tb=short
 pytestopts = -s -vv --show-capture=all
+#pytestopts = -s -vv --show-capture=all -m "not integration"
 
 BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
 INSTALL_EXTRAS = pip install .[all]

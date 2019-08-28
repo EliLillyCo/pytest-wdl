@@ -16,7 +16,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import List, Optional, Union
+from typing import List, Optional, Sequence, Union
 
 import delegator
 
@@ -37,7 +37,7 @@ class CromwellExecutor(Executor):
     Manages the running of WDL workflows using Cromwell.
 
     Args:
-        project_root: The root path to which non-absolute WDL script paths are
+        search_paths: The root path(s) to which non-absolute WDL script paths are
             relative.
         import_dirs: Relative or absolute paths to directories containing WDL
             scripts that should be available as imports.
@@ -50,7 +50,7 @@ class CromwellExecutor(Executor):
     """
     def __init__(
         self,
-        project_root: Path,
+        search_paths: Sequence[Path],
         import_dirs: Optional[List[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None,
@@ -58,7 +58,7 @@ class CromwellExecutor(Executor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        self.project_root = project_root
+        self.search_paths = search_paths
         self.import_dirs = import_dirs
 
         if not java_bin:
@@ -141,7 +141,7 @@ class CromwellExecutor(Executor):
             AssertionError: if the actual outputs don't match the expected outputs
         """
         wdl_path, workflow_name = get_workflow(
-            self.project_root, wdl_script, workflow_name,
+            self.search_paths, wdl_script, workflow_name
         )
 
         inputs_dict, inputs_file = get_workflow_inputs(

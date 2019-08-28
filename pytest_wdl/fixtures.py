@@ -93,11 +93,14 @@ def project_root(
         return path.parent
 
 
-def workflow_data_descriptor_file() -> Union[str, Path]:
+def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     """
     Fixture that provides the path to the JSON file that describes test data files.
+
+    Args:
+        request: A FixtureRequest object
     """
-    tests = find_project_path(Path("tests"))
+    tests = find_project_path("tests", start=Path(request.fspath.dirpath()))
     if tests:
         test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():
@@ -173,6 +176,7 @@ def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
 
 
 def import_dirs(
+    request: FixtureRequest,
     project_root: Union[str, Path],
     import_paths: Optional[Union[str, Path]]
 ) -> List[Union[str, Path]]:
@@ -183,6 +187,7 @@ def import_dirs(
     of the test module.
 
     Args:
+        request: A FixtureRequest object
         project_root: Project root directory
         import_paths: File listing paths to imports, one per line
     """
@@ -204,10 +209,17 @@ def import_dirs(
 
         return paths
     else:
-        return []
+        module_dir = find_project_path(
+            "tests", start=Path(request.fspath.dirpath()), return_parent=True
+        )
+        if module_dir:
+            return [module_dir]
+        else:
+            return []
 
 
 def workflow_runner(
+    request: FixtureRequest,
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
     user_config: UserConfiguration
@@ -217,6 +229,7 @@ def workflow_runner(
     `Executor.run_workflow`).
 
     Args:
+        request: A FixtureRequest object.
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
         user_config:
@@ -232,8 +245,9 @@ def workflow_runner(
         executor_class = EXECUTORS.get(executor_name)
         if not executor_class:
             raise RuntimeError(f"{executor_name} executor plugin is not installed")
+        search_paths = [Path(request.fspath.dirpath()), project_root]
         executor = executor_class(
-            project_root=project_root,
+            search_paths=search_paths,
             import_dirs=import_dirs,
             **user_config.get_executor_defaults(executor_name)
         )

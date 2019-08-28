@@ -76,9 +76,9 @@ def test_ensure_path():
 
     cwd_str = str(cwd)
     assert ensure_path(cwd_str) == cwd
-    assert ensure_path(cwd.name, cwd.parent) == cwd
+    assert ensure_path(cwd.name, [cwd.parent]) == cwd
 
-    assert ensure_path(cwd.name, cwd.parent) == cwd
+    assert ensure_path(cwd.name, [cwd.parent]) == cwd
 
     home = Path.home()
     assert ensure_path("~", canonicalize=False) == Path("~")
