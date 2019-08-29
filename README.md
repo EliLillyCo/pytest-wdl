@@ -131,7 +131,7 @@ Input and output data are defined in a `test_data.json` file in the same directo
 
 For details, [read the docs](https://pytest-wdl.readthedocs.io).
 
-## Development
+## Contributing
 
 To develop pytest-wdl, clone the repository and install all the dependencies:
 
@@ -145,3 +145,7 @@ To run the full build and unit tests, run:
 ```commandline
 $ make
 ```
+
+## Support
+
+pytest-wdl is *not* an official product of Eli Lilly or DNAnexus. Please do *not* contact these companies (or any employees thereof) for support. To report a bug or feature request, please open an issue in the [issue tracker](https://github.com/EliLillyCo/pytest-wdl/issues).
