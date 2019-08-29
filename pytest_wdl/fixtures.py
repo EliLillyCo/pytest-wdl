@@ -236,7 +236,7 @@ def workflow_runner(
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
-        workflow_name: Optional[str] = None,
+        *args,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         executors: Optional[Sequence[str]] = None,
@@ -256,7 +256,11 @@ def workflow_runner(
             )
             with context_dir(user_config.default_execution_dir, change_dir=True):
                 executor.run_workflow(
-                    wdl_script, workflow_name, inputs, expected, **kwargs
+                    wdl_script,
+                    *args,
+                    inputs=inputs,
+                    expected=expected,
+                    **kwargs
                 )
 
     return _run_workflow

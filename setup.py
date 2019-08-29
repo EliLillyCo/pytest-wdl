@@ -5,6 +5,7 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam"],
+    "miniwdl": ["miniwdl"],
     "progress": ["tqdm"]
 }
 extras_require["all"] = [
@@ -37,7 +38,8 @@ setup(
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
         ],
         "pytest_wdl.executors": [
-            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor"
+            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor"
         ]
     },
     py_modules=["pytest_wdl"],

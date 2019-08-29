@@ -14,7 +14,7 @@ def project_root_files():
 
 
 @pytest.mark.integration
-def test_hello_world(workflow_data, workflow_runner, request):
+def test_hello_world(workflow_data, workflow_runner):
     """Test the hello_world task with fixed inputs and outputs."""
     inputs = {
         "input_file": workflow_data["test_file"],

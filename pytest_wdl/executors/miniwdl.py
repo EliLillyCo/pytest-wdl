@@ -7,7 +7,7 @@ from pytest_wdl.executors import get_workflow, get_workflow_inputs
 from WDL.CLI import runner
 
 
-class CromwellExecutor(Executor):
+class MiniwdlExecutor(Executor):
     """
     Manages the running of WDL workflows using Cromwell.
     """
