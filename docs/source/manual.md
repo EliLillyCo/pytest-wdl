@@ -144,23 +144,28 @@ Available types:
 
 ## Executors
 
-An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, [Cromwell](https://cromwell.readthedocs.io/) is the only supported executor, but aternative executors can be implemented as [plugins](#plugins).
+An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, [Cromwell](https://cromwell.readthedocs.io/) and [Miniwdl](https://github.com/chanzuckerberg/miniwdl) are supported, but aternative executors can be implemented as [plugins](#plugins).
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and several additional optional arguments:
 
 * `wdl_script`: Required; the WDL script to execute. The path may be absolute or relative - if relative, it is first searched relative to the current `tests` directory (i.e. `test_context_dir/tests`), and then the project root. 
-* `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
-* `inputs`: Dict that will be serialized to JSON and provided to Cromwell as the workflow inputs. If not specified, the workflow must not have any required inputs.
+* `inputs`: Dict that will be serialized to JSON and provided to the executor as the workflow inputs. If not specified, the workflow must not have any required inputs.
 * `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
 
 ### Executor-specific options
 
 #### Cromwell
 
+* `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 * `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
+
+#### Miniwdl
+
+* `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow.
+* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 
 ## Configuration
 
@@ -210,7 +215,8 @@ The available configuration options are listed in the following table:
 | `proxies` | Configurable | Proxy server information; see details below | None | Use environment variable(s) to configure your proxy server(s), if any |
 | `http_headers` | Configurable | HTTP header configuration that applies to all URLs matching a given pattern; see details below | None | Configure headers by URL pattern; configure headers for specific URLs in the test_data.json file |
 | `show_progress` | N/A | Whether to show progress bars when downloading files | False | |
-| `executors` |Executor-dependent | Configuration options specific to each executor; see below | None | |
+| `default_executors` | PYTEST_WDL_EXECUTORS | List of executor names to run by default | \["cromwell"\] | |
+| `executors` | Executor-dependent | Configuration options specific to each executor; see below | None | |
 | N/A | `LOGLEVEL` | Level of detail to log; can set to 'DEBUG', 'INFO', 'WARNING', or 'ERROR' | 'WARNING' | Use 'DEBUG' when developing plugins/fixtures/etc., otherwise 'WARNING' |
 
 ##### Proxies
