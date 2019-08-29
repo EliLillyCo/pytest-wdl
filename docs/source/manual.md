@@ -2,6 +2,58 @@
 
 pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl). Test workflow inputs and expected outputs are [configured](#test_data) in a `test_data.json` file. Workflows are run by one or more [executors](#executors). By default, actual and expected outputs are compared by MD5 hash, but data type-specific comparisons are provided. Data types and executors are pluggable and can be provided via third-party packages. 
 
+## Project setup
+
+pytest-wdl should support most project set-ups, including:
+
+```
+# simple
+myproject
+|_workflow.wdl
+|_subworkflow1.wdl
+|_subworkflow2.wdl
+|_tests
+  |_test_workflow.py
+  |_test_data.json
+
+# multi-module with single test directory
+myproject
+|_main_workflow.wdl
+|_module1
+| |_module1.wdl
+|_module2
+| |_module2.wdl
+|_tests
+ |_main
+ | |_test_main.py
+ | |_test_data.json
+ |_module1
+   |_test_module1.py
+   |_test_data.json
+ ...
+
+# multi-module with separate test directories
+myproject
+|_main.wdl
+|_module1
+| |_module1.wdl
+| |_tests
+|   |_test_module1.py
+|   |_test_data.json
+|_module2
+| |_...
+|_tests
+  |_test_main.py
+  |_test_data.json
+```
+
+By default, pytest-wdl tries to find the files it is expecting relative to one of two directories:
+
+* Project root: the base directory of the project. In the above examples, `myproject` is the project root directory. By default, the project root is discovered by looking for key files (e.g. setup.py), starting from the directory in which pytest is executing the current test. In most cases, the project root will be the same for all tests executed within a project.
+* Test context directory: starting from the directory in which pytest is executing the current test, the test context directory is the first directory up in the directory hierarchy that contains a "tests" subdirectory. The test context directory may differ between test modules, depending on the setup of your project:
+    * In the "simple" and "multi-module with single test directory" examples, `myproject` would be the test context directory
+    * In the "multi-module with separate test directories" example, the test context directory would be `myproject` when executing `myproject/tests/test_main.py` and `module1` when executing `myproject/module1/tests/test_module1.py`.
+
 ## Fixtures
 
 All functionality of pytest-wdl is provided via [fixtures](https://docs.pytest.org/en/latest/fixture.html). As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
@@ -96,7 +148,7 @@ An Executor is a wrapper around a WDL workflow execution engine that prepares in
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and several additional optional arguments:
 
-* `wdl_script`: Required; the WDL script to execute. The path must either be absolute or (more commonly) relative to the project root.
+* `wdl_script`: Required; the WDL script to execute. The path may be absolute or relative - if relative, it is first searched relative to the current `tests` directory (i.e. `test_context_dir/tests`), and then the project root. 
 * `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
 * `inputs`: Dict that will be serialized to JSON and provided to Cromwell as the workflow inputs. If not specified, the workflow must not have any required inputs.
 * `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
@@ -106,7 +158,7 @@ The `workflow_runner` fixture is a callable that runs the workflow using the exe
 #### Cromwell
 
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
-* `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file.
+* `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
 
@@ -129,7 +181,7 @@ Configuration at the project level is handled by overriding fixtures, either in 
 | `workflow_data_descriptors` | module | Mapping of workflow input/output names to values (as described in the [Files](#files) section). | Loaded from the `workflow_data_descriptor_file` |
 | `workflow_data_resolver` | module | Provides the `DataResolver` object that resolves test data; this should only need to be overridden for testing/debugging purposes | `DataResolver` created from `workflow_data_descriptors` |
 | `import_paths` | module | Provides the path to the file that lists the directories from which to import WDL dependencies | "import_paths.txt" |
-| `import_dirs` | module | Provides the directories from which to import WDL dependencies | Loaded from `import_paths` file, if any |
+| `import_dirs` | module | Provides the directories from which to import WDL dependencies | Loaded from `import_paths` file, if any, otherwise all WDL files under the current test context directory are imported |
 
 ### Environment-specific configuration
 
