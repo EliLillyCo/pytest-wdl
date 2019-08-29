@@ -134,11 +134,13 @@ class UserConfiguration:
             self.show_progress = defaults.get(KEY_SHOW_PROGRESS)
 
         if not executors:
-            executors = os.environ.get(
-                ENV_DEFAULT_EXECUTORS,
-                defaults.get(KEY_DEFAULT_EXECUTORS, ["cromwell"])
-            )
+            executors_str = os.environ.get(ENV_DEFAULT_EXECUTORS)
+            if executors_str:
+                executors = executors_str.split(",")
+            else:
+                executors = defaults.get(KEY_DEFAULT_EXECUTORS, ["cromwell"])
         self.executors = executors
+
         self.executor_defaults = executor_defaults or {}
         if "executors" in defaults:
             for name, d in defaults["executors"].items():

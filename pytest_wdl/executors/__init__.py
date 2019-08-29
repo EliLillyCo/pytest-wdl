@@ -25,7 +25,8 @@ from pytest_wdl.utils import LOG, ensure_path, safe_string
 
 
 def get_workflow(
-    search_paths: Sequence[Path], wdl_file: Union[str, Path],
+    search_paths: Sequence[Path],
+    wdl_file: Union[str, Path],
     workflow_name: Optional[str] = None
 ) -> Tuple[Path, str]:
     """

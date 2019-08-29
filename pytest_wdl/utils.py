@@ -223,9 +223,12 @@ def context_dir(
 
 
 def ensure_path(
-    path: Union[str, LocalPath, Path], search_paths: Optional[Sequence[Path]] = None,
-    canonicalize: bool = True, exists: Optional[bool] = None,
-    is_file: Optional[bool] = None, executable: Optional[bool] = None,
+    path: Union[str, LocalPath, Path],
+    search_paths: Optional[Sequence[Path]] = None,
+    canonicalize: bool = True,
+    exists: Optional[bool] = None,
+    is_file: Optional[bool] = None,
+    executable: Optional[bool] = None,
     create: bool = False
 ) -> Path:
     """
