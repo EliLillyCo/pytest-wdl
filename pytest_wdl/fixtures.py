@@ -22,12 +22,12 @@ still return string paths, but this support will be dropped in a future version.
 import json
 import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
 
 from pytest_wdl.core import (
-    EXECUTORS, DataResolver, DataManager, DataDirs, Executor, UserConfiguration
+    EXECUTORS, DataResolver, DataManager, DataDirs, UserConfiguration
 )
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
@@ -239,21 +239,24 @@ def workflow_runner(
         workflow_name: Optional[str] = None,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
-        executor_name: str = "cromwell",
+        executors: Optional[Sequence[str]] = None,
         **kwargs
     ):
-        executor_class = EXECUTORS.get(executor_name)
-        if not executor_class:
-            raise RuntimeError(f"{executor_name} executor plugin is not installed")
         search_paths = [Path(request.fspath.dirpath()), project_root]
-        executor = executor_class(
-            search_paths=search_paths,
-            import_dirs=import_dirs,
-            **user_config.get_executor_defaults(executor_name)
-        )
-        with context_dir(user_config.default_execution_dir, change_dir=True):
-            executor.run_workflow(
-                wdl_script, workflow_name, inputs, expected, **kwargs
+        if not executors:
+            executors = user_config.executors
+        for executor_name in executors:
+            executor_class = EXECUTORS.get(executor_name)
+            if not executor_class:
+                raise RuntimeError(f"{executor_name} executor plugin is not installed")
+            executor = executor_class(
+                search_paths=search_paths,
+                import_dirs=import_dirs,
+                **user_config.get_executor_defaults(executor_name)
             )
+            with context_dir(user_config.default_execution_dir, change_dir=True):
+                executor.run_workflow(
+                    wdl_script, workflow_name, inputs, expected, **kwargs
+                )
 
     return _run_workflow

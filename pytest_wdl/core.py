@@ -20,7 +20,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, Dict, List, Optional, Pattern, Type, Union, cast
+from typing import Callable, Dict, List, Optional, Sequence, Type, Union, cast
 
 import delegator
 
@@ -37,6 +37,8 @@ KEY_EXECUTION_DIR = "execution_dir"
 KEY_PROXIES = "proxies"
 KEY_HTTP_HEADERS = "http_headers"
 KEY_SHOW_PROGRESS = "show_progress"
+ENV_DEFAULT_EXECUTORS = "PYTEST_WDL_EXECUTORS"
+KEY_DEFAULT_EXECUTORS = "default_executors"
 KEY_EXECUTORS = "executors"
 
 
@@ -67,6 +69,7 @@ class UserConfiguration:
             header is used for all URLs.
         show_progress: Whether to show progress bars when downloading remote test data
             files.
+        executors: Default set of executors to run.
         executor_defaults: Mapping of executor name to dict of executor-specific
             configuration options.
     """
@@ -79,6 +82,7 @@ class UserConfiguration:
         proxies: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
         http_headers: Optional[List[dict]] = None,
         show_progress: Optional[bool] = None,
+        executors: Optional[str] = None,
         executor_defaults: Optional[Dict[str, dict]] = None,
     ):
         if config_file:
@@ -129,6 +133,12 @@ class UserConfiguration:
         if self.show_progress is None:
             self.show_progress = defaults.get(KEY_SHOW_PROGRESS)
 
+        if not executors:
+            executors = os.environ.get(
+                ENV_DEFAULT_EXECUTORS,
+                defaults.get(KEY_DEFAULT_EXECUTORS, ["cromwell"])
+            )
+        self.executors = executors
         self.executor_defaults = executor_defaults or {}
         if "executors" in defaults:
             for name, d in defaults["executors"].items():
@@ -533,12 +543,25 @@ class DataManager:
 class Executor(metaclass=ABCMeta):
     """
     Base class for WDL workflow executors.
+
+    Args:
+        search_paths: The root path(s) to which non-absolute WDL script paths are
+            relative.
+        import_dirs: Relative or absolute paths to directories containing WDL
+            scripts that should be available as imports.
     """
-    @abstractmethod
+    def __init__(
+        self,
+        search_paths: Sequence[Path],
+        import_dirs: Optional[List[Path]] = None,
+    ):
+        self.search_paths = search_paths
+        self.import_dirs = import_dirs
+
     def run_workflow(
         self,
         wdl_script: Union[str, Path],
-        workflow_name: Optional[str] = None,
+        *args,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -549,19 +572,15 @@ class Executor(metaclass=ABCMeta):
 
         Args:
             wdl_script: The WDL script to execute.
-            workflow_name: The name of the workflow in the WDL script. If None, the
-                name of the WDL script is used (without the .wdl extension).
+            args: Positional arguments; deprecated; this is to support backward
+                compatibility for workflows using the old `run_workflow` signature
+                in which the second argument was the workflow name. This will be
+                removed in the next major version.
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
-            kwargs: Additional keyword arguments, mostly for debugging:
-                * execution_dir: DEPRECATED
-                * inputs_file: Path to the Cromwell inputs file to use. Inputs are
-                    written to this file only if it doesn't exist.
-                * imports_file: Path to the WDL imports file to use. Imports are
-                    written to this file only if it doesn't exist.
-                * java_args: Additional arguments to pass to Java runtime.
-                * cromwell_args: Additional arguments to pass to `cromwell run`.
+            kwargs: Additional executor-specific keyword arguments (mostly for
+                debugging)
 
         Returns:
             Dict of outputs.
@@ -570,6 +589,32 @@ class Executor(metaclass=ABCMeta):
             Exception: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
+        if args:
+            if isinstance(args[0], str):
+                kwargs["workflow_name"] = args[0]
+                args = args[1:]
+        if args:
+            inputs = args[0]
+            args = args[1:]
+        if args:
+            expected = args[0]
+
+        return self._run_workflow(
+            wdl_script=wdl_script,
+            inputs=inputs,
+            expected=expected,
+            **kwargs
+        )
+
+    @abstractmethod
+    def _run_workflow(
+        self,
+        wdl_script: Union[str, Path],
+        inputs: Optional[dict] = None,
+        expected: Optional[dict] = None,
+        **kwargs
+    ) -> dict:
+        pass
 
 
 EXECUTORS = plugin_factory_map(Executor, "pytest_wdl.executors")

@@ -58,8 +58,7 @@ class CromwellExecutor(Executor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        self.search_paths = search_paths
-        self.import_dirs = import_dirs
+        super().__init__(search_paths, import_dirs)
 
         if not java_bin:
             java_home = os.environ.get(ENV_JAVA_HOME)
@@ -106,10 +105,9 @@ class CromwellExecutor(Executor):
 
         self.cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
 
-    def run_workflow(
+    def _run_workflow(
         self,
         wdl_script: Union[str, Path],
-        workflow_name: Optional[str] = None,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -120,12 +118,13 @@ class CromwellExecutor(Executor):
 
         Args:
             wdl_script: The WDL script to execute.
-            workflow_name: The name of the workflow in the WDL script. If None, the
-                name of the WDL script is used (without the .wdl extension).
+
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
             kwargs: Additional keyword arguments, mostly for debugging:
+                * workflow_name: The name of the workflow in the WDL script. If None,
+                    the name of the WDL script is used (without the .wdl extension).
                 * inputs_file: Path to the Cromwell inputs file to use. Inputs are
                     written to this file only if it doesn't exist.
                 * imports_file: Path to the WDL imports file to use. Imports are
@@ -140,12 +139,13 @@ class CromwellExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
+
         wdl_path, workflow_name = get_workflow(
-            self.search_paths, wdl_script, workflow_name
+            self.search_paths, wdl_script, kwargs.get("workflow_name")
         )
 
         inputs_dict, inputs_file = get_workflow_inputs(
-            workflow_name, inputs, kwargs.get("inputs_file")
+            inputs, kwargs.get("inputs_file"), workflow_name
         )
 
         imports_file = get_workflow_imports(

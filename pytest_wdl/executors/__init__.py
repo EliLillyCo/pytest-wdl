@@ -52,17 +52,18 @@ def get_workflow(
 
 
 def get_workflow_inputs(
-    workflow_name: str, inputs_dict: Optional[dict] = None,
-    inputs_file: Optional[Path] = None
+    inputs_dict: Optional[dict] = None,
+    inputs_file: Optional[Path] = None,
+    namespace: Optional[str] = None
 ) -> Tuple[dict, Path]:
     """
     Persist workflow inputs to a file, or load workflow inputs from a file.
 
     Args:
-        workflow_name: Name of the workflow; used to prefix the input parameters when
-            creating the inputs file from the inputs dict.
         inputs_dict: Dict of input names/values.
         inputs_file: JSON file with workflow inputs.
+        namespace: Name of the workflow; used to prefix the input parameters when
+            creating the inputs file from the inputs dict.
 
     Returns:
         A tuple (inputs_dict, inputs_file)
@@ -75,8 +76,9 @@ def get_workflow_inputs(
                 return inputs_dict, inputs_file
 
     if inputs_dict:
+        prefix = f"{namespace}." if namespace else ""
         inputs_dict = dict(
-            (f"{workflow_name}.{key}", make_serializable(value))
+            (f"{prefix}{key}", make_serializable(value))
             for key, value in inputs_dict.items()
         )
 

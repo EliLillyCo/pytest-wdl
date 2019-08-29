@@ -131,7 +131,9 @@ def test_get_workflow():
 
 
 def test_get_workflow_inputs():
-    actual_inputs_dict, inputs_path = get_workflow_inputs("foo", {"bar": 1})
+    actual_inputs_dict, inputs_path = get_workflow_inputs(
+        {"bar": 1}, namespace="foo"
+    )
     assert inputs_path.exists()
     with open(inputs_path, "rt") as inp:
         assert json.load(inp) == actual_inputs_dict
@@ -142,7 +144,7 @@ def test_get_workflow_inputs():
     with tempdir() as d:
         inputs_file = d / "inputs.json"
         actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", {"bar": 1}, inputs_file
+            {"bar": 1}, inputs_file, "foo"
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
@@ -158,7 +160,7 @@ def test_get_workflow_inputs():
         with open(inputs_file, "wt") as out:
             json.dump(inputs_dict, out)
         actual_inputs_dict, inputs_path = get_workflow_inputs(
-            "foo", inputs_file=inputs_file
+            inputs_file=inputs_file, namespace="foo"
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
