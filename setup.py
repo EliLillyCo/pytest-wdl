@@ -23,7 +23,7 @@ setup(
         "Source": "https://github.com/EliLillyCo/pytest-wdl",
         "Tracker": "https://github.com/EliLillyCo/pytest-wdl/issues"
     },
-    description="Fixtures for pytest for running WDL workflows using Cromwell.",
+    description="Pytest plugin for testing WDL workflows.",
     long_description_content_type="text/markdown",
     long_description=codecs.open(
         os.path.join(
