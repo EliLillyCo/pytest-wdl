@@ -26,7 +26,7 @@ class MiniwdlExecutor(Executor):
     Manages the running of WDL workflows using Cromwell.
     """
 
-    def _run_workflow(
+    def run_workflow(
         self,
         wdl_path: Path,
         inputs: Optional[dict] = None,
@@ -62,7 +62,7 @@ class MiniwdlExecutor(Executor):
 
         task = kwargs.get("task_name")
 
-        return runner(
+        outputs =  runner(
             wdl_path,
             task=task,
             inputs_file=inputs_file,

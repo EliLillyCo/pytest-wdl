@@ -20,19 +20,8 @@ import pytest
 
 from pytest_wdl.core import DataFile
 from pytest_wdl.executors import (
-    get_workflow, get_workflow_imports, get_workflow_inputs, make_serializable
+    get_workflow_imports, get_workflow_inputs, make_serializable
 )
-
-
-def test_get_workflow():
-    with tempdir() as d:
-        wdl = d / "test.wdl"
-        with pytest.raises(FileNotFoundError):
-            get_workflow([d], "test.wdl")
-        with open(wdl, "wt") as out:
-            out.write("workflow test {}")
-        assert get_workflow([d], "test.wdl") == (wdl, "test")
-        assert get_workflow([d], "test.wdl", "foo") == (wdl, "foo")
 
 
 def test_get_workflow_inputs():

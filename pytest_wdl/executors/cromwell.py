@@ -102,7 +102,7 @@ class CromwellExecutor(Executor):
 
         self.cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
 
-    def _run_workflow(
+    def run_workflow(
         self,
         wdl_path: Union[str, Path],
         inputs: Optional[dict] = None,

@@ -553,10 +553,10 @@ class Executor(metaclass=ABCMeta):
     def __init__(self, import_dirs: Optional[List[Path]] = None):
         self.import_dirs = import_dirs
 
+    @abstractmethod
     def run_workflow(
         self,
         wdl_path: Path,
-        *args,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -567,10 +567,6 @@ class Executor(metaclass=ABCMeta):
 
         Args:
             wdl_path: The WDL script to execute.
-            args: Positional arguments; deprecated; this is to support backward
-                compatibility for workflows using the old `run_workflow` signature
-                in which the second argument was the workflow name. This will be
-                removed in the next major version.
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
@@ -584,32 +580,6 @@ class Executor(metaclass=ABCMeta):
             Exception: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        if args:
-            if isinstance(args[0], str):
-                kwargs["workflow_name"] = args[0]
-                args = args[1:]
-        if args:
-            inputs = args[0]
-            args = args[1:]
-        if args:
-            expected = args[0]
-
-        return self._run_workflow(
-            wdl_script=wdl_path,
-            inputs=inputs,
-            expected=expected,
-            **kwargs
-        )
-
-    @abstractmethod
-    def _run_workflow(
-        self,
-        wdl_path: Path,
-        inputs: Optional[dict] = None,
-        expected: Optional[dict] = None,
-        **kwargs
-    ) -> dict:
-        pass
 
 
 EXECUTORS = plugin_factory_map(Executor, "pytest_wdl.executors")
