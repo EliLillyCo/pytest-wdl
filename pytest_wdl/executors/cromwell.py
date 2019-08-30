@@ -20,9 +20,13 @@ from typing import List, Optional, Union
 
 import delegator
 
-from pytest_wdl.executors import safe_string, get_workflow_inputs, get_workflow_imports
-from pytest_wdl.core import Executor, DataFile
-from pytest_wdl.utils import LOG, ensure_path, find_executable_path, find_in_classpath
+from pytest_wdl.executors import (
+    get_workflow_inputs, get_workflow_imports, validate_outputs
+)
+from pytest_wdl.core import Executor
+from pytest_wdl.utils import (
+    LOG, ensure_path, find_executable_path, find_in_classpath, safe_string
+)
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
@@ -169,14 +173,7 @@ class CromwellExecutor(Executor):
         outputs = CromwellExecutor.get_cromwell_outputs(exe.out)
 
         if expected:
-            for name, expected_value in expected.items():
-                key = f"{workflow_name}.{name}"
-                if key not in outputs:
-                    raise AssertionError(f"Workflow did not generate output {key}")
-                if isinstance(expected_value, DataFile):
-                    expected_value.assert_contents_equal(outputs[key])
-                else:
-                    assert expected_value == outputs[key]
+            validate_outputs(outputs, expected, workflow_name)
 
         return outputs
 

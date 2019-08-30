@@ -13,10 +13,10 @@
 #    limitations under the License.
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from pytest_wdl.core import Executor
-from pytest_wdl.executors import get_workflow_inputs
+from pytest_wdl.executors import get_workflow_inputs, validate_outputs
 
 from WDL.CLI import runner
 
@@ -62,9 +62,16 @@ class MiniwdlExecutor(Executor):
 
         task = kwargs.get("task_name")
 
-        outputs =  runner(
+        outputs = runner(
             wdl_path,
             task=task,
             inputs_file=inputs_file,
-            path=self.import_dirs
+            path=[
+                str(path) for path in self.import_dirs
+            ]
         )
+
+        #if expected:
+        #    validate_outputs(outputs, expected, workflow_name)
+
+        return outputs
