@@ -63,7 +63,7 @@ class MiniwdlExecutor(Executor):
         task = kwargs.get("task_name")
 
         outputs = runner(
-            wdl_path,
+            str(wdl_path),
             task=task,
             inputs_file=inputs_file,
             path=[
