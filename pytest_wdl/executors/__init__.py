@@ -24,34 +24,6 @@ from pytest_wdl.core import DataFile
 from pytest_wdl.utils import LOG, ensure_path, safe_string
 
 
-def get_workflow(
-    search_paths: Sequence[Path],
-    wdl_file: Union[str, Path],
-    workflow_name: Optional[str] = None
-) -> Tuple[Path, str]:
-    """
-    Resolve the WDL file and workflow name.
-
-    TODO: if `workflow_name` is None, parse the WDL file and extract the name
-     of the workflow.
-
-    Args:
-        search_paths: The root directory(s) to which `wdl_file` might be relative.
-        wdl_file: Path to the WDL file.
-        workflow_name: The workflow name; if None, the filename without ".wdl"
-            extension is used.
-
-    Returns:
-        A tuple (wdl_path, workflow_name)
-    """
-    wdl_path = ensure_path(wdl_file, search_paths, is_file=True, exists=True)
-
-    if not workflow_name:
-        workflow_name = safe_string(wdl_path.stem)
-
-    return wdl_path, workflow_name
-
-
 def get_workflow_inputs(
     inputs_dict: Optional[dict] = None,
     inputs_file: Optional[Path] = None,

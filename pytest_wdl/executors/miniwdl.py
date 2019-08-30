@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from pytest_wdl.core import Executor
-from pytest_wdl.executors import get_workflow, get_workflow_inputs
+from pytest_wdl.executors import get_workflow_inputs
 
 from WDL.CLI import runner
 
@@ -28,7 +28,7 @@ class MiniwdlExecutor(Executor):
 
     def _run_workflow(
         self,
-        wdl_script: Union[str, Path],
+        wdl_path: Path,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -38,7 +38,7 @@ class MiniwdlExecutor(Executor):
         given expected values.
 
         Args:
-            wdl_script: The WDL script to execute.
+            wdl_path: The WDL script to execute.
             workflow_name: The name of the workflow in the WDL script. If None, the
                 name of the WDL script is used (without the .wdl extension).
             inputs: Object that will be serialized to JSON and provided to Cromwell
@@ -56,8 +56,6 @@ class MiniwdlExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        wdl_path, _ = get_workflow(self.search_paths, wdl_script)
-
         inputs_dict, inputs_file = get_workflow_inputs(
             inputs, kwargs.get("inputs_file")
         )
@@ -65,7 +63,7 @@ class MiniwdlExecutor(Executor):
         task = kwargs.get("task_name")
 
         return runner(
-            wdl_script,
+            wdl_path,
             task=task,
             inputs_file=inputs_file,
             path=self.import_dirs

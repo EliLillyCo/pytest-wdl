@@ -243,6 +243,7 @@ def workflow_runner(
         **kwargs
     ):
         search_paths = [Path(request.fspath.dirpath()), project_root]
+        wdl_path = ensure_path(wdl_script, search_paths, is_file=True, exists=True)
         if not executors:
             executors = user_config.executors
         for executor_name in executors:
@@ -250,13 +251,12 @@ def workflow_runner(
             if not executor_class:
                 raise RuntimeError(f"{executor_name} executor plugin is not installed")
             executor = executor_class(
-                search_paths=search_paths,
                 import_dirs=import_dirs,
                 **user_config.get_executor_defaults(executor_name)
             )
             with context_dir(user_config.default_execution_dir, change_dir=True):
                 executor.run_workflow(
-                    wdl_script,
+                    wdl_path,
                     *args,
                     inputs=inputs,
                     expected=expected,

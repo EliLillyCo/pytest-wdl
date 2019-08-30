@@ -547,22 +547,15 @@ class Executor(metaclass=ABCMeta):
     Base class for WDL workflow executors.
 
     Args:
-        search_paths: The root path(s) to which non-absolute WDL script paths are
-            relative.
         import_dirs: Relative or absolute paths to directories containing WDL
             scripts that should be available as imports.
     """
-    def __init__(
-        self,
-        search_paths: Sequence[Path],
-        import_dirs: Optional[List[Path]] = None,
-    ):
-        self.search_paths = search_paths
+    def __init__(self, import_dirs: Optional[List[Path]] = None):
         self.import_dirs = import_dirs
 
     def run_workflow(
         self,
-        wdl_script: Union[str, Path],
+        wdl_path: Path,
         *args,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
@@ -573,7 +566,7 @@ class Executor(metaclass=ABCMeta):
         given expected values.
 
         Args:
-            wdl_script: The WDL script to execute.
+            wdl_path: The WDL script to execute.
             args: Positional arguments; deprecated; this is to support backward
                 compatibility for workflows using the old `run_workflow` signature
                 in which the second argument was the workflow name. This will be
@@ -602,7 +595,7 @@ class Executor(metaclass=ABCMeta):
             expected = args[0]
 
         return self._run_workflow(
-            wdl_script=wdl_script,
+            wdl_script=wdl_path,
             inputs=inputs,
             expected=expected,
             **kwargs
@@ -611,7 +604,7 @@ class Executor(metaclass=ABCMeta):
     @abstractmethod
     def _run_workflow(
         self,
-        wdl_script: Union[str, Path],
+        wdl_path: Path,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs

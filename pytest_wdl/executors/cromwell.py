@@ -16,11 +16,11 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Union
 
 import delegator
 
-from pytest_wdl.executors import get_workflow, get_workflow_inputs, get_workflow_imports
+from pytest_wdl.executors import safe_string, get_workflow_inputs, get_workflow_imports
 from pytest_wdl.core import Executor, DataFile
 from pytest_wdl.utils import LOG, ensure_path, find_executable_path, find_in_classpath
 
@@ -37,8 +37,6 @@ class CromwellExecutor(Executor):
     Manages the running of WDL workflows using Cromwell.
 
     Args:
-        search_paths: The root path(s) to which non-absolute WDL script paths are
-            relative.
         import_dirs: Relative or absolute paths to directories containing WDL
             scripts that should be available as imports.
         java_bin: Path to the java executable.
@@ -50,7 +48,6 @@ class CromwellExecutor(Executor):
     """
     def __init__(
         self,
-        search_paths: Sequence[Path],
         import_dirs: Optional[List[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None,
@@ -58,7 +55,7 @@ class CromwellExecutor(Executor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        super().__init__(search_paths, import_dirs)
+        super().__init__(import_dirs)
 
         if not java_bin:
             java_home = os.environ.get(ENV_JAVA_HOME)
@@ -107,7 +104,7 @@ class CromwellExecutor(Executor):
 
     def _run_workflow(
         self,
-        wdl_script: Union[str, Path],
+        wdl_path: Union[str, Path],
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -117,8 +114,7 @@ class CromwellExecutor(Executor):
         given expected values.
 
         Args:
-            wdl_script: The WDL script to execute.
-
+            wdl_path: The WDL script to execute.
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
@@ -139,10 +135,9 @@ class CromwellExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-
-        wdl_path, workflow_name = get_workflow(
-            self.search_paths, wdl_script, kwargs.get("workflow_name")
-        )
+        workflow_name = kwargs.get("workflow_name")
+        if not workflow_name:
+            workflow_name = safe_string(wdl_path.stem)
 
         inputs_dict, inputs_file = get_workflow_inputs(
             inputs, kwargs.get("inputs_file"), workflow_name
