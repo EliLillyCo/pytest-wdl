@@ -39,9 +39,12 @@ $ pip install git+https://github.com/elilillyco/pytest-wdl.git
 
 Some optional features of pytest-wdl have additional dependencies that are loaded on-demand. For example, to enable comparison of expected and actual BAM file outputs of a workflow, the [pysam](https://pysam.readthedocs.io/) library is required.
 
-The following data types require an "extras" installation:
+The following plugins require an "extras" installation:
 
-- bam
+- Data types
+    - bam
+- Executors
+    - miniwdl
 
 To install the dependencies for a data type that has extra dependencies:
 
