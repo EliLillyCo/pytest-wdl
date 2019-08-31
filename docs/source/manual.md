@@ -146,17 +146,19 @@ Available types:
 
 An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, [Cromwell](https://cromwell.readthedocs.io/) and [Miniwdl](https://github.com/chanzuckerberg/miniwdl) are supported, but aternative executors can be implemented as [plugins](#plugins).
 
-The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and several additional optional arguments:
+The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and some additional optional arguments:
 
 * `wdl_script`: Required; the WDL script to execute. The path may be absolute or relative - if relative, it is first searched relative to the current `tests` directory (i.e. `test_context_dir/tests`), and then the project root. 
 * `inputs`: Dict that will be serialized to JSON and provided to the executor as the workflow inputs. If not specified, the workflow must not have any required inputs.
 * `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
+* `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, the name of the workflow is extracted from the WDL file.
+
+You can also pass executor-specific keyword arguments. 
 
 ### Executor-specific options
 
 #### Cromwell
 
-* `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, it is assumed that the workflow has the same name as the WDL file (without the ".wdl" extension).
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 * `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
 * `java_args`: Override the default Java arguments.
@@ -164,7 +166,7 @@ The `workflow_runner` fixture is a callable that runs the workflow using the exe
 
 #### Miniwdl
 
-* `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow.
+* `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 
 ## Configuration

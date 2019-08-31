@@ -39,8 +39,6 @@ class MiniwdlExecutor(Executor):
 
         Args:
             wdl_path: The WDL script to execute.
-            workflow_name: The name of the workflow in the WDL script. If None, the
-                name of the WDL script is used (without the .wdl extension).
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
@@ -71,7 +69,7 @@ class MiniwdlExecutor(Executor):
             ]
         )
 
-        #if expected:
-        #    validate_outputs(outputs, expected, workflow_name)
+        if expected:
+            validate_outputs(outputs, expected, task or kwargs.get("workflow_name"))
 
         return outputs

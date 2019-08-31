@@ -5,7 +5,6 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam"],
-    "miniwdl": ["miniwdl"],
     "progress": ["tqdm"]
 }
 extras_require["all"] = [
@@ -61,7 +60,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pytest",
-        "delegator.py"
+        "delegator.py",
+        "miniwdl"
     ],
     extras_require=extras_require,
     classifiers=[

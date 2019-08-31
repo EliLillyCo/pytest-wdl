@@ -242,10 +242,24 @@ def workflow_runner(
         executors: Optional[Sequence[str]] = None,
         **kwargs
     ):
-        inputs, expected, kwargs = _reformat_args(*args, inputs, expected, **kwargs)
+        inputs, expected, kwargs = _reformat_args(
+            *args,
+            inputs=inputs,
+            expected=expected,
+            **kwargs
+        )
 
         search_paths = [Path(request.fspath.dirpath()), project_root]
         wdl_path = ensure_path(wdl_script, search_paths, is_file=True, exists=True)
+
+        if "workflow_name" not in kwargs:
+            from WDL import Tree
+            doc = Tree.load(
+                str(wdl_path),
+                path=[str(path) for path in search_paths],
+                check_quant=False
+            )
+            kwargs["workflow_name"] = doc.workflow
 
         if not executors:
             executors = user_config.executors
@@ -294,9 +308,15 @@ def _reformat_args(
             kwargs["workflow_name"] = args[0]
             args = args[1:]
     if args:
+        if inputs:
+            raise TypeError("Multiple values for argument 'inputs'")
         inputs = args[0]
         args = args[1:]
     if args:
+        if inputs:
+            raise TypeError("Multiple values for argument 'expected'")
         expected = args[0]
+    if args:
+        raise TypeError("Too many arguments")
 
     return inputs, expected, kwargs

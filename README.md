@@ -43,8 +43,6 @@ The following plugins require an "extras" installation:
 
 - Data types
     - bam
-- Executors
-    - miniwdl
 
 To install the dependencies for a data type that has extra dependencies:
 
@@ -80,8 +78,7 @@ def test_variant_caller(workflow_data, workflow_runner):
     workflow_runner(
         "variant_caller.wdl",
         inputs,
-        expected,
-        workflow_name="call_variants"
+        expected
     )
 ```
 

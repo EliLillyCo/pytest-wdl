@@ -139,9 +139,9 @@ def get_workflow_imports(
     return imports_path
 
 
-def validate_outputs(outputs: dict, expected: dict, workflow_name: str):
+def validate_outputs(outputs: dict, expected: dict, target: str):
     for name, expected_value in expected.items():
-        key = f"{workflow_name}.{name}"
+        key = f"{target}.{name}"
         if key not in outputs:
             raise AssertionError(f"Workflow did not generate output {key}")
         if isinstance(expected_value, DataFile):
