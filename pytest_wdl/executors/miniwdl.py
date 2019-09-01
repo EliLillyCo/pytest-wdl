@@ -70,6 +70,10 @@ class MiniwdlExecutor(Executor):
         )
 
         if expected:
-            validate_outputs(outputs, expected, task or kwargs.get("workflow_name"))
+            validate_outputs(
+                outputs,
+                expected,
+                task or self._get_workflow_name(wdl_path, kwargs)
+            )
 
         return outputs

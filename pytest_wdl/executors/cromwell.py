@@ -11,21 +11,22 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import glob
 import json
 import os
 from pathlib import Path
 import re
+import tempfile
 from typing import List, Optional, Union
 
 import delegator
 
 from pytest_wdl.executors import (
-    get_workflow_inputs, get_workflow_imports, validate_outputs
+    get_workflow_inputs, validate_outputs
 )
 from pytest_wdl.core import Executor
 from pytest_wdl.utils import (
-    LOG, ensure_path, find_executable_path, find_in_classpath, safe_string
+    LOG, ensure_path, find_executable_path, find_in_classpath
 )
 
 
@@ -139,17 +140,13 @@ class CromwellExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        workflow_name = kwargs.get("workflow_name")
-        if not workflow_name:
-            workflow_name = safe_string(wdl_path.stem)
+        workflow_name = self._get_workflow_name(wdl_path, kwargs)
 
         inputs_dict, inputs_file = get_workflow_inputs(
             inputs, kwargs.get("inputs_file"), workflow_name
         )
 
-        imports_file = get_workflow_imports(
-            self.import_dirs, kwargs.get("imports_file")
-        )
+        imports_file = self.get_workflow_imports(kwargs.get("imports_file"))
 
         inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
@@ -176,6 +173,50 @@ class CromwellExecutor(Executor):
             validate_outputs(outputs, expected, workflow_name)
 
         return outputs
+
+    def get_workflow_imports(self, imports_file: Optional[Path] = None) -> Path:
+        """
+        Creates a ZIP file with all WDL files to be imported.
+
+        Args:
+            imports_file: Text file naming import directories/files - one per line.
+
+        Returns:
+            Path to the ZIP file.
+        """
+        write_imports = bool(self.import_dirs)
+        imports_path = None
+
+        if imports_file:
+            imports_path = ensure_path(imports_file)
+            if imports_path.exists():
+                write_imports = False
+
+        if write_imports and self.import_dirs:
+            imports = [
+                wdl
+                for path in self.import_dirs
+                for wdl in glob.glob(str(path / "*.wdl"))
+            ]
+            if imports:
+                if imports_path:
+                    ensure_path(imports_path, is_file=True, create=True)
+                else:
+                    imports_path = Path(tempfile.mkstemp(suffix=".zip")[1])
+
+                imports_str = " ".join(imports)
+
+                LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
+                exe = delegator.run(
+                    f"zip -j - {imports_str} > {imports_path}", block=True
+                )
+                if not exe.ok:
+                    raise Exception(
+                        f"Error creating imports zip file; stdout={exe.out}; "
+                        f"stderr={exe.err}"
+                    )
+
+        return imports_path
 
     @staticmethod
     def get_cromwell_outputs(output):

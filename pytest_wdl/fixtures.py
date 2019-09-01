@@ -243,7 +243,7 @@ def workflow_runner(
         **kwargs
     ):
         inputs, expected, kwargs = _reformat_args(
-            *args,
+            list(args),
             inputs=inputs,
             expected=expected,
             **kwargs
@@ -251,15 +251,6 @@ def workflow_runner(
 
         search_paths = [Path(request.fspath.dirpath()), project_root]
         wdl_path = ensure_path(wdl_script, search_paths, is_file=True, exists=True)
-
-        if "workflow_name" not in kwargs:
-            from WDL import Tree
-            doc = Tree.load(
-                str(wdl_path),
-                path=[str(path) for path in search_paths],
-                check_quant=False
-            )
-            kwargs["workflow_name"] = doc.workflow
 
         if not executors:
             executors = user_config.executors
@@ -284,7 +275,7 @@ def workflow_runner(
 
 
 def _reformat_args(
-    *args,
+    args: list,
     inputs: Optional[dict] = None,
     expected: Optional[dict] = None,
     **kwargs
@@ -295,28 +286,26 @@ def _reformat_args(
     name. This will be removed in the next major version.
 
     Args:
-        *args:
-        inputs:
-        expected:
-        **kwargs:
+        args: Positional arguments
+        inputs: Inputs dict
+        expected: Expected dict
+        **kwargs: Additional keyword arguments
 
     Returns:
-
+        Tuple of (inputs, expected, kwargs)
     """
     if args:
         if isinstance(args[0], str):
-            kwargs["workflow_name"] = args[0]
-            args = args[1:]
-    if args:
-        if inputs:
-            raise TypeError("Multiple values for argument 'inputs'")
-        inputs = args[0]
-        args = args[1:]
-    if args:
-        if inputs:
-            raise TypeError("Multiple values for argument 'expected'")
-        expected = args[0]
-    if args:
-        raise TypeError("Too many arguments")
+            kwargs["workflow_name"] = args.pop(0)
+        if args:
+            if inputs:
+                raise TypeError("Multiple values for argument 'inputs'")
+            inputs = args.pop(0)
+            if args:
+                if expected:
+                    raise TypeError("Multiple values for argument 'expected'")
+                expected = args.pop(0)
+                if args:
+                    raise TypeError("Too many arguments")
 
     return inputs, expected, kwargs

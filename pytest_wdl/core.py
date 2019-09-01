@@ -20,14 +20,20 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, Dict, List, Optional, Sequence, Type, Union, cast
+from typing import Callable, Dict, List, Optional, Type, Union, cast
 
 import delegator
 
 from pytest_wdl.utils import (
     LOG, tempdir, ensure_path, plugin_factory_map, env_map,
-    resolve_value_descriptor, download_file
+    resolve_value_descriptor, download_file, safe_string
 )
+
+try:
+    from WDL import Tree
+except ImportError:
+    LOG.warning("miniwdl not installed")
+    Tree = None
 
 
 ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
@@ -551,7 +557,22 @@ class Executor(metaclass=ABCMeta):
             scripts that should be available as imports.
     """
     def __init__(self, import_dirs: Optional[List[Path]] = None):
-        self.import_dirs = import_dirs
+        self.import_dirs = import_dirs or []
+
+    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
+        if "workflow_name" in kwargs:
+            return kwargs["workflow_name"]
+        elif Tree:
+            if "check_quant" not in kwargs:
+                kwargs["check_quant"] = False
+            doc = Tree.load(
+                str(wdl_path),
+                path=[str(path) for path in self.import_dirs],
+                **kwargs
+            )
+            return doc.workflow.name
+        else:
+            return safe_string(wdl_path.stem)
 
     @abstractmethod
     def run_workflow(

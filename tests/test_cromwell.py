@@ -13,6 +13,7 @@
 #    limitations under the License.
 
 from pathlib import Path
+import zipfile
 
 from pytest_wdl.utils import tempdir
 import pytest
@@ -111,3 +112,54 @@ def test_cromwell_jar():
         }):
             with pytest.raises(FileNotFoundError):
                 CromwellExecutor([d]).cromwell_jar_file
+
+
+
+def test_get_workflow_imports():
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        executor = CromwellExecutor([wdl_dir])
+        zip_path = executor.get_workflow_imports()
+        assert zip_path.exists()
+        with zipfile.ZipFile(zip_path, "r") as import_zip:
+            names = import_zip.namelist()
+            assert len(names) == 1
+            assert names[0] == "bar.wdl"
+            with import_zip.open("bar.wdl", "r") as inp:
+                assert inp.read().decode() == "foo"
+
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        imports_file = d / "imports.zip"
+        executor = CromwellExecutor([wdl_dir])
+        zip_path = executor.get_workflow_imports(imports_file)
+        assert zip_path.exists()
+        assert zip_path == imports_file
+        with zipfile.ZipFile(zip_path, "r") as import_zip:
+            names = import_zip.namelist()
+            assert len(names) == 1
+            assert names[0] == "bar.wdl"
+            with import_zip.open("bar.wdl", "r") as inp:
+                assert inp.read().decode() == "foo"
+
+    with tempdir() as d:
+        wdl_dir = d / "foo"
+        wdl = wdl_dir / "bar.wdl"
+        wdl_dir.mkdir()
+        with open(wdl, "wt") as out:
+            out.write("foo")
+        imports_file = d / "imports.zip"
+        with open(imports_file, "wt") as out:
+            out.write("foo")
+        executor = CromwellExecutor()
+        zip_path = executor.get_workflow_imports(imports_file=imports_file)
+        assert zip_path.exists()
+        assert zip_path == imports_file

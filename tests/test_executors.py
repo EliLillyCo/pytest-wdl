@@ -13,15 +13,10 @@
 #    limitations under the License.
 
 import json
-import zipfile
 
 from pytest_wdl.utils import tempdir
-import pytest
-
 from pytest_wdl.core import DataFile
-from pytest_wdl.executors import (
-    get_workflow_imports, get_workflow_inputs, make_serializable
-)
+from pytest_wdl.executors import get_workflow_inputs, make_serializable
 
 
 def test_get_workflow_inputs():
@@ -61,53 +56,6 @@ def test_get_workflow_inputs():
         with open(inputs_path, "rt") as inp:
             assert json.load(inp) == actual_inputs_dict
         assert actual_inputs_dict == inputs_dict
-
-
-def test_get_workflow_imports():
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports([wdl_dir])
-        assert zip_path.exists()
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        zip_path = get_workflow_imports([wdl_dir], imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file
-        with zipfile.ZipFile(zip_path, "r") as import_zip:
-            names = import_zip.namelist()
-            assert len(names) == 1
-            assert names[0] == "bar.wdl"
-            with import_zip.open("bar.wdl", "r") as inp:
-                assert inp.read().decode() == "foo"
-
-    with tempdir() as d:
-        wdl_dir = d / "foo"
-        wdl = wdl_dir / "bar.wdl"
-        wdl_dir.mkdir()
-        with open(wdl, "wt") as out:
-            out.write("foo")
-        imports_file = d / "imports.zip"
-        with open(imports_file, "wt") as out:
-            out.write("foo")
-        zip_path = get_workflow_imports(imports_file=imports_file)
-        assert zip_path.exists()
-        assert zip_path == imports_file
 
 
 def test_make_serializable():

@@ -48,7 +48,7 @@ def test_fixtures(workflow_data, workflow_runner):
         "out_txt": workflow_data["out_txt"],
         "out_int": 1
     }
-    workflow_runner("tests/test.wdl", "cat_file", inputs, outputs)
+    workflow_runner("test.wdl", inputs, outputs)
 
 
 def test_import_dirs():

@@ -10,18 +10,14 @@
 #    distributed under the License is distributed on an "AS IS" BASIS,
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
-#    limitations under the License.
-
-import glob
+#    limitations under the License.from abc import ABCMeta
 import json
 from pathlib import Path
 import tempfile
-from typing import List, Optional, Sequence, Tuple, Union
-
-import delegator
+from typing import Optional, Sequence, Tuple
 
 from pytest_wdl.core import DataFile
-from pytest_wdl.utils import LOG, ensure_path, safe_string
+from pytest_wdl.utils import ensure_path
 
 
 def get_workflow_inputs(
@@ -89,54 +85,6 @@ def make_serializable(value):
     if hasattr(value, "as_dict"):
         return value.as_dict()
     return value
-
-
-def get_workflow_imports(
-    import_dirs: Optional[List[Path]] = None, imports_file: Optional[Path] = None
-) -> Path:
-    """
-    Creates a ZIP file with all WDL files to be imported.
-
-    Args:
-        import_dirs: Directories from which to import WDL files.
-        imports_file: Text file naming import directories/files - one per line.
-
-    Returns:
-        Path to the ZIP file.
-    """
-    write_imports = bool(import_dirs)
-    imports_path = None
-
-    if imports_file:
-        imports_path = ensure_path(imports_file)
-        if imports_path.exists():
-            write_imports = False
-
-    if write_imports and import_dirs:
-        imports = [
-            wdl
-            for path in import_dirs
-            for wdl in glob.glob(str(path / "*.wdl"))
-        ]
-        if imports:
-            if imports_path:
-                ensure_path(imports_path, is_file=True, create=True)
-            else:
-                imports_path = Path(tempfile.mkstemp(suffix=".zip")[1])
-
-            imports_str = " ".join(imports)
-
-            LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
-            exe = delegator.run(
-                f"zip -j - {imports_str} > {imports_path}", block=True
-            )
-            if not exe.ok:
-                raise Exception(
-                    f"Error creating imports zip file; stdout={exe.out}; "
-                    f"stderr={exe.err}"
-                )
-
-    return imports_path
 
 
 def validate_outputs(outputs: dict, expected: dict, target: str):
