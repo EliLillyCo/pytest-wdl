@@ -20,7 +20,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from typing import Callable, Dict, List, Optional, Type, Union, cast
+from typing import Callable, Dict, List, Optional, Sequence, Type, Union, cast
 
 import delegator
 
@@ -605,3 +605,17 @@ class Executor(metaclass=ABCMeta):
 
 EXECUTORS = plugin_factory_map(Executor, "pytest_wdl.executors")
 """Executor plugin modules from the discovered entry points."""
+
+
+def create_executor(
+    executor_name: str,
+    import_dirs: Sequence[Path],
+    user_config: UserConfiguration
+):
+    executor_class = EXECUTORS.get(executor_name)
+    if not executor_class:
+        raise RuntimeError(f"{executor_name} executor plugin is not installed")
+    return executor_class(
+        import_dirs=import_dirs,
+        **user_config.get_executor_defaults(executor_name)
+    )

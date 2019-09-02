@@ -54,26 +54,25 @@ class MiniwdlExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        inputs_dict, inputs_file = get_workflow_inputs(
-            inputs, kwargs.get("inputs_file")
-        )
-
         task = kwargs.get("task_name")
+        target = task or self._get_workflow_name(wdl_path, kwargs)
+
+        inputs_dict, inputs_file = get_workflow_inputs(
+            inputs,
+            kwargs.get("inputs_file"),
+            namespace=None if task else target
+        )
 
         outputs = runner(
             str(wdl_path),
             task=task,
-            inputs_file=inputs_file,
-            path=[
-                str(path) for path in self.import_dirs
-            ]
+            input_file=inputs_file,
+            path=[str(path) for path in self.import_dirs],
+            verbose=False,
+            debug=False
         )
 
         if expected:
-            validate_outputs(
-                outputs,
-                expected,
-                task or self._get_workflow_name(wdl_path, kwargs)
-            )
+            validate_outputs(outputs, expected, target)
 
         return outputs

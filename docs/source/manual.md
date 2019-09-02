@@ -189,6 +189,7 @@ Configuration at the project level is handled by overriding fixtures, either in 
 | `workflow_data_resolver` | module | Provides the `DataResolver` object that resolves test data; this should only need to be overridden for testing/debugging purposes | `DataResolver` created from `workflow_data_descriptors` |
 | `import_paths` | module | Provides the path to the file that lists the directories from which to import WDL dependencies | "import_paths.txt" |
 | `import_dirs` | module | Provides the directories from which to import WDL dependencies | Loaded from `import_paths` file, if any, otherwise all WDL files under the current test context directory are imported |
+| `default_executors` | session | Specify the default set of executors to use when running tests | `user_config.default_executors` |
 
 ### Environment-specific configuration
 

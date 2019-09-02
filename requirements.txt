@@ -1,4 +1,6 @@
 coverage
 delegator.py
+miniwdl
 pysam
 pytest
+pytest-subtests

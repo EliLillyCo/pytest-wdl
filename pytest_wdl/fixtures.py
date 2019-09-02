@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
+from pytest_subtests import SubTests
 
 from pytest_wdl.core import (
-    EXECUTORS, DataResolver, DataManager, DataDirs, UserConfiguration
+    DataResolver, DataManager, DataDirs, UserConfiguration, create_executor
 )
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
@@ -218,21 +219,34 @@ def import_dirs(
             return []
 
 
+def default_executors(user_config: UserConfiguration) -> Sequence[str]:
+    return user_config.executors
+
+
 def workflow_runner(
     request: FixtureRequest,
     project_root: Union[str, Path],
     import_dirs: List[Union[str, Path]],
-    user_config: UserConfiguration
+    user_config: UserConfiguration,
+    default_executors: Sequence[str],
+    subtests: SubTests
 ):
     """
-    Provides a callable that runs a workflow (with the same signature as
-    `Executor.run_workflow`).
+    Provides a callable that runs a workflow. The callable has the same signature as
+    `Executor.run_workflow`, but takes an additional keyword argument `executors`,
+    a sequence of strings, which allows overriding the names of the executors to use.
+
+    If multiple executors are specified, the tests are run using the `subtests`
+    fixture of the `pytest-subtests` plugin.
 
     Args:
         request: A FixtureRequest object.
         project_root: Project root directory.
         import_dirs: Directories from which to import WDL scripts.
-        user_config:
+        user_config: A UserConfiguration object.
+        default_executors: Names of executors to use when executor name isn't passed to
+            the `workflow_runner` callable.
+        subtests: A SubTests object.
     """
     def _run_workflow(
         wdl_script: Union[str, Path],
@@ -248,21 +262,16 @@ def workflow_runner(
             expected=expected,
             **kwargs
         )
-
         search_paths = [Path(request.fspath.dirpath()), project_root]
         wdl_path = ensure_path(wdl_script, search_paths, is_file=True, exists=True)
-
+        import_dir_paths = [
+            ensure_path(d, is_file=False, exists=True) for d in import_dirs
+        ]
         if not executors:
-            executors = user_config.executors
+            executors = default_executors
 
-        for executor_name in executors:
-            executor_class = EXECUTORS.get(executor_name)
-            if not executor_class:
-                raise RuntimeError(f"{executor_name} executor plugin is not installed")
-            executor = executor_class(
-                import_dirs=import_dirs,
-                **user_config.get_executor_defaults(executor_name)
-            )
+        def _run_test(executor_name):
+            executor = create_executor(executor_name, import_dir_paths, user_config)
             with context_dir(user_config.default_execution_dir, change_dir=True):
                 executor.run_workflow(
                     wdl_path,
@@ -270,6 +279,15 @@ def workflow_runner(
                     expected=expected,
                     **kwargs
                 )
+
+        if len(executors) == 0:
+            raise RuntimeError("At least one executor must be specified")
+        elif len(executors) == 1:
+            _run_test(executors[0])
+        else:
+            for executor_name in executors:
+                with subtests.test(msg=executor_name, executor_name=executor_name):
+                    _run_test(executor_name)
 
     return _run_workflow
 

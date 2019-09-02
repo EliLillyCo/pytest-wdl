@@ -38,19 +38,6 @@ def test_user_config_file():
         assert user_config_file() == config
 
 
-@pytest.mark.integration
-def test_fixtures(workflow_data, workflow_runner):
-    inputs = {
-        "in_txt": workflow_data["in_txt"],
-        "in_int": 1
-    }
-    outputs = {
-        "out_txt": workflow_data["out_txt"],
-        "out_int": 1
-    }
-    workflow_runner("test.wdl", inputs, outputs)
-
-
 def test_import_dirs():
     cwd = Path.cwd()
     req = mock_request(cwd)

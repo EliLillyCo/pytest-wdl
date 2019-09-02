@@ -31,4 +31,5 @@ workflow_data_resolver = pytest.fixture(scope="module")(fixtures.workflow_data_r
 workflow_data = pytest.fixture(scope="function")(fixtures.workflow_data)
 import_paths = pytest.fixture(scope="module")(fixtures.import_paths)
 import_dirs = pytest.fixture(scope="module")(fixtures.import_dirs)
+default_executors = pytest.fixture(scope="session")(fixtures.default_executors)
 workflow_runner = pytest.fixture(scope="function")(fixtures.workflow_runner)

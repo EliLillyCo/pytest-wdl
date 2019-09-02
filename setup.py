@@ -61,7 +61,8 @@ setup(
     install_requires=[
         "pytest",
         "delegator.py",
-        "miniwdl"
+        "miniwdl>=0.3.0",
+        "pytest-subtests"
     ],
     extras_require=extras_require,
     classifiers=[

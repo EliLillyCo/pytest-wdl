@@ -14,9 +14,29 @@
 
 import json
 
+import pytest
+
 from pytest_wdl.utils import tempdir
-from pytest_wdl.core import DataFile
+from pytest_wdl.core import EXECUTORS, DataFile
 from pytest_wdl.executors import get_workflow_inputs, make_serializable
+
+
+@pytest.mark.integration
+def test_executors(workflow_data, workflow_runner):
+    inputs = {
+        "in_txt": workflow_data["in_txt"],
+        "in_int": 1
+    }
+    outputs = {
+        "out_txt": workflow_data["out_txt"],
+        "out_int": 1
+    }
+    workflow_runner(
+        "test.wdl",
+        inputs,
+        outputs,
+        executors=list(EXECUTORS.keys())
+    )
 
 
 def test_get_workflow_inputs():
