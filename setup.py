@@ -59,7 +59,7 @@ setup(
     py_modules=["pytest_wdl"],
     packages=find_packages(),
     install_requires=[
-        "pytest",
+        "pytest>=5.1",
         "delegator.py",
         "miniwdl>=0.3.0",
         "pytest-subtests"

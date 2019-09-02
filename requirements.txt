@@ -1,6 +1,6 @@
 coverage
 delegator.py
-miniwdl
+miniwdl>=0.3.0
 pysam
-pytest
+pytest>=5.1
 pytest-subtests

@@ -427,6 +427,73 @@ class DataDirs:
         return self._paths
 
 
+def create_data_file(
+    user_config: UserConfiguration,
+    type: Optional[str] = "default",
+    name: Optional[str] = None,
+    path: Optional[str] = None,
+    url: Optional[str] = None,
+    contents: Optional[str] = None,
+    env: Optional[str] = None,
+    datadirs: Optional[DataDirs] = None,
+    http_headers: Optional[dict] = None,
+    **kwargs
+) -> DataFile:
+    data_file_class = DATA_TYPES.get(type, DataFile)
+    local_path = None
+    localizer = None
+
+    if path:
+        local_path = ensure_path(path, [user_config.cache_dir])
+
+    if local_path and local_path.exists():
+        pass
+    elif env and env in os.environ:
+        env_path = ensure_path(os.environ[env], exists=True)
+        if not local_path:
+            local_path = env_path
+        else:
+            localizer = LinkLocalizer(env_path)
+    elif url:
+        localizer = UrlLocalizer(url, user_config, http_headers)
+        if not local_path:
+            if name:
+                local_path = ensure_path(user_config.cache_dir / name)
+            else:
+                filename = url.rsplit("/", 1)[1]
+                local_path = ensure_path(user_config.cache_dir / filename)
+    elif contents:
+        localizer = StringLocalizer(contents)
+        if not local_path:
+            if name:
+                local_path = ensure_path(user_config.cache_dir / name)
+            else:
+                local_path = ensure_path(
+                    tempfile.mktemp(dir=user_config.cache_dir)
+                )
+    elif name and datadirs:
+        for dd in datadirs.paths:
+            dd_path = dd / name
+            if dd_path.exists():
+                break
+        else:
+            raise FileNotFoundError(
+                f"File {name} not found in any of the following datadirs: "
+                f"{datadirs.paths}"
+            )
+        if not local_path:
+            local_path = dd_path
+        else:
+            localizer = LinkLocalizer(dd_path)
+    else:
+        raise FileNotFoundError(
+            f"File {path or name} does not exist. Either a url, file contents, "
+            f"or a local file must be provided."
+        )
+
+    return data_file_class(local_path, localizer, **kwargs)
+
+
 class DataResolver:
     """
     Resolves data files that may need to be localized.
@@ -443,75 +510,13 @@ class DataResolver:
 
         value = self.data_descriptors[name]
         if isinstance(value, dict):
-            return self.create_data_file(datadirs=datadirs, **cast(dict, value))
+            return create_data_file(
+                user_config=self.user_config,
+                datadirs=datadirs,
+                **cast(dict, value)
+            )
         else:
             return value
-
-    def create_data_file(
-        self,
-        type: Optional[str] = "default",
-        name: Optional[str] = None,
-        path: Optional[str] = None,
-        url: Optional[str] = None,
-        contents: Optional[str] = None,
-        env: Optional[str] = None,
-        datadirs: Optional[DataDirs] = None,
-        http_headers: Optional[dict] = None,
-        **kwargs
-    ) -> DataFile:
-        data_file_class = DATA_TYPES.get(type, DataFile)
-        local_path = None
-        localizer = None
-
-        if path:
-            local_path = ensure_path(path, [self.user_config.cache_dir])
-
-        if local_path and local_path.exists():
-            pass
-        elif env and env in os.environ:
-            env_path = ensure_path(os.environ[env], exists=True)
-            if not local_path:
-                local_path = env_path
-            else:
-                localizer = LinkLocalizer(env_path)
-        elif url:
-            localizer = UrlLocalizer(url, self.user_config, http_headers)
-            if not local_path:
-                if name:
-                    local_path = ensure_path(self.user_config.cache_dir / name)
-                else:
-                    filename = url.rsplit("/", 1)[1]
-                    local_path = ensure_path(self.user_config.cache_dir / filename)
-        elif contents:
-            localizer = StringLocalizer(contents)
-            if not local_path:
-                if name:
-                    local_path = ensure_path(self.user_config.cache_dir / name)
-                else:
-                    local_path = ensure_path(
-                        tempfile.mktemp(dir=self.user_config.cache_dir)
-                    )
-        elif name and datadirs:
-            for dd in datadirs.paths:
-                dd_path = dd / name
-                if dd_path.exists():
-                    break
-            else:
-                raise FileNotFoundError(
-                    f"File {name} not found in any of the following datadirs: "
-                    f"{datadirs.paths}"
-                )
-            if not local_path:
-                local_path = dd_path
-            else:
-                localizer = LinkLocalizer(dd_path)
-        else:
-            raise FileNotFoundError(
-                f"File {path or name} does not exist. Either a url, file contents, "
-                f"or a local file must be provided."
-            )
-
-        return data_file_class(local_path, localizer, **kwargs)
 
 
 class DataManager:
