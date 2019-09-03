@@ -11,14 +11,15 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import logging
 from pathlib import Path
+import pkg_resources
 from typing import Optional
 
 from pytest_wdl.core import Executor
 from pytest_wdl.executors import get_workflow_inputs, validate_outputs
 
-from WDL.CLI import runner
+from WDL import CLI, Error, Tree, runtime
 
 
 class MiniwdlExecutor(Executor):
@@ -43,6 +44,7 @@ class MiniwdlExecutor(Executor):
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
             kwargs: Additional keyword arguments, mostly for debugging:
+                * workflow_name: Name of the workflow to run.
                 * task_name: Name of the task to run if a workflow isn't defined.
                 * inputs_file: Path to the Cromwell inputs file to use. Inputs are
                     written to this file only if it doesn't exist.
@@ -54,25 +56,93 @@ class MiniwdlExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
+
+        doc = CLI.load(
+            str(wdl_path),
+            path=[str(path) for path in self.import_dirs],
+            check_quant=kwargs.get("check_quant", True),
+            read_source=CLI.read_source
+        )
+
         task = kwargs.get("task_name")
-        target = task or self._get_workflow_name(wdl_path, kwargs)
+        namespace = None
+        if not task:
+            if "workflow_name" in kwargs:
+                namespace = kwargs["workflow_name"]
+            else:
+                namespace = doc.workflow.name
 
         inputs_dict, inputs_file = get_workflow_inputs(
             inputs,
             kwargs.get("inputs_file"),
-            namespace=None if task else target
+            namespace=namespace
         )
 
-        outputs = runner(
-            str(wdl_path),
-            task=task,
+        target, input_env, input_json = CLI.runner_input(
+            doc=doc,
+            inputs=[],
             input_file=inputs_file,
-            path=[str(path) for path in self.import_dirs],
-            verbose=False,
-            debug=False
+            empty=[],
+            task=task
         )
+
+        logger = logging.getLogger("miniwdl-run")
+        logger.setLevel(CLI.NOTICE_LEVEL)
+        CLI.install_coloredlogs(logger)
+
+        try:
+            logger.debug(pkg_resources.get_distribution("miniwdl"))
+        except pkg_resources.DistributionNotFound as exc:
+            logger.debug(
+                "miniwdl version unknown ({}: {})".format(type(exc).__name__, exc)
+            )
+        for pkg in ["docker", "lark-parser", "argcomplete", "pygtail"]:
+            logger.debug(pkg_resources.get_distribution(pkg))
+
+        try:
+            if isinstance(target, Tree.Task):
+                entrypoint = runtime.run_local_task
+            else:
+                entrypoint = runtime.run_local_workflow
+            rundir, output_env = entrypoint(target, input_env)
+        except Error.EvalError as exn:
+            logger.error(
+                "({} Ln {} Col {}) {}{}".format(
+                    exn.pos.uri,
+                    exn.pos.line,
+                    exn.pos.column,
+                    exn.__class__.__name__,
+                    (", " + str(exn) if str(exn) else ""),
+                )
+            )
+            raise
+        except runtime.task.TaskFailure as exn:
+            exn = exn.__cause__ or exn
+            if isinstance(exn, runtime.task.CommandFailure) and not (
+                kwargs["verbose"] or kwargs["debug"]
+            ):
+                logger.error("run with --verbose for standard error logging")
+                logger.error("command's standard error in %s",
+                             getattr(exn, "stderr_file"))
+            if isinstance(getattr(exn, "pos", None), Error.SourcePosition):
+                pos = getattr(exn, "pos")
+                logger.error(
+                    "({} Ln {} Col {}) {}{}".format(
+                        pos.uri,
+                        pos.line,
+                        pos.column,
+                        exn.__class__.__name__,
+                        (", " + str(exn) if str(exn) else ""),
+                    )
+                )
+            else:
+                logger.error(f"{exn.__class__.__name__}, {str(exn)}")
+            raise
+
+        outputs = CLI.values_to_json(output_env, namespace=target.name)
+        CLI.runner_organize_outputs(target, {"outputs": outputs}, rundir)
 
         if expected:
-            validate_outputs(outputs, expected, target)
+            validate_outputs(outputs, expected, target.name)
 
         return outputs
