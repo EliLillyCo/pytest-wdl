@@ -35,7 +35,7 @@ def test_executors(workflow_data, workflow_runner):
         "test.wdl",
         inputs,
         outputs,
-        executors=list(EXECUTORS.keys())
+        executors=["miniwdl"]#list(EXECUTORS.keys())
     )
 
 
