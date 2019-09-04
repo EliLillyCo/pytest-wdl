@@ -287,7 +287,7 @@ There are two fixtures that control the loading of the user configuration:
 
 | fixture name | scope | description | default |
 | -------------| ----- | ----------- | ------- |
-| `user_config_file` | session | The location of the user configuration file | The value of the `PYTEST_WDL_CONFIG` environment variable if set, otherwise `$HOME/pytest_wdl_config.json`  |
+| `user_config_file` | session | The location of the user configuration file | The value of the `PYTEST_WDL_CONFIG` environment variable if set, otherwise `$HOME/.pytest_wdl_config.json`  |
 | `user_config` | session | Provides a `UserConfiguration` object that is used by other fixtures to access configuration values | Default values are loaded from `user_config_file`, but most values can be overridden via environment variables (see below) |
 
 ## Plugins

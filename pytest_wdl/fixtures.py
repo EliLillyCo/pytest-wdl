@@ -52,9 +52,14 @@ def user_config_file() -> Optional[Path]:
     if config_file:
         config_path = ensure_path(config_file)
     else:
-        default_config_path = Path.home() / DEFAULT_USER_CONFIG_FILE
-        if default_config_path.exists():
-            config_path = default_config_path
+        default_config_paths = [
+            Path.home() / DEFAULT_USER_CONFIG_FILE,
+            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
+        ]
+        for default_config_path in default_config_paths:
+            if default_config_path.exists():
+                config_path = default_config_path
+                break
     if config_path and not config_path.exists():
         raise FileNotFoundError(f"Config file {config_path} does not exist")
     return config_path
