@@ -5,6 +5,7 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam"],
+    "dx": ["dxpy"],
     "progress": ["tqdm"]
 }
 extras_require["all"] = [
@@ -54,6 +55,9 @@ setup(
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
             "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor"
+        ],
+        "pytest_wdl.url_schemes": [
+            "dx = pytest_wdl.url_schemes.dx:DxUrlHandler"
         ]
     },
     py_modules=["pytest_wdl"],

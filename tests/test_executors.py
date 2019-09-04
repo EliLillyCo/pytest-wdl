@@ -17,7 +17,7 @@ import json
 import pytest
 
 from pytest_wdl.utils import tempdir
-from pytest_wdl.core import EXECUTORS, DataFile
+from pytest_wdl.core import DataFile
 from pytest_wdl.executors import get_workflow_inputs, make_serializable
 
 
@@ -36,6 +36,13 @@ def test_executors(workflow_data, workflow_runner):
         inputs,
         outputs,
         executors=["cromwell"] #list(EXECUTORS.keys())
+    )
+    # Test with the old workflow_runner signature
+    workflow_runner(
+        "test.wdl",
+        "cat_file",
+        inputs,
+        outputs
     )
 
 

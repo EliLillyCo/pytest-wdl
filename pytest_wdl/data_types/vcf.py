@@ -23,7 +23,7 @@ from typing import Optional
 
 import delegator
 
-from pytest_wdl.core import DataFile
+from pytest_wdl.data_types import DataFile
 from pytest_wdl.utils import tempdir
 
 

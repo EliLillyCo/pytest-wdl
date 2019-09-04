@@ -21,10 +21,7 @@ from typing import List, Optional, Union
 
 import delegator
 
-from pytest_wdl.executors import (
-    get_workflow_inputs, validate_outputs
-)
-from pytest_wdl.core import Executor
+from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
 from pytest_wdl.utils import (
     LOG, ensure_path, find_executable_path, find_in_classpath
 )

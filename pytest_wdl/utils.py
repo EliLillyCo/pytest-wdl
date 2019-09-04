@@ -14,13 +14,9 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-"""
-Utility functions for pytest-wdl.
-"""
 from collections import defaultdict
 import contextlib
 import fnmatch
-import functools
 import logging
 import os
 from pathlib import Path
@@ -31,7 +27,6 @@ import tempfile
 from typing import (
     Dict, Generic, Iterable, Optional, Sequence, Type, TypeVar, Union, cast
 )
-from urllib import request
 
 from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
@@ -43,7 +38,7 @@ LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 
 try:
     from tqdm import tqdm as progress
-except:
+except ImportError:
     LOG.debug(
         "tqdm is not installed; progress bar will not be displayed when "
         "downloading files"
@@ -95,6 +90,7 @@ def plugin_factory_map(
     Args:
         group: Entry point group name
         return_type: Expected return type
+        entry_points:
 
     Returns:
         Dict mapping entry point name to `PluginFactory` instances
@@ -494,60 +490,3 @@ def resolve_value_descriptor(value_descriptor: Union[str, dict]) -> Optional:
         )
     else:
         return value_descriptor.get("value")
-
-
-def download_file(
-    url: str,
-    destination: Path,
-    http_headers: Optional[dict] = None,
-    proxies: Optional[dict] = None,
-    show_progress: bool = True
-):
-    req = request.Request(url)
-    if http_headers:
-        for name, value in http_headers.items():
-            req.add_header(name, value)
-    if proxies:
-        # TODO: Should we only set the proxy associated with the URL scheme?
-        #  Should we raise an exception if there is not a proxy defined for
-        #  the URL scheme?
-        # parsed = parse.urlparse(url)
-        for proxy_type, url in proxies.items():
-            req.set_proxy(url, proxy_type)
-    rsp = request.urlopen(req)
-
-    size_str = rsp.getheader("content-length")
-    total_size = int(size_str) if size_str else None
-    block_size = 16 * 1024
-    if total_size and total_size < block_size:
-        block_size = total_size
-
-    LOG.debug("Downloading url %s to %s", url, str(destination))
-
-    if show_progress and progress:
-        progress_bar = progress(
-            total=total_size,
-            unit="b",
-            unit_scale=True,
-            unit_divisor=1024,
-            desc=f"Localizing {destination.name}"
-        )
-
-        def progress_reader():
-            buf = rsp.read(block_size)
-            if buf:
-                progress_bar.update(block_size)
-            else:
-                progress_bar.close()
-            return buf
-
-        reader = progress_reader
-    else:
-        reader = functools.partial(rsp.read, block_size)
-
-    with open(destination, "wb") as out:
-        while True:
-            buf = reader()
-            if not buf:
-                break
-            out.write(buf)

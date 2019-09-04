@@ -1,6 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-#
 #    Copyright 2019 Eli Lilly and Company
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +19,8 @@ from pathlib import Path
 import re
 from typing import Optional
 
-from pytest_wdl.core import DataFile, tempdir
+from pytest_wdl.data_types import DataFile
+from pytest_wdl.utils import tempdir
 
 
 try:

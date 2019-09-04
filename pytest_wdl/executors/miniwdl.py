@@ -16,8 +16,7 @@ from pathlib import Path
 import pkg_resources
 from typing import Optional
 
-from pytest_wdl.core import Executor
-from pytest_wdl.executors import get_workflow_inputs, validate_outputs
+from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
 
 from WDL import CLI, Error, Tree, runtime
 

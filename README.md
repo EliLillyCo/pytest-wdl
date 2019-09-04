@@ -43,6 +43,10 @@ The following plugins require an "extras" installation:
 
 - Data types
     - bam
+- URL schemes
+    - dx (DNAnexus)
+- Other
+    - progress (show progress bars when downloading files)
 
 To install the dependencies for a data type that has extra dependencies:
 

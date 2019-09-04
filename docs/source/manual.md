@@ -124,6 +124,12 @@ In addition, the following keys are recognized for output files only:
 * `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
 * `allowed_diff_lines`: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
 
+#### URL Schemes
+
+pytest_wdl uses `urllib`, which by default supports http, https, and ftp. If you need to support alternate URL schemes, you can do so via a  [plugin](#plugins). Currently, the following plugins are avaiable:
+
+* `dx` (DNAnexus) - requires the `dxpy` module
+ 
 #### Data Types
 
 When comparing actual and expected outputs, the "type" of the expected output is used to determine how the files are compared. If no type is specified, then the type is assumed to be "default."
@@ -286,13 +292,13 @@ There are two fixtures that control the loading of the user configuration:
 
 ## Plugins
 
-pytest-wdl provides the ability to implement 3rd-party plugins for data types and executors. When two plugins with the same name are present, the third-party plugin takes precedence over the built-in plugin (however, if there are two conflicting third-party plugins, an exception is raised).
+pytest-wdl provides the ability to implement 3rd-party plugins for data types, executors, and url schemes. When two plugins with the same name are present, the third-party plugin takes precedence over the built-in plugin (however, if there are two conflicting third-party plugins, an exception is raised).
 
 ### Creating new data types
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-Your plugin should subclass the `pytest_wdl.core.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
+Your plugin should subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -327,9 +333,9 @@ In this example, the extra dependencies can be installed with `pip install pytes
 
 To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
 
-Your plugin should subclass `pytest_wdl.core.Executor` and implement the `run_workflow()` method.
+Your plugin should subclass `pytest_wdl.executors.Executor` and implement the `run_workflow()` method.
 
-Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
+Next, add an entry point in setup.py. If the executor requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 
 ```python
 setup(
@@ -337,6 +343,28 @@ setup(
     entry_points={
         "pytest_wdl.executors": [
             "myexec = pytest_wdl.executors.myexec:MyExecutor"
+        ]
+    },
+    extras_require={
+        "myexec": ["mylib"]
+    }
+)
+```
+
+### Supporting alternative URL schemes
+
+If you want to use test data files that are available via a service that does not support http/https/ftp downloads, you can implement a custom URL scheme.
+
+Your plugin should subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
+
+Next, add an entry point in setup.py. If the schem requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
+
+```python
+setup(
+    ...,
+    entry_points={
+        "pytest_wdl.url_schemes": [
+            "myexec = pytest_wdl.url_schemes.myscheme:MyUrlScheme"
         ]
     },
     extras_require={

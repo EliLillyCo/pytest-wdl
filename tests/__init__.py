@@ -20,6 +20,11 @@ import stat
 from unittest.mock import Mock
 
 
+# Change URLs once foo.txt is pushed to master
+#GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/foo.txt"
+GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
+
+
 try:
     # TODO: is there a better method for testing whether
     #  internet access is available?

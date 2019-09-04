@@ -15,13 +15,14 @@
 import os
 import stat
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+
 from pytest_wdl.utils import (
     tempdir, chdir, context_dir, ensure_path, resolve_file,
     find_executable_path, find_project_path, env_map, plugin_factory_map
 )
-from unittest.mock import Mock
 from . import setenv, make_executable
 
 

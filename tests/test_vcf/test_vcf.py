@@ -13,7 +13,7 @@
 #    limitations under the License.
 
 from pytest_wdl.data_types.vcf import VcfDataFile
-from pytest_wdl.core import StringLocalizer
+from pytest_wdl.localizers import StringLocalizer
 from pytest_wdl.utils import tempdir, find_project_path
 from .. import no_internet
 import pytest
