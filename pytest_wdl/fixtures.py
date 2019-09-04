@@ -109,9 +109,15 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
 
 
-def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
+def workflow_data_descriptors(
+    request: FixtureRequest,
+    project_root: Union[str, Path],
+    workflow_data_descriptor_file: Union[str, Path]
+) -> dict:
     """
-    Fixture that provides a mapping of test data names to values.
+    Fixture that provides a mapping of test data names to values. If
+    workflow_data_descriptor_file is relative, it is searched first relative to the
+    current test context directory and then relative to the project root.
 
     Args:
         workflow_data_descriptor_file: Path to the data descriptor JSON file.
@@ -120,7 +126,14 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         A dict with keys as test data names and each value either a
         primitive, a map describing a data file, or a DataFile object.
     """
-    with open(ensure_path(workflow_data_descriptor_file), "rt") as inp:
+    search_paths = [Path(request.fspath.dirpath()), project_root]
+    workflow_data_descriptor_path = ensure_path(
+        workflow_data_descriptor_file,
+        search_paths=search_paths,
+        is_file=True,
+        exists=True
+    )
+    with open(workflow_data_descriptor_path, "rt") as inp:
         return json.load(inp)
 
 
