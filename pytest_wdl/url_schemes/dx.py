@@ -26,7 +26,7 @@ from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
 class DxResponse(Response):
     def __init__(self, dx_file: dxpy.DXFile, url: str):
         try:
-            self.desc = cast(dxpy.DXFile, self.fp).describe()
+            self.desc = dx_file.describe()
             code = 200
         except dxpy.exceptions.DXAPIError as err:
             code = err.code
