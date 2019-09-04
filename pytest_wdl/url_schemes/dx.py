@@ -55,5 +55,5 @@ class DxUrlHandler(UrlHandler):
         else:
             project_id = dxpy.PROJECT_CONTEXT_ID
             file_id = obj_id
-        dx_file = dxpy.DXFile(file_id, project_id)
+        dx_file = dxpy.DXFile(file_id, project_id, mode="rb")
         return DxResponse(dx_file, url)

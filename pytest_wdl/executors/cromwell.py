@@ -218,6 +218,13 @@ class CromwellExecutor(Executor):
     @staticmethod
     def get_cromwell_outputs(output):
         lines = output.splitlines(keepends=False)
+        if len(lines) < 2:
+            raise Exception(f"Invalid Cromwell output: {output}")
+        if lines[1].startswith("Usage"):
+            # If the cromwell command is not valid, usage is printed and the
+            # return code is 0 so it does not cause an exception above - we
+            # have to catch it here.
+            raise Exception("Invalid Cromwell command")
         start = None
         for i, line in enumerate(lines):
             if line == "{" and lines[i+1].lstrip().startswith('"outputs":'):
