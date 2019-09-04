@@ -106,35 +106,16 @@ class MiniwdlExecutor(Executor):
                 entrypoint = runtime.run_local_workflow
             rundir, output_env = entrypoint(target, input_env)
         except Error.EvalError as exn:
-            logger.error(
-                "({} Ln {} Col {}) {}{}".format(
-                    exn.pos.uri,
-                    exn.pos.line,
-                    exn.pos.column,
-                    exn.__class__.__name__,
-                    (", " + str(exn) if str(exn) else ""),
-                )
-            )
+            log_source(logger, exn)
             raise
         except runtime.task.TaskFailure as exn:
             exn = exn.__cause__ or exn
-            if isinstance(exn, runtime.task.CommandFailure) and not (
-                kwargs["verbose"] or kwargs["debug"]
-            ):
-                logger.error("run with --verbose for standard error logging")
-                logger.error("command's standard error in %s",
-                             getattr(exn, "stderr_file"))
-            if isinstance(getattr(exn, "pos", None), Error.SourcePosition):
-                pos = getattr(exn, "pos")
+            if isinstance(exn, runtime.task.CommandFailure):
                 logger.error(
-                    "({} Ln {} Col {}) {}{}".format(
-                        pos.uri,
-                        pos.line,
-                        pos.column,
-                        exn.__class__.__name__,
-                        (", " + str(exn) if str(exn) else ""),
-                    )
+                    "command's standard error in %s", getattr(exn, "stderr_file")
                 )
+            if isinstance(getattr(exn, "pos", None), Error.SourcePosition):
+                log_source(logger, exn)
             else:
                 logger.error(f"{exn.__class__.__name__}, {str(exn)}")
             raise
@@ -146,3 +127,15 @@ class MiniwdlExecutor(Executor):
             validate_outputs(outputs, expected, target.name)
 
         return outputs
+
+
+def log_source(logger: logging.Logger, exn):
+    logger.error(
+        "({} Ln {} Col {}) {}{}".format(
+            exn.pos.uri,
+            exn.pos.line,
+            exn.pos.column,
+            exn.__class__.__name__,
+            (", " + str(exn) if str(exn) else ""),
+        )
+    )
