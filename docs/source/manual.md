@@ -276,7 +276,7 @@ In the http_headers section of the configuration file, you can define a list of 
 | -------------| ------------- | ----------- | ----------- |
 | `java_bin` | `JAVA_HOME` | Path to java executable; If not specified, then Java executable is expected to be in $JAVA_HOME/bin/java | None |
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (if `cromwell_config_file` is specified |
-| `cromwell_jar` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
+| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 | `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; recommended to use `-Ddocker.hash-lookup.enabled=false` to disable Docker lookup by hash |

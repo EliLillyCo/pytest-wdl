@@ -1,0 +1,28 @@
+{
+  "cache_dir": "/tmp/wdl_cache",
+  "proxies": {
+    "http": {
+      "value": "http://foo.com/proxy",
+      "env": "HTTP_PROXY"
+    },
+    "https": {
+      "value": "https://foo.com/proxy",
+      "env": "HTTPS_PROXY"
+    }
+  },
+  "http_headers": [
+    {
+      "name": "X-JFrog-Art-Api",
+      "pattern": "http://my.company.com/artifactory/*",
+      "env": "TOKEN"
+    }
+  ],
+  "executors": {
+    "cromwell": {
+      "java_bin": "/usr/local/bin/java",
+      "java_args": "-Xmx8g",
+      "cromwell_jar": "/usr/local/opt/cromwell/Cromwell-44.jar",
+      "cromwell_args": "-Ddocker.hash-lookup.enabled=false"
+    }
+  }
+}
