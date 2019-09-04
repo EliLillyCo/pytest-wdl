@@ -121,7 +121,6 @@ class MiniwdlExecutor(Executor):
             raise
 
         outputs = CLI.values_to_json(output_env, namespace=target.name)
-        CLI.runner_organize_outputs(target, {"outputs": outputs}, rundir)
 
         if expected:
             validate_outputs(outputs, expected, target.name)
