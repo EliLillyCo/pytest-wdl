@@ -20,6 +20,9 @@ all:
 install:
 	$(BUILD)
 
+install_extras:
+	$(INSTALL_EXTRAS)
+
 test:
 	$(TEST)
 
