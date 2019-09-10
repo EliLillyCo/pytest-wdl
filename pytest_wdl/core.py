@@ -130,6 +130,9 @@ class DataManager:
     def __getitem__(self, name: str):
         return self.data_resolver.resolve(name, self.datadirs)
 
+    def get_list(self, *names: str) -> list:
+        return [self[name] for name in names]
+
     def get_dict(self, *names: str, **params) -> dict:
         """
         Creates a dict with one or more entries from this DataManager.

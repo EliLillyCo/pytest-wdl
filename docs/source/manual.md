@@ -102,8 +102,10 @@ Below is an example `test_data.json` file that demonstrates different ways to de
   },
   "output_vcf": {
     "name": "output.vcf",
-    "type": "vcf",
-    "allowed_diff_lines": 2
+    "type": {
+      "name": "vcf",
+      "allowed_diff_lines": 2,
+    }
   }
 }
 ```
@@ -121,7 +123,7 @@ The available keys for configuring file inputs/outputs are:
 
 In addition, the following keys are recognized for output files only:
 
-* `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
+* `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. The value can also be a hash with required key "name" and any other comparison-related attributes (including data type-specific attributes).
 * `allowed_diff_lines`: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
 
 #### URL Schemes
@@ -134,16 +136,29 @@ pytest_wdl uses `urllib`, which by default supports http, https, and ftp. If you
 
 When comparing actual and expected outputs, the "type" of the expected output is used to determine how the files are compared. If no type is specified, then the type is assumed to be "default."
 
-Available types:
+#### default
 
-- default: The default type if one is not specified.
-    - It can handle raw text files, as well as gzip compressed files.
-    - If `allowed_diff_lines` is 0 or not specified, then the files are compared by their MD5 hashes.
-    - If `allowed_diff_lines` is > 0, the files are converted to text and compared using the linux `diff` tool.
-- vcf: During comparison, headers are ignored, as are the QUAL, INFO, and FORMAT columns; for sample columns, only the first sample column is compared between files, and only the genotype values for that sample.
-- bam*:
-  - BAM is converted to SAM and headers are ignored.
-  - Replaces random UNSET-\w*\b type IDs that samtools often adds.
+The default type if one is not specified.
+
+- It can handle raw text files, as well as gzip compressed files.
+- If `allowed_diff_lines` is 0 or not specified, then the files are compared by their MD5 hashes.
+- If `allowed_diff_lines` is > 0, the files are converted to text and compared using the linux `diff` tool.
+
+#### vcf
+
+- During comparison, headers are ignored, as are the QUAL, INFO, and FORMAT columns; for sample columns, only the first sample column is compared between files, and only the genotype values for that sample.
+- Optional attributes:
+    - `compare_phase`: Whether to compare genotype phase; defaults to False.
+    
+#### bam*:
+
+- BAM is converted to SAM.
+- Replaces random UNSET-\w*\b type IDs that samtools often adds.
+- One comparison is performed using all rows and a subset of columns that are expected to be invariate. Rows are sorted by name and then by flag.
+- A second comparison is performed using all columns and a subset of rows based on filtering criteria. Rows are sorted by coordinate and then by name.
+- Optional attributes:
+    - `min_mapq`: The minimum MAPQ when filtering rows for the second comparison.
+    - `compare_tag_columns`: Whether to include tag columns (12+) when comparing all columns in the second comparison.
 
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)

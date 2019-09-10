@@ -7,11 +7,12 @@ tests = tests
 pytestopts = -s -vv --show-capture=all
 #pytestopts = -s -vv --show-capture=all -m "not integration"
 
-BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
+BUILD = python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
 INSTALL_EXTRAS = pip install .[all]
 TEST = env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests) && coverage report -m && coverage xml
 
 all:
+	$(clean)
 	$(BUILD)
 	$(INSTALL_EXTRAS)
 	$(TEST)
@@ -49,6 +50,7 @@ release:
 	git tag $(version)
 	# build
 	$(BUILD)
+	$(INSTALL_EXTRAS)
 	$(TEST)
 	python setup.py sdist bdist_wheel
 	# release

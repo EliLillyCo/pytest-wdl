@@ -16,6 +16,7 @@
 Convert BAM to SAM for diff.
 """
 from enum import Enum
+from functools import partial
 from pathlib import Path
 import re
 from typing import Optional
@@ -34,6 +35,10 @@ except ImportError:
     )
 
 
+INVARIATE_COLUMNS = "1,2,5,10,11"
+ALL_COLUMNS = "1-11"
+
+
 class Sorting(Enum):
     NONE = 0
     COORDINATE = 1
@@ -50,7 +55,8 @@ class BamDataFile(DataFile):
             self.path,
             other_path,
             allowed_diff_lines=self._get_allowed_diff_lines(other_opts),
-            min_mapq=self._get_min_mapq(other_opts)
+            min_mapq=self._get_min_mapq(other_opts),
+            compare_tag_columns=self._get_compare_tag_columns(other_opts)
         )
 
     def _get_min_mapq(self, other_opts: dict) -> int:
@@ -59,13 +65,19 @@ class BamDataFile(DataFile):
             other_opts.get("min_mapq", 0)
         )
 
+    def _get_compare_tag_columns(self, other_opts: dict) -> bool:
+        return (
+            self.compare_opts.get("compare_tag_columns") or
+            other_opts.get("compare_tag_columns")
+        )
+
 
 def assert_bam_files_equal(
     file1: Path,
     file2: Path,
     allowed_diff_lines: int = 0,
     min_mapq: int = 0,
-    assume_sorted: bool = False
+    compare_tag_columns: bool = False
 ):
     """
     Compare two BAM files:
@@ -76,11 +88,13 @@ def assert_bam_files_equal(
     * Next, filter the files by MAPQ and compare the remaining rows using all columns
 
     Args:
-        file1:
-        file2:
-        allowed_diff_lines:
-        min_mapq:
-        assume_sorted:
+        file1: First BAM to compare
+        file2: Second BAM to compare
+        allowed_diff_lines: Number of lines by which the BAMs are allowed to differ
+            (after being convert to SAM)
+        min_mapq: Minimum mapq used to filter reads when comparing all columns
+        compare_tag_columns: Whether to include tag columns (12+) when comparing
+            all columns
     """
     with tempdir() as temp:
         # Compare all reads using subset of columns
@@ -90,16 +104,19 @@ def assert_bam_files_equal(
             file1,
             cmp_file1,
             headers=False,
-            sorting=Sorting.NONE if assume_sorted else Sorting.NAME
+            sorting=Sorting.NAME
         )
         bam_to_sam(
             file2,
             cmp_file2,
             headers=False,
-            sorting=Sorting.NONE if assume_sorted else Sorting.NAME
+            sorting=Sorting.NAME
         )
         assert_text_files_equal(
-            cmp_file1, cmp_file2, allowed_diff_lines, diff_bam_columns
+            cmp_file1,
+            cmp_file2,
+            allowed_diff_lines,
+            diff_fn=partial(diff_bam_columns, columns=INVARIATE_COLUMNS)
         )
 
         # Compare subset of reads using all columns
@@ -110,16 +127,25 @@ def assert_bam_files_equal(
             cmp_file1,
             headers=True,
             min_mapq=min_mapq,
-            sorting=Sorting.NONE if assume_sorted else Sorting.COORDINATE
+            sorting=Sorting.COORDINATE,
         )
         bam_to_sam(
             file2,
             cmp_file2,
             headers=True,
             min_mapq=min_mapq,
-            sorting=Sorting.NONE if assume_sorted else Sorting.COORDINATE
+            sorting=Sorting.COORDINATE
         )
-        assert_text_files_equal(cmp_file1, cmp_file2, allowed_diff_lines)
+        if compare_tag_columns:
+            diff_fn = diff_default
+        else:
+            diff_fn = partial(diff_bam_columns, columns=ALL_COLUMNS)
+        assert_text_files_equal(
+            cmp_file1,
+            cmp_file2,
+            allowed_diff_lines,
+            diff_fn=diff_fn
+        )
 
 
 def bam_to_sam(
@@ -159,7 +185,7 @@ def bam_to_sam(
             else:
                 sort_cols = "-k1,1 -k2,2n"
             c = subby.run(
-                f"cat {str(temp_sam)} | sort -t'\t' {sort_cols}"
+                f"cat {str(temp_sam)} | sort {sort_cols}"
             )
             lines = lines[:start] + [c.output.decode()]
 
@@ -167,10 +193,10 @@ def bam_to_sam(
         out.write("".join(lines))
 
 
-def diff_bam_columns(file1: Path, file2: Path) -> int:
+def diff_bam_columns(file1: Path, file2: Path, columns: str) -> int:
     with tempdir() as temp:
         def make_comparable(inpath, output):
-            job = subby.run(f"cat {inpath} | cut -f 1,2,5,10,11")
+            job = subby.run(f"cat {inpath} | cut -f {columns}")
             with open(output, "wb") as out:
                 out.write(job.output)
 

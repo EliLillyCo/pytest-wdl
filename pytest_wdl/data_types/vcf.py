@@ -18,6 +18,7 @@ scores and other floating-point-valued fields when run on different hardware. Th
 handler ignores the QUAL and INFO columns and only compares the genotype (GT) field
 of sample columns. Only works for single-sample VCFs.
 """
+from functools import partial
 from pathlib import Path
 
 import subby
@@ -28,21 +29,25 @@ from pytest_wdl.utils import tempdir
 
 class VcfDataFile(DataFile):
     def _assert_contents_equal(self, other_path: Path, other_opts: dict) -> None:
+        compare_phase = (
+            self.compare_opts.get("compare_phase") or
+            other_opts.get("compare_phase")
+        )
         assert_text_files_equal(
             self.path,
             other_path,
             self._get_allowed_diff_lines(other_opts),
-            diff_vcf_columns
+            diff_fn=partial(diff_vcf_columns, compare_phase=compare_phase)
         )
 
 
-def diff_vcf_columns(file1: Path, file2: Path) -> int:
+def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> int:
     with tempdir() as temp:
         def make_comparable(infile, outfile):
-            job = subby.run(
-                f"grep -vP '^#' | cut -f 1-5,7,10 | cut -d ':' -f 1",
-                stdin=infile
-            )
+            cmd = ["grep -vP '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
+            if not compare_phase:
+                cmd.append(r"sed -e 's/|/\//'")
+            job = subby.run(cmd, stdin=infile)
             with open(outfile, "wb") as out:
                 out.write(job.output)
 
