@@ -14,5 +14,19 @@
   "random_id_bam_output": {
     "name": "samtools_random_ids_UNSET-different.bam",
     "type": "bam"
+  },
+  "ignorable_difference": {
+    "name": "ignorable_difference.bam",
+    "type": {
+      "name": "bam",
+      "min_mapq": 30
+    }
+  },
+  "non_ignorable_difference": {
+    "name": "non_ignorable_difference.bam",
+    "type": {
+      "name": "bam",
+      "min_mapq": 30
+    }
   }
 }

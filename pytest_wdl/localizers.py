@@ -12,14 +12,13 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 from abc import ABCMeta, abstractmethod
-import functools
 from pathlib import Path
 from typing import Optional, cast
 from urllib import request
 
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.url_schemes import Response
-from pytest_wdl.utils import LOG, env_map, resolve_value_descriptor, progress
+from pytest_wdl.url_schemes import Response, ResponseWrapper
+from pytest_wdl.utils import LOG, env_map, resolve_value_descriptor
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -61,6 +60,15 @@ class UrlLocalizer(Localizer):
                 show_progress=self.user_config.show_progress
             )
         except Exception as err:
+            # Delete the destination since it might be incomplete
+            if destination.exists():
+                try:
+                    destination.unlink()
+                except:
+                    LOG.exception(
+                        "Error deleting file %s; localization failed, so it may be "
+                        "incomplete", str(destination)
+                    )
             raise RuntimeError(f"Error localizing url {self.url}") from err
 
     @property
@@ -133,40 +141,9 @@ def download_file(
     rsp = request.urlopen(req)
 
     if isinstance(rsp, Response):
-        total_size = cast(Response, rsp).get_content_length()
+        downloader = cast(Response, rsp)
     else:
-        size_str = rsp.getheader("content-length")
-        total_size = int(size_str) if size_str else None
-    block_size = 16 * 1024
-    if total_size and total_size < block_size:
-        block_size = total_size
+        downloader = ResponseWrapper(rsp)
 
     LOG.debug("Downloading url %s to %s", url, str(destination))
-
-    if show_progress and progress:
-        progress_bar = progress(
-            total=total_size,
-            unit="b",
-            unit_scale=True,
-            unit_divisor=1024,
-            desc=f"Localizing {destination.name}"
-        )
-
-        def progress_reader():
-            buf = rsp.read(block_size)
-            if buf:
-                progress_bar.update(block_size)
-            else:
-                progress_bar.close()
-            return buf
-
-        reader = progress_reader
-    else:
-        reader = functools.partial(rsp.read, block_size)
-
-    with open(destination, "wb") as out:
-        while True:
-            buf = reader()
-            if not buf:
-                break
-            out.write(buf)
+    downloader.download_file(destination, show_progress)

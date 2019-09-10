@@ -14,13 +14,23 @@
 
 from abc import ABCMeta, abstractmethod
 from enum import Enum
+import functools
+from pathlib import Path
 from typing import Optional, Sequence
 from urllib.request import BaseHandler, Request, build_opener, install_opener
-from urllib import response
 
 from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import PluginFactory
+from pytest_wdl.utils import LOG, PluginFactory
+
+try:
+    from tqdm import tqdm as progress
+except ImportError:
+    LOG.debug(
+        "tqdm is not installed; progress bar will not be displayed when "
+        "downloading files"
+    )
+    progress = None
 
 
 class Method(Enum):
@@ -33,9 +43,67 @@ class Method(Enum):
         self.dest_pattern = dest_pattern
 
 
-class Response(response.addinfourl):
+class Response(metaclass=ABCMeta):
+    @abstractmethod
+    def download_file(self, destination: Path, show_progress: bool = False):
+        pass
+
+
+class BaseResponse(Response, metaclass=ABCMeta):
+    @abstractmethod
     def get_content_length(self) -> Optional[int]:
-        return None
+        pass
+
+    @abstractmethod
+    def read(self, block_size: int):
+        pass
+
+    def download_file(self, destination: Path, show_progress: bool = False):
+        total_size = self.get_content_length()
+        block_size = 16 * 1024
+        if total_size and total_size < block_size:
+            block_size = total_size
+
+        if show_progress and progress:
+            progress_bar = progress(
+                total=total_size,
+                unit="b",
+                unit_scale=True,
+                unit_divisor=1024,
+                desc=f"Localizing {destination.name}"
+            )
+
+            def progress_reader():
+                b = self.read(block_size)
+                if b:
+                    progress_bar.update(block_size)
+                else:
+                    progress_bar.close()
+                return b
+
+            reader = progress_reader
+        else:
+            reader = functools.partial(self.read, block_size)
+
+        with open(destination, "wb") as out:
+            while True:
+                buf = reader()
+                if not buf:
+                    break
+                out.write(buf)
+
+
+class ResponseWrapper(BaseResponse):
+    def __init__(self, rsp):
+        self.rsp = rsp
+
+    def get_content_length(self) -> Optional[int]:
+        size_str = self.rsp.getheader("content-length")
+        if size_str:
+            return int(size_str)
+
+    def read(self, block_size: int) -> bytes:
+        return self.rsp.read(block_size)
 
 
 class UrlHandler(BaseHandler, metaclass=ABCMeta):

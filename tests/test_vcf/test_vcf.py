@@ -32,10 +32,12 @@ def workflow_data_descriptor_file(project_root):
 def test_vcf_data_file_identical():
     with tempdir() as temp:
         localizer1 = StringLocalizer(
+            "##fileformat=VCFv4.2\n"
             "chr1\t1111\t.\tA\tG\t1000\tPASS\t.\tGT"
         )
         v1 = VcfDataFile(temp / "foo1.vcf", localizer1)
         localizer2 = StringLocalizer(
+            "##fileformat=VCFv4.2\n"
             "chr1\t1111\t.\tA\tG\t999.9\tPASS\t."
         )
         v2 = VcfDataFile(temp / "foo2.vcf", localizer2)
@@ -45,12 +47,14 @@ def test_vcf_data_file_identical():
 def test_vcf_data_file_different():
     with tempdir() as temp:
         localizer1 = StringLocalizer(
-            "chr1\t1111\t.\tA\tG\t1000\tPASS\t.\n"
+            "##fileformat=VCFv4.2\n"
+            "chr1\t1111\t.\tA\tG\t1000\tPASS\t."
         )
         v1 = VcfDataFile(temp / "foo1.vcf", localizer1, allowed_diff_lines=1)
         localizer2 = StringLocalizer(
+            "##fileformat=VCFv4.2\n"
             "chr1\t1111\t.\tA\tG\t999.9\tPASS\t.\n"
-            "chr1\t2222\t.\tT\tC\t500\tPASS\t.\n"
+            "chr1\t2222\t.\tT\tC\t500\tPASS\t."
         )
         v2 = VcfDataFile(temp / "foo2.vcf", localizer2)
         v1.assert_contents_equal(v2)

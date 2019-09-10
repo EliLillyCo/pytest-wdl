@@ -1,17 +1,29 @@
-import io
-from typing import Sequence
+from pathlib import Path
+from typing import Sequence, Optional
 import urllib.request
 from urllib.request import Request
 
-from pytest_wdl.url_schemes import Response, UrlHandler, Method
+from pytest_wdl.url_schemes import Response, BaseResponse, UrlHandler, Method
 from pytest_wdl.localizers import download_file
 from pytest_wdl.utils import tempdir
 
 
-class MockResponse(Response):
+class MockResponse(BaseResponse):
     def __init__(self, url):
-        mock_fp = io.BytesIO(url[6:].encode())
-        super().__init__(mock_fp, {}, url, 200)
+        self.content = url[6:]
+        self.start = 0
+
+    def get_content_length(self) -> Optional[int]:
+        return len(self.content)
+
+    def read(self, block_size: int):
+        start = self.start
+        end = min(start + block_size, len(self.content))
+        if start == end:
+            return None
+        block = self.content[start:end]
+        self.start = end
+        return block.encode()
 
 
 class MockHandler(UrlHandler):

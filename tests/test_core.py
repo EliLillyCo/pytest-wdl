@@ -19,7 +19,7 @@ from unittest.mock import Mock
 import pytest
 
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.core import DataFile, DataDirs, DataResolver
+from pytest_wdl.core import DefaultDataFile, DataDirs, DataResolver, create_data_file
 from pytest_wdl.localizers import LinkLocalizer, UrlLocalizer
 from pytest_wdl.utils import tempdir
 from . import GOOD_URL, setenv
@@ -29,29 +29,30 @@ def test_data_file():
     with tempdir() as d:
         foo = d / "foo.txt"
         with pytest.raises(ValueError):
-            DataFile(foo, None, None)
+            DefaultDataFile(foo, None)
 
         bar = d / "bar.txt"
         with open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DataFile(bar, LinkLocalizer(foo), allowed_diff_lines=None)
+        df = DefaultDataFile(bar, LinkLocalizer(foo))
+        assert str(df) == str(bar)
 
         baz = d / "baz.txt"
         with open(baz, "wt") as out:
             out.write("foo\nbar")
         df.assert_contents_equal(baz)
         df.assert_contents_equal(str(baz))
-        df.assert_contents_equal(DataFile(baz))
+        df.assert_contents_equal(DefaultDataFile(baz))
 
         blorf = d / "blorf.txt"
         with open(blorf, "wt") as out:
             out.write("foo\nblorf\nbork")
         with pytest.raises(AssertionError):
             df.assert_contents_equal(blorf)
-        df.allowed_diff_lines = 1
+        df.compare_opts["allowed_diff_lines"] = 1
         with pytest.raises(AssertionError):
             df.assert_contents_equal(blorf)
-        df.allowed_diff_lines = 2
+        df.compare_opts["allowed_diff_lines"] = 2
         df.assert_contents_equal(blorf)
 
 
@@ -60,7 +61,7 @@ def test_data_file_gz():
         foo = d / "foo.txt.gz"
         with gzip.open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DataFile(foo, allowed_diff_lines=1)
+        df = DefaultDataFile(foo, allowed_diff_lines=1)
 
         bar = d / "bar.txt.gz"
         with gzip.open(bar, "wt") as out:
@@ -68,7 +69,30 @@ def test_data_file_gz():
 
         df.assert_contents_equal(bar)
         df.assert_contents_equal(str(bar))
-        df.assert_contents_equal(DataFile(bar))
+        df.assert_contents_equal(DefaultDataFile(bar))
+
+
+def test_data_file_dict_type():
+    with tempdir() as d:
+        foo = d / "foo.txt.gz"
+        with gzip.open(foo, "wt") as out:
+            out.write("foo\nbar")
+        df = create_data_file(
+            user_config=UserConfiguration(),
+            path=foo,
+            type={
+                "name": "default",
+                "allowed_diff_lines": 1
+            }
+        )
+
+        bar = d / "bar.txt.gz"
+        with gzip.open(bar, "wt") as out:
+            out.write("foo\nbaz")
+
+        df.assert_contents_equal(bar)
+        df.assert_contents_equal(str(bar))
+        df.assert_contents_equal(DefaultDataFile(bar))
 
 
 def test_data_dirs():

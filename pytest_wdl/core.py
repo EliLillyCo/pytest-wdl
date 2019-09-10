@@ -14,10 +14,10 @@
 import os
 from pathlib import Path
 import tempfile
-from typing import Callable, List, Optional, Sequence, Type, cast
+from typing import Callable, List, Optional, Sequence, Type, Union, cast
 
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.data_types import DataFile
+from pytest_wdl.data_types import DataFile, DefaultDataFile
 from pytest_wdl.executors import Executor
 from pytest_wdl.localizers import LinkLocalizer, StringLocalizer, UrlLocalizer
 from pytest_wdl.url_schemes import install_schemes
@@ -67,7 +67,7 @@ class DataDirs:
             def add_datadir_paths(root: Path):
                 testdir = root / self.module
                 if testdir.exists():
-                    if self.cls is not None:
+                    if self.cls:
                         clsdir = testdir / self.cls
                         if clsdir.exists():
                             fndir = clsdir / self.function
@@ -151,9 +151,9 @@ class DataManager:
 
 def create_data_file(
     user_config: UserConfiguration,
-    type: Optional[str] = "default",
+    type: Optional[Union[str, dict]] = "default",
     name: Optional[str] = None,
-    path: Optional[str] = None,
+    path: Optional[Union[str, Path]] = None,
     url: Optional[str] = None,
     contents: Optional[str] = None,
     env: Optional[str] = None,
@@ -161,7 +161,14 @@ def create_data_file(
     http_headers: Optional[dict] = None,
     **kwargs
 ) -> DataFile:
-    data_file_class = DATA_TYPES.get(type, DataFile)
+    if isinstance(type, dict):
+        data_file_opts = cast(dict, type)
+        type = data_file_opts.pop("name")
+    else:
+        data_file_opts = {}
+    data_file_opts.update(kwargs)
+
+    data_file_class = DATA_TYPES.get(type, DefaultDataFile)
     local_path = None
     localizer = None
 
@@ -213,7 +220,7 @@ def create_data_file(
             f"or a local file must be provided."
         )
 
-    return data_file_class(local_path, localizer, **kwargs)
+    return data_file_class(local_path, localizer, **data_file_opts)
 
 
 def create_executor(

@@ -127,6 +127,7 @@ class UserConfiguration:
 
         if not executors:
             executors_str = os.environ.get(ENV_DEFAULT_EXECUTORS)
+            # TODO: test multiple executors specified by environment variable
             if executors_str:
                 executors = executors_str.split(",")
             else:

@@ -64,7 +64,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pytest>=5.1",
-        "delegator.py",
+        "subby>=0.1.2",
         "miniwdl>=0.3.0",
         "pytest-subtests"
     ],

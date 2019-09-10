@@ -36,16 +36,6 @@ LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
 
 
-try:
-    from tqdm import tqdm as progress
-except ImportError:
-    LOG.debug(
-        "tqdm is not installed; progress bar will not be displayed when "
-        "downloading files"
-    )
-    progress = None
-
-
 ENV_PATH = "PATH"
 ENV_CLASSPATH = "CLASSPATH"
 DEFAULT_CLASSPATH = "."

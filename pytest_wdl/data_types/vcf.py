@@ -19,40 +19,35 @@ handler ignores the QUAL and INFO columns and only compares the genotype (GT) fi
 of sample columns. Only works for single-sample VCFs.
 """
 from pathlib import Path
-from typing import Optional
 
-import delegator
+import subby
 
-from pytest_wdl.data_types import DataFile
+from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
 
 
 class VcfDataFile(DataFile):
-    @classmethod
-    def _assert_contents_equal(
-        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
-    ):
-        cls._diff_contents(file1, file2, allowed_diff_lines)
+    def _assert_contents_equal(self, other_path: Path, other_opts: dict) -> None:
+        assert_text_files_equal(
+            self.path,
+            other_path,
+            self._get_allowed_diff_lines(other_opts),
+            diff_vcf_columns
+        )
 
-    @classmethod
-    def _diff(cls, file1: Path, file2: Path):
-        """
-        Special handling for VCF files to ignore QUAL, INFO, and FORMAT, and only
-        compares genotypes in the first sample column
 
-        Args:
-            file1: First file to compare
-            file2: Second file to compare
-        """
-        with tempdir() as temp:
-            cmp_file1 = temp / "file1"
-            cmp_file2 = temp / "file2"
-            job1 = delegator.run(
-                f"cat {file1} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file1}"
+def diff_vcf_columns(file1: Path, file2: Path) -> int:
+    with tempdir() as temp:
+        def make_comparable(infile, outfile):
+            job = subby.run(
+                f"grep -vP '^#' | cut -f 1-5,7,10 | cut -d ':' -f 1",
+                stdin=infile
             )
-            job2 = delegator.run(
-                f"cat {file2} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file2}"
-            )
-            for job in (job1, job2):
-                job.block()
-            return super()._diff(cmp_file1, cmp_file2)
+            with open(outfile, "wb") as out:
+                out.write(job.output)
+
+        cmp_file1 = temp / "file1"
+        cmp_file2 = temp / "file2"
+        make_comparable(file1, cmp_file1)
+        make_comparable(file2, cmp_file2)
+        return diff_default(cmp_file1, cmp_file2)

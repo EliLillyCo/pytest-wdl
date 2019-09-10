@@ -15,8 +15,9 @@
 # Todo: currently, the user is required to be logged into DNAnexus for this handler
 #  to work properly. We should provide the ability to configure user account information
 #  via the config file.
+from pathlib import Path
 
-from typing import Sequence, Optional, cast
+from typing import Sequence, Optional
 
 import dxpy
 
@@ -24,16 +25,17 @@ from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
 
 
 class DxResponse(Response):
-    def __init__(self, dx_file: dxpy.DXFile, url: str):
-        try:
-            self.desc = dx_file.describe()
-            code = 200
-        except dxpy.exceptions.DXAPIError as err:
-            code = err.code
-        super().__init__(dx_file, {}, url, code=code)
+    def __init__(self, file_id: str, project_id: Optional[str] = None):
+        self.file_id = file_id
+        self.project_id = project_id
 
-    def get_content_length(self) -> Optional[int]:
-        return int(self.desc["size"])
+    def download_file(self, destination: Path, show_progress: bool = False):
+        dxpy.download_dxfile(
+            self.file_id,
+            str(destination),
+            show_progress=show_progress,
+            project=self.project_id
+        )
 
 
 class DxUrlHandler(UrlHandler):
@@ -55,5 +57,4 @@ class DxUrlHandler(UrlHandler):
         else:
             project_id = dxpy.PROJECT_CONTEXT_ID
             file_id = obj_id
-        dx_file = dxpy.DXFile(file_id, project_id, mode="rb")
-        return DxResponse(dx_file, url)
+        return DxResponse(file_id, project_id)
