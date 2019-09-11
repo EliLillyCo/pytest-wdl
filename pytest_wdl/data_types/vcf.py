@@ -20,11 +20,15 @@ of sample columns. Only works for single-sample VCFs.
 """
 from functools import partial
 from pathlib import Path
+import re
 
 import subby
 
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
+
+
+GENO_RE = re.compile("[|/]")
 
 
 class VcfDataFile(DataFile):
@@ -45,11 +49,20 @@ def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> i
     with tempdir() as temp:
         def make_comparable(infile, outfile):
             cmd = ["grep -vP '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
-            if not compare_phase:
-                cmd.append(r"sed -e 's/|/\//'")
             job = subby.run(cmd, stdin=infile)
+            output = job.output
             with open(outfile, "wb") as out:
-                out.write(job.output)
+                if compare_phase:
+                    # Normalize the allele separator and sort the alleles
+                    for row in output.splitlines(keepends=True):
+                        r, g = row.rsplit(b"\t", 1)
+                        g_strip = g.rstrip()
+                        g_norm = "/".join(sorted(GENO_RE.split(g_strip)))
+                        out.write(f"{r}\t{g_norm}".encode())
+                        if len(g) != len(g_strip):
+                            out.write(b"\n")
+                else:
+                    out.write(output)
 
         cmp_file1 = temp / "file1"
         cmp_file2 = temp / "file2"
