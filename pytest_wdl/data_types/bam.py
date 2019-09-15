@@ -194,9 +194,7 @@ def bam_to_sam(
 def diff_bam_columns(file1: Path, file2: Path, columns: str) -> int:
     with tempdir() as temp:
         def make_comparable(inpath, output):
-            job = subby.run(f"cat {inpath} | cut -f {columns}")
-            with open(output, "wb") as out:
-                out.write(job.output)
+            subby.run(f"cat {inpath} | cut -f {columns}", stdout=output)
 
         cmp_file1 = temp / "cmp_file1"
         cmp_file2 = temp / "cmp_file2"
