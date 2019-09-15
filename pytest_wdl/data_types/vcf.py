@@ -49,20 +49,19 @@ def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> i
     with tempdir() as temp:
         def make_comparable(infile, outfile):
             cmd = ["grep -vP '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
-            job = subby.run(cmd, stdin=infile)
-            output = job.output
-            with open(outfile, "wb") as out:
+            output = subby.sub(cmd, stdin=infile)
+            with open(outfile, "wt") as out:
                 if compare_phase:
+                    out.write(output)
+                else:
                     # Normalize the allele separator and sort the alleles
                     for row in output.splitlines(keepends=True):
-                        r, g = row.rsplit(b"\t", 1)
+                        r, g = row.rsplit("\t", 1)
                         g_strip = g.rstrip()
                         g_norm = "/".join(sorted(GENO_RE.split(g_strip)))
-                        out.write(f"{r}\t{g_norm}".encode())
+                        out.write(f"{r}\t{g_norm}")
                         if len(g) != len(g_strip):
-                            out.write(b"\n")
-                else:
-                    out.write(output)
+                            out.write("\n")
 
         cmp_file1 = temp / "file1"
         cmp_file2 = temp / "file2"

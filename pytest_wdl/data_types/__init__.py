@@ -107,7 +107,7 @@ def diff_default(file1: Path, file2: Path) -> int:
         "grep -c '^'"
     ]
     # It's a valid result to have no lines match, so allow a grep returncode of 1
-    return int(subby.run(cmds, allowed_return_codes=(0, 1)).output)
+    return int(subby.sub(cmds, allowed_return_codes=(0, 1)))
 
 
 def assert_text_files_equal(

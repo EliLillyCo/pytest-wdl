@@ -184,10 +184,8 @@ def bam_to_sam(
                 sort_cols = "-k3,3 -k4,4n -k2,2n"
             else:
                 sort_cols = "-k1,1 -k2,2n"
-            c = subby.run(
-                f"cat {str(temp_sam)} | sort {sort_cols}"
-            )
-            lines = lines[:start] + [c.output.decode()]
+            sorted_sam = subby.sub(f"cat {str(temp_sam)} | sort {sort_cols}")
+            lines = lines[:start] + [sorted_sam]
 
     with open(output_sam, "w") as out:
         out.write("".join(lines))
