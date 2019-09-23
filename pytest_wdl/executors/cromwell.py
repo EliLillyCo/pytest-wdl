@@ -216,7 +216,7 @@ class CromwellExecutor(Executor):
         return imports_path
 
     @staticmethod
-    def get_cromwell_outputs(output):
+    def get_cromwell_outputs(output) -> dict:
         lines = output.splitlines(keepends=False)
         if len(lines) < 2:
             raise Exception(f"Invalid Cromwell output: {output}")

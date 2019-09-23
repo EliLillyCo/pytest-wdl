@@ -145,12 +145,46 @@ def make_serializable(value):
     return value
 
 
-def validate_outputs(outputs: dict, expected: dict, target: str):
+def validate_outputs(outputs: dict, expected: dict, target: str) -> None:
+    """
+    Validate expected and actual outputs are equal.
+
+    Args:
+        outputs: Actual outputs
+        expected: Expected outputs
+        target: Execution target (i.e. workflow name)
+
+    Raises:
+        AssertionError
+    """
     for name, expected_value in expected.items():
         key = f"{target}.{name}"
         if key not in outputs:
             raise AssertionError(f"Workflow did not generate output {key}")
-        if isinstance(expected_value, DataFile):
-            expected_value.assert_contents_equal(outputs[key])
-        else:
-            assert expected_value == outputs[key]
+        compare_output_values(expected_value, outputs[key])
+
+
+def compare_output_values(expected_value, actual_value) -> None:
+    """
+    Compare two values and raise an error if they are not equal.
+
+    Args:
+        expected_value:
+        actual_value:
+
+    Raises:
+        AssertionError
+    """
+    if isinstance(expected_value, list):
+        assert len(expected_value) == len(actual_value)
+        for exp, act in zip(expected_value, actual_value):
+            compare_output_values(exp, act)
+    elif isinstance(expected_value, dict):
+        assert len(expected_value) == len(actual_value)
+        for key, exp in expected_value.items():
+            assert key in actual_value
+            compare_output_values(exp, actual_value[key])
+    elif isinstance(expected_value, DataFile):
+        expected_value.assert_contents_equal(actual_value)
+    else:
+        assert expected_value == actual_value
