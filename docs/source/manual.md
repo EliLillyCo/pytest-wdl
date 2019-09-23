@@ -69,11 +69,18 @@ There are also [several additional fixtures](#configuration) used for configurat
 
 Typically, workflows require inputs and generate outputs. Beyond simply ensuring that a workflow runs successfully, we often want to additionally test that it reproducibly generates the same results given the same inputs.
 
-Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow:
+Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object tyep that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
 
 ```json
 {
-  "input_int": 42
+  "input_int": 42,
+  "input_obj": {
+    "class": "Person",
+    "value": {
+      "name": "Joe",
+      "age": 42 
+    }
+  }
 }
 ```
 
@@ -83,7 +90,20 @@ For file inputs and outputs, pytest-wdl offers several different options. Test d
 
 Some additional options are available only for expected outputs, in order to specify how they should be compared to the actual outputs.
 
-Below is an example `test_data.json` file that demonstrates different ways to define input and output data files:
+File data can be defined the same as object data (i.e. "file" is a special class of object type):
+
+```json
+{
+  "config": {
+    "class": "file",
+    "value": {
+      "path": "config.json"
+    }
+  }
+}
+```
+
+As a short-cut, the "class" attribute can be omitted and the map describing the file provided directly as the value. Below is an example `test_data.json` file that demonstrates different ways to define input and output data files:
 
 ```json
 {
@@ -104,7 +124,7 @@ Below is an example `test_data.json` file that demonstrates different ways to de
     "name": "output.vcf",
     "type": {
       "name": "vcf",
-      "allowed_diff_lines": 2,
+      "allowed_diff_lines": 2
     }
   }
 }

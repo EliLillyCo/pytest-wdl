@@ -98,21 +98,26 @@ class DataResolver:
         self.data_descriptors = data_descriptors
         self.user_config = user_config
 
-    def resolve(
-        self, name: str, datadirs: Optional[DataDirs] = None
-    ) -> DataFile:
+    def resolve(self, name: str, datadirs: Optional[DataDirs] = None):
         if name not in self.data_descriptors:
             raise ValueError(f"Unrecognized name {name}")
 
         value = self.data_descriptors[name]
+
         if isinstance(value, dict):
-            return create_data_file(
-                user_config=self.user_config,
-                datadirs=datadirs,
-                **cast(dict, value)
-            )
-        else:
-            return value
+            # Right now, "class" is just a marker for object types, of which
+            # "file" is a special case.
+            cls = value.get("class", "file")
+            if "value" in value:
+                value = value["value"]
+            if cls == "file":
+                return create_data_file(
+                    user_config=self.user_config,
+                    datadirs=datadirs,
+                    **cast(dict, value)
+                )
+
+        return value
 
 
 class DataManager:
