@@ -22,6 +22,9 @@ from pytest_wdl.localizers import Localizer
 from pytest_wdl.utils import tempdir
 
 
+ALLOWED_DIFF_LINES = "allowed_diff_lines"
+
+
 class DataFile(metaclass=ABCMeta):
     """
     A data file, which may be local, remote, or represented as a string.
@@ -56,6 +59,15 @@ class DataFile(metaclass=ABCMeta):
     def __str__(self) -> str:
         return str(self.local_path)
 
+    def set_compare_opts(self, **kwargs):
+        """
+        Update comparison options.
+
+        Args:
+            **kwargs: Comparison options to update.
+        """
+        self.compare_opts.update(kwargs)
+
     def assert_contents_equal(self, other: Union[str, Path, "DataFile"]) -> None:
         """
         Assert the contents of two files are equal.
@@ -87,8 +99,8 @@ class DataFile(metaclass=ABCMeta):
 
     def _get_allowed_diff_lines(self, other_opts: dict):
         return max(
-            self.compare_opts.get("allowed_diff_lines", 0),
-            other_opts.get("allowed_diff_lines", 0)
+            self.compare_opts.get(ALLOWED_DIFF_LINES, 0),
+            other_opts.get(ALLOWED_DIFF_LINES, 0)
         )
 
 
