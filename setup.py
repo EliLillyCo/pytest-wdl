@@ -51,6 +51,7 @@ setup(
         "pytest_wdl.data_types": [
             "bam = pytest_wdl.data_types.bam:BamDataFile",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
+            "json = pytest_wdl.data_types.json:JsonDataFile"
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",

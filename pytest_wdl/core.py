@@ -178,7 +178,6 @@ def create_data_file(
         data_file_opts = {}
     data_file_opts.update(kwargs)
 
-    data_file_class = DATA_TYPES.get(type, DefaultDataFile)
     local_path = None
     localizer = None
 
@@ -206,6 +205,8 @@ def create_data_file(
             localizer = StringLocalizer(cast(str, contents))
         else:
             localizer = JsonLocalizer(cast(dict, contents))
+            if type == DEFAULT_TYPE:
+                type = "json"
         if not local_path:
             if name:
                 local_path = ensure_path(user_config.cache_dir / name)
@@ -233,6 +234,7 @@ def create_data_file(
             f"or a local file must be provided."
         )
 
+    data_file_class = DATA_TYPES.get(type, DefaultDataFile)
     return data_file_class(local_path, localizer, **data_file_opts)
 
 
