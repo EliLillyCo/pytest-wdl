@@ -66,7 +66,8 @@ setup(
         "pytest>=5.1",
         "subby>=0.1.5",
         "miniwdl>=0.3.0",
-        "pytest-subtests"
+        "pytest-subtests",
+        "xphyle>=4.0.0"
     ],
     extras_require=extras_require,
     classifiers=[

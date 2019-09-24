@@ -20,8 +20,10 @@ import subby
 
 from pytest_wdl.localizers import Localizer
 from pytest_wdl.utils import tempdir
+from xphyle import guess_file_format
+from xphyle.utils import transcode_file
 
-
+DEFAULT_TYPE = "default"
 ALLOWED_DIFF_LINES = "allowed_diff_lines"
 
 
@@ -110,7 +112,7 @@ class DefaultDataFile(DataFile):
         if allowed_diff_lines:
             assert_text_files_equal(self.path, other_path, allowed_diff_lines)
         else:
-            assert_hashes_equal(self.path, other_path)
+            assert_binary_files_equal(self.path, other_path)
 
 
 def diff_default(file1: Path, file2: Path) -> int:
@@ -128,12 +130,13 @@ def assert_text_files_equal(
     allowed_diff_lines: int = 0,
     diff_fn: Callable[[Path, Path], int] = diff_default
 ) -> None:
-    if file1.suffix == ".gz":
+    fmt = guess_file_format(file1)
+    if fmt:
         with tempdir() as temp:
             temp_file1 = temp / "file1"
             temp_file2 = temp / "file2"
-            subby.run(f"gunzip -c {file1}", stdout=temp_file1)
-            subby.run(f"gunzip -c {file2}", stdout=temp_file2)
+            transcode_file(file1, temp_file1, dest_compression=False)
+            transcode_file(file2, temp_file2, dest_compression=False)
             diff_lines = diff_fn(temp_file1, temp_file2)
     else:
         diff_lines = diff_fn(file1, file2)
@@ -145,17 +148,38 @@ def assert_text_files_equal(
         )
 
 
-def assert_hashes_equal(
+def compare_gzip(file1: Path, file2: Path):
+    crc_size1 = subby.sub(f"gzip -lv {file1} | tail -1 | awk '{{print $2\":\"$7}}'")
+    crc_size2 = subby.sub(f"gzip -lv {file2} | tail -1 | awk '{{print $2\":\"$7}}'")
+    if crc_size1 != crc_size2:
+        raise AssertionError(
+            f"CRCs and/or uncompressed sizes differ between expected identical "
+            f"gzip files {file1}, {file2}"
+        )
+
+
+# TODO: allow user-defined comparators
+BINARY_COMPARATORS = {
+    "gz": compare_gzip,
+    "gzip": compare_gzip
+}
+
+
+def assert_binary_files_equal(
     file1: Path,
     file2: Path,
     hash_fn: Callable[[bytes], hashlib._hashlib.HASH] = hashlib.md5
 ) -> None:
-    with open(file1, "rb") as inp1:
-        file1_md5 = hash_fn(inp1.read()).hexdigest()
-    with open(file2, "rb") as inp2:
-        file2_md5 = hash_fn(inp2.read()).hexdigest()
-    if file1_md5 != file2_md5:
-        raise AssertionError(
-            f"MD5 hashes differ between expected identical files "
-            f"{file1}, {file2}"
-        )
+    fmt = guess_file_format(file1)
+    if fmt and fmt in BINARY_COMPARATORS:
+        BINARY_COMPARATORS[fmt](file1, file2)
+    else:
+        with open(file1, "rb") as inp1:
+            file1_md5 = hash_fn(inp1.read()).hexdigest()
+        with open(file2, "rb") as inp2:
+            file2_md5 = hash_fn(inp2.read()).hexdigest()
+        if file1_md5 != file2_md5:
+            raise AssertionError(
+                f"MD5 hashes differ between expected identical files "
+                f"{file1}, {file2}"
+            )

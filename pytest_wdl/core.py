@@ -17,7 +17,7 @@ import tempfile
 from typing import Callable, List, Optional, Sequence, Type, Union, cast
 
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.data_types import DataFile, DefaultDataFile
+from pytest_wdl.data_types import DEFAULT_TYPE, DataFile, DefaultDataFile
 from pytest_wdl.executors import Executor
 from pytest_wdl.localizers import LinkLocalizer, StringLocalizer, UrlLocalizer
 from pytest_wdl.url_schemes import install_schemes
@@ -159,7 +159,7 @@ class DataManager:
 
 def create_data_file(
     user_config: UserConfiguration,
-    type: Optional[Union[str, dict]] = "default",
+    type: Optional[Union[str, dict]] = DEFAULT_TYPE,
     name: Optional[str] = None,
     path: Optional[Union[str, Path]] = None,
     url: Optional[str] = None,
