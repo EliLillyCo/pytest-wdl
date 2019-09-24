@@ -19,7 +19,9 @@ from typing import Callable, List, Optional, Sequence, Type, Union, cast
 from pytest_wdl.config import UserConfiguration
 from pytest_wdl.data_types import DEFAULT_TYPE, DataFile, DefaultDataFile
 from pytest_wdl.executors import Executor
-from pytest_wdl.localizers import LinkLocalizer, StringLocalizer, UrlLocalizer
+from pytest_wdl.localizers import (
+    LinkLocalizer, StringLocalizer, JsonLocalizer, UrlLocalizer
+)
 from pytest_wdl.url_schemes import install_schemes
 from pytest_wdl.utils import ensure_path, plugin_factory_map
 
@@ -163,7 +165,7 @@ def create_data_file(
     name: Optional[str] = None,
     path: Optional[Union[str, Path]] = None,
     url: Optional[str] = None,
-    contents: Optional[str] = None,
+    contents: Optional[Union[str, dict]] = None,
     env: Optional[str] = None,
     datadirs: Optional[DataDirs] = None,
     http_headers: Optional[dict] = None,
@@ -200,7 +202,10 @@ def create_data_file(
                 filename = url.rsplit("/", 1)[1]
                 local_path = ensure_path(user_config.cache_dir / filename)
     elif contents:
-        localizer = StringLocalizer(contents)
+        if isinstance(contents, str):
+            localizer = StringLocalizer(cast(str, contents))
+        else:
+            localizer = JsonLocalizer(cast(dict, contents))
         if not local_path:
             if name:
                 local_path = ensure_path(user_config.cache_dir / name)

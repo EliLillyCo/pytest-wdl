@@ -12,6 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 from abc import ABCMeta, abstractmethod
+import json
 from pathlib import Path
 from typing import Optional, cast
 from urllib import request
@@ -107,6 +108,16 @@ class StringLocalizer(Localizer):
         LOG.debug(f"Persisting {destination} from contents")
         with open(destination, "wt") as out:
             out.write(self.contents)
+
+
+class JsonLocalizer(Localizer):
+    def __init__(self, contents: dict):
+        self.contents = contents
+
+    def localize(self, destination: Path):
+        LOG.debug(f"Persisting {destination} from contents")
+        with open(destination, "wt") as out:
+            json.dump(self.contents, out)
 
 
 class LinkLocalizer(Localizer):

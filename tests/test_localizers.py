@@ -11,11 +11,13 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import json
 import re
 import pytest
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.localizers import LinkLocalizer, StringLocalizer, UrlLocalizer
+from pytest_wdl.localizers import (
+    LinkLocalizer, StringLocalizer, JsonLocalizer, UrlLocalizer
+)
 from pytest_wdl.utils import tempdir
 from . import GOOD_URL, no_internet, setenv
 
@@ -38,6 +40,18 @@ def test_string_localizer():
         StringLocalizer("foo").localize(foo)
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
+
+
+def test_json_localizer():
+    with tempdir() as d:
+        foo = d / "foo"
+        contents = {
+            "foo": 1,
+            "bar": "a"
+        }
+        JsonLocalizer(contents).localize(foo)
+        with open(foo, "rt") as inp:
+            assert json.load(inp) == contents
 
 
 @pytest.mark.skipif(no_internet, reason="no internet available")
