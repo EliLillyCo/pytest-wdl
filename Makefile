@@ -13,7 +13,7 @@ TEST =
 
 all: clean install install_extras test
 
-install:
+install: clean
 	python setup.py bdist_wheel
 	pip install --upgrade dist/*.whl $(installargs)
 

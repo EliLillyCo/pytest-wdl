@@ -37,12 +37,17 @@ class VcfDataFile(DataFile):
             self.compare_opts.get("compare_phase") or
             other_opts.get("compare_phase")
         )
-        assert_text_files_equal(
-            self.path,
-            other_path,
-            self._get_allowed_diff_lines(other_opts),
-            diff_fn=partial(diff_vcf_columns, compare_phase=compare_phase)
-        )
+        try:
+            assert_text_files_equal(
+                self.path,
+                other_path,
+                self._get_allowed_diff_lines(other_opts),
+                diff_fn=partial(diff_vcf_columns, compare_phase=compare_phase)
+            )
+        except AssertionError as err:
+            raise AssertionError(
+                f"VCF files are not equal: {self.path} != {other_path}"
+            ) from err
 
 
 def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> int:

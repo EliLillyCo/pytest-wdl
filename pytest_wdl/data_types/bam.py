@@ -51,13 +51,18 @@ class BamDataFile(DataFile):
     SAM, so that DataFile can carry out a regular diff on the SAM files.
     """
     def _assert_contents_equal(self, other_path: Path, other_opts: dict):
-        assert_bam_files_equal(
-            self.path,
-            other_path,
-            allowed_diff_lines=self._get_allowed_diff_lines(other_opts),
-            min_mapq=self._get_min_mapq(other_opts),
-            compare_tag_columns=self._get_compare_tag_columns(other_opts)
-        )
+        try:
+            assert_bam_files_equal(
+                self.path,
+                other_path,
+                allowed_diff_lines=self._get_allowed_diff_lines(other_opts),
+                min_mapq=self._get_min_mapq(other_opts),
+                compare_tag_columns=self._get_compare_tag_columns(other_opts)
+            )
+        except AssertionError as err:
+            raise AssertionError(
+                f"BAM files are not equal: {self.path} != {other_path}"
+            ) from err
 
     def _get_min_mapq(self, other_opts: dict) -> int:
         return max(

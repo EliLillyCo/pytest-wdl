@@ -164,23 +164,40 @@ def validate_outputs(outputs: dict, expected: dict, target: str) -> None:
         compare_output_values(expected_value, outputs[key], key)
 
 
-def compare_output_values(expected_value, actual_value, name) -> None:
+def compare_output_values(expected_value, actual_value, name: str) -> None:
     """
     Compare two values and raise an error if they are not equal.
 
     Args:
         expected_value:
         actual_value:
+        name: Name of the output being compared
 
     Raises:
         AssertionError
     """
-    if isinstance(expected_value, list):
-        assert len(expected_value) == len(actual_value)
+    if actual_value is None:
+        if expected_value is None:
+            return
+        else:
+            raise AssertionError(
+                f"Expected and actual values differ for {name}: "
+                f"{expected_value} != {actual_value}"
+            )
+    elif isinstance(expected_value, list):
+        if len(expected_value) != len(actual_value):
+            raise AssertionError(
+                f"Expected and actual values differ in length for {name}: "
+                f"{len(expected_value)} != {len(actual_value)}"
+            )
         for i, (exp, act) in enumerate(zip(expected_value, actual_value)):
             compare_output_values(exp, act, f"{name}[{i}]")
     elif isinstance(expected_value, dict):
-        assert len(expected_value) == len(actual_value)
+        if len(expected_value) != len(actual_value):
+            raise AssertionError(
+                f"Expected and actual values differ in length for {name}: "
+                f"{len(expected_value)} != {len(actual_value)}"
+            )
         for key, exp in expected_value.items():
             assert key in actual_value
             compare_output_values(exp, actual_value[key], f"{name}.{key}")
