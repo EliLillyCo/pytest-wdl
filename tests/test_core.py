@@ -61,12 +61,21 @@ def test_data_file_gz():
         foo = d / "foo.txt.gz"
         with gzip.open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DefaultDataFile(foo, allowed_diff_lines=1)
+        df = DefaultDataFile(foo, allowed_diff_lines=0)
 
+        # Compare identical files
         bar = d / "bar.txt.gz"
         with gzip.open(bar, "wt") as out:
-            out.write("foo\nbaz")
+            out.write("foo\nbar")
+        df.assert_contents_equal(bar)
+        df.assert_contents_equal(str(bar))
+        df.assert_contents_equal(DefaultDataFile(bar))
 
+        # Compare differing files
+        df.set_compare_opts(allowed_diff_lines=1)
+        baz = d / "baz.txt.gz"
+        with gzip.open(baz, "wt") as out:
+            out.write("foo\nbaz")
         df.assert_contents_equal(bar)
         df.assert_contents_equal(str(bar))
         df.assert_contents_equal(DefaultDataFile(bar))
