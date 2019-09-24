@@ -187,7 +187,7 @@ def compare_output_values(expected_value, actual_value, name) -> None:
     elif isinstance(expected_value, DataFile):
         # TODO: pass name
         expected_value.assert_contents_equal(actual_value)
-    else:
+    elif expected_value != actual_value:
         raise AssertionError(
             f"Expected and actual values differ for {name}: "
             f"{expected_value} != {actual_value}"
