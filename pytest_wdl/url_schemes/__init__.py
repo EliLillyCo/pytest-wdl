@@ -20,6 +20,7 @@ from typing import Optional, Sequence
 from urllib.request import BaseHandler, Request, build_opener, install_opener
 
 from pkg_resources import iter_entry_points
+from xphyle import open_
 
 from pytest_wdl.utils import LOG, PluginFactory
 
@@ -85,7 +86,7 @@ class BaseResponse(Response, metaclass=ABCMeta):
         else:
             reader = functools.partial(self.read, block_size)
 
-        with open(destination, "wb") as out:
+        with open_(destination, "wb") as out:
             while True:
                 buf = reader()
                 if not buf:

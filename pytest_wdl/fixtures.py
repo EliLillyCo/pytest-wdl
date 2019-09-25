@@ -26,6 +26,7 @@ from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
 from pytest_subtests import SubTests
+from xphyle import open_
 
 from pytest_wdl.core import (
     DataResolver, DataManager, DataDirs, UserConfiguration, create_executor
@@ -138,7 +139,7 @@ def workflow_data_descriptors(
         is_file=True,
         exists=True
     )
-    with open(workflow_data_descriptor_path, "rt") as inp:
+    with open_(workflow_data_descriptor_path, "rt") as inp:
         return json.load(inp)
 
 
@@ -217,7 +218,7 @@ def import_dirs(
 
         paths = []
 
-        with open(import_paths, "rt") as inp:
+        with open_(import_paths, "rt") as inp:
             for path_str in inp.read().splitlines(keepends=False):
                 path = Path(path_str)
                 if not path.is_absolute():

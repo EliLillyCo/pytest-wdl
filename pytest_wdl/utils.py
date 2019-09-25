@@ -13,7 +13,8 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+#
+# TODO: some of the code here can be replaced by functions in xphyle.{paths,utils}
 from collections import defaultdict
 import contextlib
 import fnmatch
@@ -34,7 +35,6 @@ from py._path.local import LocalPath
 
 LOG = logging.getLogger("pytest-wdl")
 LOG.setLevel(os.environ.get("LOGLEVEL", "WARNING").upper())
-
 
 ENV_PATH = "PATH"
 ENV_CLASSPATH = "CLASSPATH"

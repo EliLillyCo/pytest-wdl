@@ -17,6 +17,8 @@ from pathlib import Path
 import tempfile
 from typing import List, Optional, Sequence, Tuple
 
+from xphyle import open_
+
 from pytest_wdl.data_types import DataFile
 from pytest_wdl.utils import ensure_path, safe_string
 
@@ -98,7 +100,7 @@ def get_workflow_inputs(
     if inputs_file:
         inputs_file = ensure_path(inputs_file)
         if inputs_file.exists():
-            with open(inputs_file, "rt") as inp:
+            with open_(inputs_file, "rt") as inp:
                 inputs_dict = json.load(inp)
                 return inputs_dict, inputs_file
 
@@ -114,7 +116,7 @@ def get_workflow_inputs(
         else:
             inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
 
-        with open(inputs_file, "wt") as out:
+        with open_(inputs_file, "wt") as out:
             json.dump(inputs_dict, out, default=str)
 
     return inputs_dict, inputs_file

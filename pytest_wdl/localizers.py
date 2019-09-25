@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Optional, cast
 from urllib import request
 
+from xphyle import open_
+
 from pytest_wdl.config import UserConfiguration
 from pytest_wdl.url_schemes import Response, ResponseWrapper
 from pytest_wdl.utils import LOG, env_map, resolve_value_descriptor
@@ -106,7 +108,7 @@ class StringLocalizer(Localizer):
 
     def localize(self, destination: Path):
         LOG.debug(f"Persisting {destination} from contents")
-        with open(destination, "wt") as out:
+        with open_(destination, "wt") as out:
             out.write(self.contents)
 
 
@@ -116,7 +118,7 @@ class JsonLocalizer(Localizer):
 
     def localize(self, destination: Path):
         LOG.debug(f"Persisting {destination} from contents")
-        with open(destination, "wt") as out:
+        with open_(destination, "wt") as out:
             json.dump(self.contents, out)
 
 

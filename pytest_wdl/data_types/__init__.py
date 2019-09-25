@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable, Optional, Union, cast
 
 import subby
+from xphyle import open_
 
 from pytest_wdl.localizers import Localizer
 from pytest_wdl.utils import tempdir
@@ -174,9 +175,9 @@ def assert_binary_files_equal(
     if fmt and fmt in BINARY_COMPARATORS:
         BINARY_COMPARATORS[fmt](file1, file2)
     else:
-        with open(file1, "rb") as inp1:
+        with open_(file1, "rb") as inp1:
             file1_md5 = hash_fn(inp1.read()).hexdigest()
-        with open(file2, "rb") as inp2:
+        with open_(file2, "rb") as inp2:
             file2_md5 = hash_fn(inp2.read()).hexdigest()
         if file1_md5 != file2_md5:
             raise AssertionError(
