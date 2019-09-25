@@ -65,7 +65,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pytest>=5.1",
-        "subby>=0.1.5",
+        "subby>=0.1.6",
         "miniwdl>=0.3.0",
         "pytest-subtests",
         "xphyle>=4.1.2"
