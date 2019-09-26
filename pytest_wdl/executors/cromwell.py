@@ -11,18 +11,20 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
+import glob
 import json
 import os
 from pathlib import Path
 import re
-from typing import List, Optional, Sequence, Union
+import tempfile
+from typing import List, Optional, Union
 
-import delegator
+import subby
 
-from pytest_wdl.executors import get_workflow, get_workflow_inputs, get_workflow_imports
-from pytest_wdl.core import Executor, DataFile
-from pytest_wdl.utils import LOG, ensure_path, find_executable_path, find_in_classpath
+from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
+from pytest_wdl.utils import (
+    LOG, ensure_path, find_executable_path, find_in_classpath
+)
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
@@ -37,8 +39,6 @@ class CromwellExecutor(Executor):
     Manages the running of WDL workflows using Cromwell.
 
     Args:
-        search_paths: The root path(s) to which non-absolute WDL script paths are
-            relative.
         import_dirs: Relative or absolute paths to directories containing WDL
             scripts that should be available as imports.
         java_bin: Path to the java executable.
@@ -50,7 +50,6 @@ class CromwellExecutor(Executor):
     """
     def __init__(
         self,
-        search_paths: Sequence[Path],
         import_dirs: Optional[List[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None,
@@ -58,8 +57,7 @@ class CromwellExecutor(Executor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        self.search_paths = search_paths
-        self.import_dirs = import_dirs
+        super().__init__(import_dirs)
 
         if not java_bin:
             java_home = os.environ.get(ENV_JAVA_HOME)
@@ -108,8 +106,7 @@ class CromwellExecutor(Executor):
 
     def run_workflow(
         self,
-        wdl_script: Union[str, Path],
-        workflow_name: Optional[str] = None,
+        wdl_path: Union[str, Path],
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -119,13 +116,13 @@ class CromwellExecutor(Executor):
         given expected values.
 
         Args:
-            wdl_script: The WDL script to execute.
-            workflow_name: The name of the workflow in the WDL script. If None, the
-                name of the WDL script is used (without the .wdl extension).
+            wdl_path: The WDL script to execute.
             inputs: Object that will be serialized to JSON and provided to Cromwell
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
             kwargs: Additional keyword arguments, mostly for debugging:
+                * workflow_name: The name of the workflow in the WDL script. If None,
+                    the name of the WDL script is used (without the .wdl extension).
                 * inputs_file: Path to the Cromwell inputs file to use. Inputs are
                     written to this file only if it doesn't exist.
                 * imports_file: Path to the WDL imports file to use. Imports are
@@ -140,17 +137,13 @@ class CromwellExecutor(Executor):
             Exception: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        wdl_path, workflow_name = get_workflow(
-            self.search_paths, wdl_script, workflow_name
-        )
+        workflow_name = self._get_workflow_name(wdl_path, kwargs)
 
         inputs_dict, inputs_file = get_workflow_inputs(
-            workflow_name, inputs, kwargs.get("inputs_file")
+            inputs, kwargs.get("inputs_file"), workflow_name
         )
 
-        imports_file = get_workflow_imports(
-            self.import_dirs, kwargs.get("imports_file")
-        )
+        imports_file = self.get_workflow_imports(kwargs.get("imports_file"))
 
         inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
@@ -165,29 +158,77 @@ class CromwellExecutor(Executor):
             f"Executing cromwell command '{cmd}' with inputs "
             f"{json.dumps(inputs_dict, default=str)}"
         )
-        exe = delegator.run(cmd, block=True)
+
+        exe = subby.run(cmd, raise_on_error=False)
         if not exe.ok:
             raise Exception(
-                f"Cromwell command failed; stdout={exe.out}; stderr={exe.err}"
+                f"Cromwell command failed; stdout={exe.output}; stderr={exe.error}"
             )
 
-        outputs = CromwellExecutor.get_cromwell_outputs(exe.out)
+        outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
 
         if expected:
-            for name, expected_value in expected.items():
-                key = f"{workflow_name}.{name}"
-                if key not in outputs:
-                    raise AssertionError(f"Workflow did not generate output {key}")
-                if isinstance(expected_value, DataFile):
-                    expected_value.assert_contents_equal(outputs[key])
-                else:
-                    assert expected_value == outputs[key]
+            validate_outputs(outputs, expected, workflow_name)
 
         return outputs
 
+    def get_workflow_imports(self, imports_file: Optional[Path] = None) -> Path:
+        """
+        Creates a ZIP file with all WDL files to be imported.
+
+        Args:
+            imports_file: Text file naming import directories/files - one per line.
+
+        Returns:
+            Path to the ZIP file.
+        """
+        write_imports = bool(self.import_dirs)
+        imports_path = None
+
+        if imports_file:
+            imports_path = ensure_path(imports_file)
+            if imports_path.exists():
+                write_imports = False
+
+        if write_imports and self.import_dirs:
+            imports = [
+                wdl
+                for path in self.import_dirs
+                for wdl in glob.glob(str(path / "*.wdl"))
+            ]
+            if imports:
+                if imports_path:
+                    ensure_path(imports_path, is_file=True, create=True)
+                else:
+                    imports_path = Path(tempfile.mkstemp(suffix=".zip")[1])
+
+                imports_str = " ".join(imports)
+
+                LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
+                exe = subby.run(
+                    f"zip -j - {imports_str}",
+                    mode=bytes,
+                    stdout=imports_path,
+                    raise_on_error=False
+                )
+                if not exe.ok:
+                    raise Exception(
+                        f"Error creating imports zip file; stdout={exe.output}; "
+                        f"stderr={exe.error}"
+                    )
+
+        return imports_path
+
     @staticmethod
-    def get_cromwell_outputs(output):
+    def get_cromwell_outputs(output) -> dict:
         lines = output.splitlines(keepends=False)
+        if len(lines) < 2:
+            raise Exception(f"Invalid Cromwell output: {output}")
+        if lines[1].startswith("Usage"):
+            # If the cromwell command is not valid, usage is printed and the
+            # return code is 0 so it does not cause an exception above - we
+            # have to catch it here.
+            raise Exception("Invalid Cromwell command")
         start = None
         for i, line in enumerate(lines):
             if line == "{" and lines[i+1].lstrip().startswith('"outputs":'):

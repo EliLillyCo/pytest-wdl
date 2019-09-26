@@ -1,6 +1,3 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-#
 #    Copyright 2019 Eli Lilly and Company
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +15,19 @@
 """
 Convert BAM to SAM for diff.
 """
+from enum import Enum
+from functools import partial
 from pathlib import Path
 import re
 from typing import Optional
 
-from pytest_wdl.core import DataFile, tempdir
+import subby
+from xphyle import open_
 
+from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
+from pytest_wdl.utils import tempdir
 
-try:
+try:  # pragma: no-cover
     import pysam
 except ImportError:
     raise ImportError(
@@ -34,46 +36,174 @@ except ImportError:
     )
 
 
+INVARIATE_COLUMNS = "1,2,5,10,11"
+ALL_COLUMNS = "1-11"
+
+
+class Sorting(Enum):
+    NONE = 0
+    COORDINATE = 1
+    NAME = 2
+
+
 class BamDataFile(DataFile):
     """
     Supports comparing output of BAM file. This uses pysam to convert BAM to
     SAM, so that DataFile can carry out a regular diff on the SAM files.
     """
-    @classmethod
-    def _assert_contents_equal(
-        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
-    ):
-        cls._diff_contents(file1, file2, allowed_diff_lines)
+    def _assert_contents_equal(self, other_path: Path, other_opts: dict):
+        try:
+            assert_bam_files_equal(
+                self.path,
+                other_path,
+                allowed_diff_lines=self._get_allowed_diff_lines(other_opts),
+                min_mapq=self._get_min_mapq(other_opts),
+                compare_tag_columns=self._get_compare_tag_columns(other_opts)
+            )
+        except AssertionError as err:
+            raise AssertionError(
+                f"BAM files are not equal: {self.path} != {other_path}"
+            ) from err
 
-    @classmethod
-    def _diff(cls, file1: Path, file2: Path):
-        """
-        Special handling for BAM files to read them into SAM so we can
-        compare them.
+    def _get_min_mapq(self, other_opts: dict) -> int:
+        return max(
+            self.compare_opts.get("min_mapq", 0),
+            other_opts.get("min_mapq", 0)
+        )
 
-        Args:
-            file1:
-            file2:
-        """
+    def _get_compare_tag_columns(self, other_opts: dict) -> bool:
+        return (
+            self.compare_opts.get("compare_tag_columns") or
+            other_opts.get("compare_tag_columns")
+        )
+
+
+def assert_bam_files_equal(
+    file1: Path,
+    file2: Path,
+    allowed_diff_lines: int = 0,
+    min_mapq: int = 0,
+    compare_tag_columns: bool = False
+):
+    """
+    Compare two BAM files:
+    * Convert them to SAM format
+    * Optionally re-sort the files by chromosome, position, and flag
+    * First compare all lines using only a subset of columns that should be
+    deterministic
+    * Next, filter the files by MAPQ and compare the remaining rows using all columns
+
+    Args:
+        file1: First BAM to compare
+        file2: Second BAM to compare
+        allowed_diff_lines: Number of lines by which the BAMs are allowed to differ
+            (after being convert to SAM)
+        min_mapq: Minimum mapq used to filter reads when comparing all columns
+        compare_tag_columns: Whether to include tag columns (12+) when comparing
+            all columns
+    """
+    with tempdir() as temp:
+        # Compare all reads using subset of columns
+        cmp_file1 = temp / "all_reads_subset_columns_file1"
+        cmp_file2 = temp / "all_reads_subset_columns_file2"
+        bam_to_sam(
+            file1,
+            cmp_file1,
+            headers=False,
+            sorting=Sorting.NAME
+        )
+        bam_to_sam(
+            file2,
+            cmp_file2,
+            headers=False,
+            sorting=Sorting.NAME
+        )
+        assert_text_files_equal(
+            cmp_file1,
+            cmp_file2,
+            allowed_diff_lines,
+            diff_fn=partial(diff_bam_columns, columns=INVARIATE_COLUMNS)
+        )
+
+        # Compare subset of reads using all columns
+        cmp_file1 = temp / "subset_reads_all_columns_file1"
+        cmp_file2 = temp / "subset_reads_all_columns_file2"
+        bam_to_sam(
+            file1,
+            cmp_file1,
+            headers=True,
+            min_mapq=min_mapq,
+            sorting=Sorting.COORDINATE,
+        )
+        bam_to_sam(
+            file2,
+            cmp_file2,
+            headers=True,
+            min_mapq=min_mapq,
+            sorting=Sorting.COORDINATE
+        )
+        if compare_tag_columns:
+            diff_fn = diff_default
+        else:
+            diff_fn = partial(diff_bam_columns, columns=ALL_COLUMNS)
+        assert_text_files_equal(
+            cmp_file1,
+            cmp_file2,
+            allowed_diff_lines,
+            diff_fn=diff_fn
+        )
+
+
+def bam_to_sam(
+    input_bam: Path,
+    output_sam: Path,
+    headers: bool = True,
+    min_mapq: Optional[int] = None,
+    sorting: Sorting = Sorting.NONE
+):
+    """
+    Use PySAM to convert bam to sam.
+    """
+    opts = []
+    if headers:
+        opts.append("-h")
+    if min_mapq:
+        opts.extend(["-q", str(min_mapq)])
+    sam = pysam.view(*opts, str(input_bam)).rstrip()
+    # Replace any randomly assigned readgroups with a common placeholder
+    sam = re.sub(r"UNSET-\w*\b", "UNSET-placeholder", sam)
+
+    if sorting is not Sorting.NONE:
+        lines = sam.splitlines(keepends=True)
+        start = 0
+        if headers:
+            for i, line in enumerate(lines):
+                if not line.startswith("@"):
+                    start = i
+                    break
+
         with tempdir() as temp:
-            cmp_file1 = temp / "file1"
-            cmp_file2 = temp / "file2"
-            _bam_to_sam(file1, cmp_file1)
-            _bam_to_sam(file2, cmp_file2)
-            return super()._diff(cmp_file1, cmp_file2)
+            temp_sam = temp / f"output_{str(output_sam.stem)}.sam"
+            with open_(temp_sam, "w") as out:
+                out.write("".join(lines[start:]))
+            if sorting is Sorting.COORDINATE:
+                sort_cols = "-k3,3 -k4,4n -k2,2n"
+            else:
+                sort_cols = "-k1,1 -k2,2n"
+            sorted_sam = subby.sub(f"cat {str(temp_sam)} | sort {sort_cols}")
+            lines = lines[:start] + [sorted_sam]
+
+    with open_(output_sam, "w") as out:
+        out.write("".join(lines))
 
 
-def _bam_to_sam(input_bam: Path, output_sam: Path):
-    """Use PySAM to convert bam to sam."""
-    samfile = pysam.view("-h", str(input_bam))
-    # avoid trailing newline.
-    newline = ""
-    with open(output_sam, "w") as file_handle:
-        for row in samfile.splitlines():
-            file_handle.write(newline + _remove_samtools_randomness(row))
-            newline = "\n"
+def diff_bam_columns(file1: Path, file2: Path, columns: str) -> int:
+    with tempdir() as temp:
+        def make_comparable(inpath, output):
+            subby.run(f"cat {inpath} | cut -f {columns}", stdout=output)
 
-
-def _remove_samtools_randomness(sam_line):
-    """Replace the random IDs added by samtools."""
-    return re.sub(r"UNSET-\w*\b", "UNSET-placeholder", sam_line)
+        cmp_file1 = temp / "cmp_file1"
+        cmp_file2 = temp / "cmp_file2"
+        make_comparable(file1, cmp_file1)
+        make_comparable(file2, cmp_file2)
+        return diff_default(cmp_file1, cmp_file2)

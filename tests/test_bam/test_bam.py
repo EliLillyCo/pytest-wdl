@@ -17,9 +17,13 @@
 """
 Test that bam data_type works.
 """
-from pytest_wdl.utils import find_project_path
+from typing import cast
+
 from .. import no_internet
 import pytest
+
+from pytest_wdl.data_types.bam import BamDataFile
+from pytest_wdl.utils import find_project_path
 
 
 @pytest.fixture(scope="module")
@@ -43,13 +47,22 @@ def test_bam(workflow_data, workflow_runner):
     )
 
 
-@pytest.mark.integration
-def test_bam_removing_randomness(workflow_data, workflow_runner):
+def test_bam_removing_randomness(workflow_data):
     """Test that BAMs with the only difference being random IDs
     added by samtools are evaluated as equal."""
-    workflow_runner(
-        wdl_script="tests/test_bam/test_bam_norandom.wdl",
-        workflow_name="test_bam_no_random",
-        inputs=workflow_data.get_dict(bam="random_id_bam_input"),
-        expected=workflow_data.get_dict(output_bam="random_id_bam_output")
-    )
+    b1 = workflow_data["random_id_bam_input"]
+    b2 = workflow_data["random_id_bam_output"]
+    cast(BamDataFile, b2).assert_contents_equal(b1)
+
+
+def test_bam_diff(workflow_data):
+    b1 = workflow_data["random_id_bam_output"]
+    b2 = workflow_data["ignorable_difference"]
+    cast(BamDataFile, b1).assert_contents_equal(b2)
+
+    b3 = workflow_data["non_ignorable_difference"]
+    with pytest.raises(AssertionError):
+        cast(BamDataFile, b1).assert_contents_equal(b3)
+
+    cast(BamDataFile, b3).compare_opts["allowed_diff_lines"] = 1
+    cast(BamDataFile, b1).assert_contents_equal(b3)

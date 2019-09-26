@@ -7,20 +7,19 @@ tests = tests
 pytestopts = -s -vv --show-capture=all
 #pytestopts = -s -vv --show-capture=all -m "not integration"
 
-BUILD = rm -Rf dist/* && python setup.py bdist_wheel && pip install --upgrade dist/*.whl $(installargs)
-INSTALL_EXTRAS = pip install .[all]
-TEST = env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests) && coverage report -m && coverage xml
+all: clean install install_extras test
 
-all:
-	$(BUILD)
-	$(INSTALL_EXTRAS)
-	$(TEST)
+install: clean
+	python setup.py bdist_wheel
+	pip install --upgrade dist/*.whl $(installargs)
 
-install:
-	$(BUILD)
+install_extras:
+	pip install .[all]
 
 test:
-	$(TEST)
+	env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests)
+	coverage report -m
+	coverage xml
 
 lint:
 	flake8 $(package)
@@ -38,25 +37,30 @@ clean:
 	rm -Rf **/*.c
 	rm -Rf **/*.so
 	rm -Rf **/*.pyc
-	rm -Rf dist
-	rm -Rf build
+	rm -Rf dist/
+	rm -Rf build/
 	rm -Rf $(package).egg-info
 	rm -Rf cromwell-workflow-logs
 
-release:
-	$(clean)
-	# tag
+tag:
 	git tag $(version)
-	# build
-	$(BUILD)
-	$(TEST)
-	python setup.py sdist bdist_wheel
-	# release
-	python setup.py sdist upload -r omics-pypi
-	git push origin --tags
-	$(github_release)
 
-github_release:
+push_tag:
+	git push origin --tags
+
+del_tag:
+	git tag -d $(version)
+
+pypi_release:
+	# create source distribution
+	python setup.py sdist
+	# PyPI release
+	python setup.py sdist upload -r omics-pypi
+
+release: clean tag
+	${MAKE} install install_extras test pypi_release push_tag || (${MAKE} del_tag && exit 1)
+
+	# GitHub release
 	curl -v -i -X POST \
 		-H "Content-Type:application/json" \
 		-H "Authorization: token $(token)" \

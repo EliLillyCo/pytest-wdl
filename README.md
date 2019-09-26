@@ -1,5 +1,3 @@
-# pytest-wdl
-
 [![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=master)](https://travis-ci.com/EliLillyCo/pytest-wdl)
 [![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
 [![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
@@ -41,9 +39,14 @@ $ pip install git+https://github.com/elilillyco/pytest-wdl.git
 
 Some optional features of pytest-wdl have additional dependencies that are loaded on-demand. For example, to enable comparison of expected and actual BAM file outputs of a workflow, the [pysam](https://pysam.readthedocs.io/) library is required.
 
-The following data types require an "extras" installation:
+The following plugins require an "extras" installation:
 
-- bam
+- Data types
+    - bam
+- URL schemes
+    - dx (DNAnexus)
+- Other
+    - progress (show progress bars when downloading files)
 
 To install the dependencies for a data type that has extra dependencies:
 
@@ -78,7 +81,6 @@ def test_variant_caller(workflow_data, workflow_runner):
     expected = workflow_data.get_dict("vcf")
     workflow_runner(
         "variant_caller.wdl",
-        "call_variants",
         inputs,
         expected
     )
@@ -131,7 +133,7 @@ Input and output data are defined in a `test_data.json` file in the same directo
 
 For details, [read the docs](https://pytest-wdl.readthedocs.io).
 
-## Development
+## Contributing
 
 To develop pytest-wdl, clone the repository and install all the dependencies:
 
@@ -145,3 +147,7 @@ To run the full build and unit tests, run:
 ```commandline
 $ make
 ```
+
+## Support
+
+pytest-wdl is *not* an official product of Eli Lilly or DNAnexus. Please do *not* contact these companies (or any employees thereof) for support. To report a bug or feature request, please open an issue in the [issue tracker](https://github.com/EliLillyCo/pytest-wdl/issues).
