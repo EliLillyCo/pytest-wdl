@@ -7,11 +7,14 @@ tests = tests
 pytestopts = -s -vv --show-capture=all
 #pytestopts = -s -vv --show-capture=all -m "not integration"
 
-all: clean install install_extras test
+all: clean install install_extras install_development_requirements test test_release_setup
 
 install: clean
 	python setup.py bdist_wheel
 	pip install --upgrade dist/*.whl $(installargs)
+
+install_development_requirements:
+	pip install -r requirements.txt
 
 install_extras:
 	pip install .[all]
@@ -20,6 +23,9 @@ test:
 	env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests)
 	coverage report -m
 	coverage xml
+
+test_release_setup:
+	twine check dist/*
 
 lint:
 	flake8 $(package)
