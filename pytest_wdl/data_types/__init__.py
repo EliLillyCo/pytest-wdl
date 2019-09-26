@@ -117,12 +117,33 @@ class DefaultDataFile(DataFile):
 
 
 def diff_default(file1: Path, file2: Path) -> int:
-    cmds = [
-        f"diff -y --suppress-common-lines --ignore-trailing-space {file1} {file2}",
-        "grep -c '^'"
-    ]
-    # It's a valid result to have no lines match, so allow a grep returncode of 1
-    return int(subby.sub(cmds, allowed_return_codes=(0, 1)))
+    """
+    Default diff command.
+
+    Args:
+        file1: First file to compare
+        file2: Second file to compare
+
+    Returns:
+        Number of different lines.
+    """
+    with tempdir() as temp:
+        # Remove trailing whitespace, and ensure a newline at the end of the file
+        cmp_file1 = temp / "file1"
+        cmp_file2 = temp / "file2"
+        subby.run("sed 's/[[:space:]]*$//; $a\\'", stdin=file1, stdout=cmp_file1)
+        subby.run("sed 's/[[:space:]]*$//; $a\\'", stdin=file2, stdout=cmp_file2)
+
+        # diff - it would be possible to do this without sed using GNU diff with the
+        # `--ignore-trailing-space` option, but unfortunately that option is not
+        # available in macOS diff, which provides BSD versions of the tools by default.
+        cmds = [
+            f"diff -y --suppress-common-lines {cmp_file1} {cmp_file2}",
+            "grep -c '^'"
+        ]
+
+        # It's a valid result to have no lines match, so allow a grep returncode of 1
+        return int(subby.sub(cmds, allowed_return_codes=(0, 1)))
 
 
 def assert_text_files_equal(

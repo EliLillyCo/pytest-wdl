@@ -54,7 +54,7 @@ class VcfDataFile(DataFile):
 def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> int:
     with tempdir() as temp:
         def make_comparable(infile, outfile):
-            cmd = ["grep -vP '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
+            cmd = ["grep -vE '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
             output = subby.sub(cmd, stdin=infile)
             with open_(outfile, "wt") as out:
                 if compare_phase:

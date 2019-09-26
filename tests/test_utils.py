@@ -131,7 +131,7 @@ def test_resolve_file():
 
 
 def test_resolve_missing_file():
-    with tempdir() as d:
+    with tempdir(change_dir=True) as d:
         assert resolve_file("foo", project_root=d, assert_exists=False) is None
         with pytest.raises(FileNotFoundError):
             resolve_file("foo", project_root=d, assert_exists=True)

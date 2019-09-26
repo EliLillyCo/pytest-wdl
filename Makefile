@@ -7,10 +7,6 @@ tests = tests
 pytestopts = -s -vv --show-capture=all
 #pytestopts = -s -vv --show-capture=all -m "not integration"
 
-BUILD =
-INSTALL_EXTRAS =
-TEST =
-
 all: clean install install_extras test
 
 install: clean
