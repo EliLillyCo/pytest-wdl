@@ -1,6 +1,7 @@
 coverage
-delegator.py
 miniwdl>=0.3.0
 pysam
 pytest>=5.1
 pytest-subtests
+subby>=0.1.6
+xphyle>=4.1.2

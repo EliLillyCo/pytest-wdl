@@ -69,11 +69,18 @@ There are also [several additional fixtures](#configuration) used for configurat
 
 Typically, workflows require inputs and generate outputs. Beyond simply ensuring that a workflow runs successfully, we often want to additionally test that it reproducibly generates the same results given the same inputs.
 
-Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow:
+Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object tyep that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
 
 ```json
 {
-  "input_int": 42
+  "input_int": 42,
+  "input_obj": {
+    "class": "Person",
+    "value": {
+      "name": "Joe",
+      "age": 42 
+    }
+  }
 }
 ```
 
@@ -83,7 +90,20 @@ For file inputs and outputs, pytest-wdl offers several different options. Test d
 
 Some additional options are available only for expected outputs, in order to specify how they should be compared to the actual outputs.
 
-Below is an example `test_data.json` file that demonstrates different ways to define input and output data files:
+File data can be defined the same as object data (i.e. "file" is a special class of object type):
+
+```json
+{
+  "config": {
+    "class": "file",
+    "value": {
+      "path": "config.json"
+    }
+  }
+}
+```
+
+As a short-cut, the "class" attribute can be omitted and the map describing the file provided directly as the value. Below is an example `test_data.json` file that demonstrates different ways to define input and output data files:
 
 ```json
 {
@@ -102,8 +122,10 @@ Below is an example `test_data.json` file that demonstrates different ways to de
   },
   "output_vcf": {
     "name": "output.vcf",
-    "type": "vcf",
-    "allowed_diff_lines": 2
+    "type": {
+      "name": "vcf",
+      "allowed_diff_lines": 2
+    }
   }
 }
 ```
@@ -121,23 +143,42 @@ The available keys for configuring file inputs/outputs are:
 
 In addition, the following keys are recognized for output files only:
 
-* `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison.
+* `type`: The file type. This is optional and only needs to be provided for certain types of files that are handled specially for the sake of comparison. The value can also be a hash with required key "name" and any other comparison-related attributes (including data type-specific attributes).
 * `allowed_diff_lines`: Optional and only used for outputs comparison. If '0' or not specified, it is assumed that the expected and actual outputs are identical.
 
+#### URL Schemes
+
+pytest_wdl uses `urllib`, which by default supports http, https, and ftp. If you need to support alternate URL schemes, you can do so via a  [plugin](#plugins). Currently, the following plugins are avaiable:
+
+* `dx` (DNAnexus) - requires the `dxpy` module
+ 
 #### Data Types
 
 When comparing actual and expected outputs, the "type" of the expected output is used to determine how the files are compared. If no type is specified, then the type is assumed to be "default."
 
-Available types:
+#### default
 
-- default: The default type if one is not specified.
-    - It can handle raw text files, as well as gzip compressed files.
-    - If `allowed_diff_lines` is 0 or not specified, then the files are compared by their MD5 hashes.
-    - If `allowed_diff_lines` is > 0, the files are converted to text and compared using the linux `diff` tool.
-- vcf: During comparison, headers are ignored, as are the QUAL, INFO, and FORMAT columns; for sample columns, only the first sample column is compared between files, and only the genotype values for that sample.
-- bam*:
-  - BAM is converted to SAM and headers are ignored.
-  - Replaces random UNSET-\w*\b type IDs that samtools often adds.
+The default type if one is not specified.
+
+- It can handle raw text files, as well as gzip compressed files.
+- If `allowed_diff_lines` is 0 or not specified, then the files are compared by their MD5 hashes.
+- If `allowed_diff_lines` is > 0, the files are converted to text and compared using the linux `diff` tool.
+
+#### vcf
+
+- During comparison, headers are ignored, as are the QUAL, INFO, and FORMAT columns; for sample columns, only the first sample column is compared between files, and only the genotype values for that sample.
+- Optional attributes:
+    - `compare_phase`: Whether to compare genotype phase; defaults to False.
+    
+#### bam*:
+
+- BAM is converted to SAM.
+- Replaces random UNSET-\w*\b type IDs that samtools often adds.
+- One comparison is performed using all rows and a subset of columns that are expected to be invariate. Rows are sorted by name and then by flag.
+- A second comparison is performed using all columns and a subset of rows based on filtering criteria. Rows are sorted by coordinate and then by name.
+- Optional attributes:
+    - `min_mapq`: The minimum MAPQ when filtering rows for the second comparison.
+    - `compare_tag_columns`: Whether to include tag columns (12+) when comparing all columns in the second comparison.
 
 \* requires extra dependencies to be installed, see 
 [Installing Data Type Plugins](#installing-data-type-plugins)
@@ -270,7 +311,7 @@ In the http_headers section of the configuration file, you can define a list of 
 | -------------| ------------- | ----------- | ----------- |
 | `java_bin` | `JAVA_HOME` | Path to java executable; If not specified, then Java executable is expected to be in $JAVA_HOME/bin/java | None |
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (if `cromwell_config_file` is specified |
-| `cromwell_jar` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
+| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 | `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; recommended to use `-Ddocker.hash-lookup.enabled=false` to disable Docker lookup by hash |
@@ -281,18 +322,18 @@ There are two fixtures that control the loading of the user configuration:
 
 | fixture name | scope | description | default |
 | -------------| ----- | ----------- | ------- |
-| `user_config_file` | session | The location of the user configuration file | The value of the `PYTEST_WDL_CONFIG` environment variable if set, otherwise `$HOME/pytest_wdl_config.json`  |
+| `user_config_file` | session | The location of the user configuration file | The value of the `PYTEST_WDL_CONFIG` environment variable if set, otherwise `$HOME/.pytest_wdl_config.json`  |
 | `user_config` | session | Provides a `UserConfiguration` object that is used by other fixtures to access configuration values | Default values are loaded from `user_config_file`, but most values can be overridden via environment variables (see below) |
 
 ## Plugins
 
-pytest-wdl provides the ability to implement 3rd-party plugins for data types and executors. When two plugins with the same name are present, the third-party plugin takes precedence over the built-in plugin (however, if there are two conflicting third-party plugins, an exception is raised).
+pytest-wdl provides the ability to implement 3rd-party plugins for data types, executors, and url schemes. When two plugins with the same name are present, the third-party plugin takes precedence over the built-in plugin (however, if there are two conflicting third-party plugins, an exception is raised).
 
 ### Creating new data types
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-Your plugin should subclass the `pytest_wdl.core.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
+Your plugin should subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -327,9 +368,9 @@ In this example, the extra dependencies can be installed with `pip install pytes
 
 To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
 
-Your plugin should subclass `pytest_wdl.core.Executor` and implement the `run_workflow()` method.
+Your plugin should subclass `pytest_wdl.executors.Executor` and implement the `run_workflow()` method.
 
-Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
+Next, add an entry point in setup.py. If the executor requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 
 ```python
 setup(
@@ -337,6 +378,28 @@ setup(
     entry_points={
         "pytest_wdl.executors": [
             "myexec = pytest_wdl.executors.myexec:MyExecutor"
+        ]
+    },
+    extras_require={
+        "myexec": ["mylib"]
+    }
+)
+```
+
+### Supporting alternative URL schemes
+
+If you want to use test data files that are available via a service that does not support http/https/ftp downloads, you can implement a custom URL scheme.
+
+Your plugin should subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
+
+Next, add an entry point in setup.py. If the schem requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
+
+```python
+setup(
+    ...,
+    entry_points={
+        "pytest_wdl.url_schemes": [
+            "myexec = pytest_wdl.url_schemes.myscheme:MyUrlScheme"
         ]
     },
     extras_require={

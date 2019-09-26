@@ -1,6 +1,22 @@
 # Changes
 
-## Development
+## v1.1 (dev)
+
+* Add ability to create executor plugins
+* Add ability to specify which executor (including multiple executors) to use by default and on a test-specific basis
+* Add experimental support for [Miniwdl](https://github.com/chanzuckerberg/miniwdl) executor
+* Swtich from delegator.py to [subby](https://github.com/jdidion/subby) for executing subprocesses
+* Fixes for path finding - test data and imports are now resolved correctly in the cases of "standard" project setups
+* Tests are isolated from any local configuration
+* Added ability to specify custom URL scheme handlers, and added a handler for files hosted on DNAnexus
+* Fixed the makefile to correctly run all the intended targets
+* Lots of fixes and improvements to VCF and BAM comparison (see updated docs)
+* Add ability to modify comparison options on DataFiles (set_compare_opts method)
+* Add support for arbitrary objects in test_data.json
+* Improve comparison of expected to actual values, including support for None, dict, and list values
+* Add support for comparing gzipped files, using [xphyle](https://github.com/jdidion/xphyle) to detect file format
+* Improve assertion error messages
+* Add json data type and add ability to localize dict contents as JS
 
 ## v1.0.1 (2019.08.28)
 

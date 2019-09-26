@@ -19,12 +19,9 @@ import re
 import tempfile
 from typing import List, Optional, Union
 
-import delegator
+import subby
 
-from pytest_wdl.executors import (
-    get_workflow_inputs, validate_outputs
-)
-from pytest_wdl.core import Executor
+from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
 from pytest_wdl.utils import (
     LOG, ensure_path, find_executable_path, find_in_classpath
 )
@@ -161,13 +158,14 @@ class CromwellExecutor(Executor):
             f"Executing cromwell command '{cmd}' with inputs "
             f"{json.dumps(inputs_dict, default=str)}"
         )
-        exe = delegator.run(cmd, block=True)
+
+        exe = subby.run(cmd, raise_on_error=False)
         if not exe.ok:
             raise Exception(
-                f"Cromwell command failed; stdout={exe.out}; stderr={exe.err}"
+                f"Cromwell command failed; stdout={exe.output}; stderr={exe.error}"
             )
 
-        outputs = CromwellExecutor.get_cromwell_outputs(exe.out)
+        outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
 
         if expected:
             validate_outputs(outputs, expected, workflow_name)
@@ -207,20 +205,30 @@ class CromwellExecutor(Executor):
                 imports_str = " ".join(imports)
 
                 LOG.info(f"Writing imports {imports_str} to zip file {imports_path}")
-                exe = delegator.run(
-                    f"zip -j - {imports_str} > {imports_path}", block=True
+                exe = subby.run(
+                    f"zip -j - {imports_str}",
+                    mode=bytes,
+                    stdout=imports_path,
+                    raise_on_error=False
                 )
                 if not exe.ok:
                     raise Exception(
-                        f"Error creating imports zip file; stdout={exe.out}; "
-                        f"stderr={exe.err}"
+                        f"Error creating imports zip file; stdout={exe.output}; "
+                        f"stderr={exe.error}"
                     )
 
         return imports_path
 
     @staticmethod
-    def get_cromwell_outputs(output):
+    def get_cromwell_outputs(output) -> dict:
         lines = output.splitlines(keepends=False)
+        if len(lines) < 2:
+            raise Exception(f"Invalid Cromwell output: {output}")
+        if lines[1].startswith("Usage"):
+            # If the cromwell command is not valid, usage is printed and the
+            # return code is 0 so it does not cause an exception above - we
+            # have to catch it here.
+            raise Exception("Invalid Cromwell command")
         start = None
         for i, line in enumerate(lines):
             if line == "{" and lines[i+1].lstrip().startswith('"outputs":'):

@@ -114,7 +114,6 @@ def test_cromwell_jar():
                 CromwellExecutor([d]).cromwell_jar_file
 
 
-
 def test_get_workflow_imports():
     with tempdir() as d:
         wdl_dir = d / "foo"

@@ -17,7 +17,7 @@ import json
 import pytest
 
 from pytest_wdl.utils import tempdir
-from pytest_wdl.core import EXECUTORS, DataFile
+from pytest_wdl.core import DefaultDataFile, create_executor
 from pytest_wdl.executors import get_workflow_inputs, make_serializable
 
 
@@ -36,6 +36,13 @@ def test_executors(workflow_data, workflow_runner):
         inputs,
         outputs,
         executors=["cromwell"] #list(EXECUTORS.keys())
+    )
+    # Test with the old workflow_runner signature
+    workflow_runner(
+        "test.wdl",
+        "cat_file",
+        inputs,
+        outputs
     )
 
 
@@ -87,7 +94,7 @@ def test_make_serializable():
         foo = d / "foo"
         with open(foo, "wt") as out:
             out.write("foo")
-        df = DataFile(foo)
+        df = DefaultDataFile(foo)
         assert make_serializable(df) == foo
         assert make_serializable([df]) == [foo]
         assert make_serializable({"a": df}) == {"a": foo}
@@ -104,3 +111,8 @@ def test_make_serializable():
             }
 
     assert make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}
+
+
+def test_create_executor():
+    with pytest.raises(RuntimeError):
+        create_executor("foo", [], None)

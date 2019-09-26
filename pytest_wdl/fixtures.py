@@ -26,6 +26,7 @@ from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
 from pytest_subtests import SubTests
+from xphyle import open_
 
 from pytest_wdl.core import (
     DataResolver, DataManager, DataDirs, UserConfiguration, create_executor
@@ -52,9 +53,14 @@ def user_config_file() -> Optional[Path]:
     if config_file:
         config_path = ensure_path(config_file)
     else:
-        default_config_path = Path.home() / DEFAULT_USER_CONFIG_FILE
-        if default_config_path.exists():
-            config_path = default_config_path
+        default_config_paths = [
+            Path.home() / DEFAULT_USER_CONFIG_FILE,
+            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
+        ]
+        for default_config_path in default_config_paths:
+            if default_config_path.exists():
+                config_path = default_config_path
+                break
     if config_path and not config_path.exists():
         raise FileNotFoundError(f"Config file {config_path} does not exist")
     return config_path
@@ -109,9 +115,15 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
 
 
-def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -> dict:
+def workflow_data_descriptors(
+    request: FixtureRequest,
+    project_root: Union[str, Path],
+    workflow_data_descriptor_file: Union[str, Path]
+) -> dict:
     """
-    Fixture that provides a mapping of test data names to values.
+    Fixture that provides a mapping of test data names to values. If
+    workflow_data_descriptor_file is relative, it is searched first relative to the
+    current test context directory and then relative to the project root.
 
     Args:
         workflow_data_descriptor_file: Path to the data descriptor JSON file.
@@ -120,7 +132,14 @@ def workflow_data_descriptors(workflow_data_descriptor_file: Union[str, Path]) -
         A dict with keys as test data names and each value either a
         primitive, a map describing a data file, or a DataFile object.
     """
-    with open(ensure_path(workflow_data_descriptor_file), "rt") as inp:
+    search_paths = [Path(request.fspath.dirpath()), project_root]
+    workflow_data_descriptor_path = ensure_path(
+        workflow_data_descriptor_file,
+        search_paths=search_paths,
+        is_file=True,
+        exists=True
+    )
+    with open_(workflow_data_descriptor_path, "rt") as inp:
         return json.load(inp)
 
 
@@ -199,7 +218,7 @@ def import_dirs(
 
         paths = []
 
-        with open(import_paths, "rt") as inp:
+        with open_(import_paths, "rt") as inp:
             for path_str in inp.read().splitlines(keepends=False):
                 path = Path(path_str)
                 if not path.is_absolute():
