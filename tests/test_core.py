@@ -13,123 +13,46 @@
 #    limitations under the License.
 
 import gzip
-import json
-import re
 from typing import cast
 from unittest.mock import Mock
+
 import pytest
-from pytest_wdl.core import (
-    LinkLocalizer, StringLocalizer, UrlLocalizer, DataFile, DataDirs, DataResolver,
-    UserConfiguration
-)
+
+from pytest_wdl.config import UserConfiguration
+from pytest_wdl.core import DefaultDataFile, DataDirs, DataResolver, create_data_file
+from pytest_wdl.localizers import LinkLocalizer, UrlLocalizer
 from pytest_wdl.utils import tempdir
-from . import no_internet, setenv
-
-
-# TODO: switch after repo is made public
-# GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/sample.vcf"
-GOOD_URL = "https://gist.githubusercontent.com/jdidion/0f20e84187437e29d5809a78b6c4df2d/raw/d8aee6dda0f91d75858bfd35fffcf2afe3b0f45d/test_file"
-
-
-def test_user_config_no_defaults():
-    with tempdir() as d:
-        config = UserConfiguration()
-        assert config.remove_cache_dir is True
-        assert config.cache_dir.exists()
-        config.cleanup()
-        assert not config.cache_dir.exists()
-
-
-def test_user_config_from_file():
-    with tempdir() as d, setenv({
-        "HTTPS_PROXY": "http://foo.com/https",
-        "FOO_HEADER": "bar"
-    }):
-        cache_dir = d / "cache"
-        execution_dir = d / "execution"
-        config_dict = {
-            "cache_dir": str(cache_dir),
-            "execution_dir": str(execution_dir),
-            "proxies": {
-                "http": {
-                    "value": "http://foo.com/http"
-                },
-                "https": {
-                    "env": "HTTPS_PROXY"
-                }
-            },
-            "http_headers": [
-                {
-                    "pattern": "http://foo.com/.*",
-                    "name": "foo",
-                    "env": "FOO_HEADER"
-                }
-            ],
-            "executors": {
-                "foo": {
-                    "bar": 1
-                }
-            }
-        }
-        config_file = d / "config.json"
-        with open(config_file, "wt") as out:
-            json.dump(config_dict, out)
-        config = UserConfiguration(config_file)
-        assert config.cache_dir == cache_dir
-        assert config.default_execution_dir == execution_dir
-        assert config.proxies == {
-            "http": "http://foo.com/http",
-            "https": "http://foo.com/https"
-        }
-        assert config.default_http_headers == [
-            {
-                "pattern": re.compile("http://foo.com/.*"),
-                "name": "foo",
-                "env": "FOO_HEADER"
-            }
-        ]
-        assert config.get_executor_defaults("foo") == {"bar": 1}
-
-
-def test_link_localizer():
-    with tempdir() as d:
-        foo = d / "foo"
-        with open(foo, "wt") as out:
-            out.write("foo")
-        bar = d / "bar"
-        localizer = LinkLocalizer(foo)
-        localizer.localize(bar)
-        assert bar.exists()
-        assert bar.is_symlink()
+from . import GOOD_URL, setenv
 
 
 def test_data_file():
     with tempdir() as d:
         foo = d / "foo.txt"
         with pytest.raises(ValueError):
-            DataFile(foo, None, None)
+            DefaultDataFile(foo, None)
 
         bar = d / "bar.txt"
         with open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DataFile(bar, LinkLocalizer(foo), allowed_diff_lines=None)
+        df = DefaultDataFile(bar, LinkLocalizer(foo))
+        assert str(df) == str(bar)
 
         baz = d / "baz.txt"
         with open(baz, "wt") as out:
             out.write("foo\nbar")
         df.assert_contents_equal(baz)
         df.assert_contents_equal(str(baz))
-        df.assert_contents_equal(DataFile(baz))
+        df.assert_contents_equal(DefaultDataFile(baz))
 
         blorf = d / "blorf.txt"
         with open(blorf, "wt") as out:
             out.write("foo\nblorf\nbork")
         with pytest.raises(AssertionError):
             df.assert_contents_equal(blorf)
-        df.allowed_diff_lines = 1
+        df.compare_opts["allowed_diff_lines"] = 1
         with pytest.raises(AssertionError):
             df.assert_contents_equal(blorf)
-        df.allowed_diff_lines = 2
+        df.compare_opts["allowed_diff_lines"] = 2
         df.assert_contents_equal(blorf)
 
 
@@ -138,7 +61,39 @@ def test_data_file_gz():
         foo = d / "foo.txt.gz"
         with gzip.open(foo, "wt") as out:
             out.write("foo\nbar")
-        df = DataFile(foo, allowed_diff_lines=1)
+        df = DefaultDataFile(foo, allowed_diff_lines=0)
+
+        # Compare identical files
+        bar = d / "bar.txt.gz"
+        with gzip.open(bar, "wt") as out:
+            out.write("foo\nbar")
+        df.assert_contents_equal(bar)
+        df.assert_contents_equal(str(bar))
+        df.assert_contents_equal(DefaultDataFile(bar))
+
+        # Compare differing files
+        df.set_compare_opts(allowed_diff_lines=1)
+        baz = d / "baz.txt.gz"
+        with gzip.open(baz, "wt") as out:
+            out.write("foo\nbaz")
+        df.assert_contents_equal(bar)
+        df.assert_contents_equal(str(bar))
+        df.assert_contents_equal(DefaultDataFile(bar))
+
+
+def test_data_file_dict_type():
+    with tempdir() as d:
+        foo = d / "foo.txt.gz"
+        with gzip.open(foo, "wt") as out:
+            out.write("foo\nbar")
+        df = create_data_file(
+            user_config=UserConfiguration(),
+            path=foo,
+            type={
+                "name": "default",
+                "allowed_diff_lines": 1
+            }
+        )
 
         bar = d / "bar.txt.gz"
         with gzip.open(bar, "wt") as out:
@@ -146,72 +101,7 @@ def test_data_file_gz():
 
         df.assert_contents_equal(bar)
         df.assert_contents_equal(str(bar))
-        df.assert_contents_equal(DataFile(bar))
-
-
-def test_string_localizer():
-    with tempdir() as d:
-        foo = d / "foo"
-        StringLocalizer("foo").localize(foo)
-        with open(foo, "rt") as inp:
-            assert inp.read() == "foo"
-
-
-@pytest.mark.skipif(no_internet, reason="no internet available")
-def test_url_localizer():
-    good_url = GOOD_URL
-    bad_url = "foo"
-    with tempdir() as d:
-        foo = d / "foo"
-        UrlLocalizer(good_url, UserConfiguration(None, cache_dir=d)).localize(foo)
-        with open(foo, "rt") as inp:
-            assert inp.read() == "foo"
-
-    with pytest.raises(RuntimeError):
-        UrlLocalizer(bad_url, UserConfiguration(None, cache_dir=d)).localize(foo)
-
-
-def test_url_localizer_add_headers():
-    with setenv({
-       "FOO": "bar"
-    }):
-        localizer = UrlLocalizer(
-            "http://foo.com/bork",
-            UserConfiguration(http_headers=[
-                {
-                    "name": "beep",
-                    "pattern": re.compile(r"http://foo.com/.*"),
-                    "env": "FOO",
-                    "value": "baz"
-                },
-                {
-                    "name": "boop",
-                    "pattern": re.compile(r"http://foo.*/bork"),
-                    "env": "BAR",
-                    "value": "blorf"
-                }
-            ]),
-            {
-                "boop": {
-                    "value": "blammo"
-                }
-            }
-        )
-        headers = localizer.http_headers
-        assert len(headers) == 2
-        assert set(headers.keys()) == {"beep", "boop"}
-        assert headers["beep"] == "bar"
-        assert headers["boop"] == "blammo"
-
-
-def test_url_localizer_set_proxies():
-    localizer = UrlLocalizer("http://foo.com", UserConfiguration(proxies={
-        "https": "https://foo.com/proxy"
-    }))
-    proxies = localizer.proxies
-    assert len(proxies) == 1
-    assert "https" in proxies
-    assert proxies["https"] == "https://foo.com/proxy"
+        df.assert_contents_equal(DefaultDataFile(bar))
 
 
 def test_data_dirs():

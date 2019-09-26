@@ -5,6 +5,7 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam"],
+    "dx": ["dxpy"],
     "progress": ["tqdm"]
 }
 extras_require["all"] = [
@@ -50,16 +51,24 @@ setup(
         "pytest_wdl.data_types": [
             "bam = pytest_wdl.data_types.bam:BamDataFile",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
+            "json = pytest_wdl.data_types.json:JsonDataFile"
         ],
         "pytest_wdl.executors": [
-            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor"
+            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor"
+        ],
+        "pytest_wdl.url_schemes": [
+            "dx = pytest_wdl.url_schemes.dx:DxUrlHandler"
         ]
     },
     py_modules=["pytest_wdl"],
     packages=find_packages(),
     install_requires=[
-        "pytest",
-        "delegator.py"
+        "pytest>=5.1",
+        "subby>=0.1.6",
+        "miniwdl>=0.3.0",
+        "pytest-subtests",
+        "xphyle>=4.1.2"
     ],
     extras_require=extras_require,
     classifiers=[

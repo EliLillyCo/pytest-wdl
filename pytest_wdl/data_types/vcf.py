@@ -18,41 +18,59 @@ scores and other floating-point-valued fields when run on different hardware. Th
 handler ignores the QUAL and INFO columns and only compares the genotype (GT) field
 of sample columns. Only works for single-sample VCFs.
 """
+from functools import partial
 from pathlib import Path
-from typing import Optional
+import re
 
-import delegator
+import subby
+from xphyle import open_
 
-from pytest_wdl.core import DataFile
+from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
 
 
+GENO_RE = re.compile("[|/]")
+
+
 class VcfDataFile(DataFile):
-    @classmethod
-    def _assert_contents_equal(
-        cls, file1: Path, file2: Path, allowed_diff_lines: Optional[int] = None
-    ):
-        cls._diff_contents(file1, file2, allowed_diff_lines)
-
-    @classmethod
-    def _diff(cls, file1: Path, file2: Path):
-        """
-        Special handling for VCF files to ignore QUAL, INFO, and FORMAT, and only
-        compares genotypes in the first sample column
-
-        Args:
-            file1: First file to compare
-            file2: Second file to compare
-        """
-        with tempdir() as temp:
-            cmp_file1 = temp / "file1"
-            cmp_file2 = temp / "file2"
-            job1 = delegator.run(
-                f"cat {file1} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file1}"
+    def _assert_contents_equal(self, other_path: Path, other_opts: dict) -> None:
+        compare_phase = (
+            self.compare_opts.get("compare_phase") or
+            other_opts.get("compare_phase")
+        )
+        try:
+            assert_text_files_equal(
+                self.path,
+                other_path,
+                self._get_allowed_diff_lines(other_opts),
+                diff_fn=partial(diff_vcf_columns, compare_phase=compare_phase)
             )
-            job2 = delegator.run(
-                f"cat {file2} | grep -vP '^#' | cut -d$'\t' -f 1-5,7,10 | cut -d$':' -f 1 > {cmp_file2}"
-            )
-            for job in (job1, job2):
-                job.block()
-            return super()._diff(cmp_file1, cmp_file2)
+        except AssertionError as err:
+            raise AssertionError(
+                f"VCF files are not equal: {self.path} != {other_path}"
+            ) from err
+
+
+def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> int:
+    with tempdir() as temp:
+        def make_comparable(infile, outfile):
+            cmd = ["grep -vE '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
+            output = subby.sub(cmd, stdin=infile)
+            with open_(outfile, "wt") as out:
+                if compare_phase:
+                    out.write(output)
+                else:
+                    # Normalize the allele separator and sort the alleles
+                    for row in output.splitlines(keepends=True):
+                        r, g = row.rsplit("\t", 1)
+                        g_strip = g.rstrip()
+                        g_norm = "/".join(sorted(GENO_RE.split(g_strip)))
+                        out.write(f"{r}\t{g_norm}")
+                        if len(g) != len(g_strip):
+                            out.write("\n")
+
+        cmp_file1 = temp / "file1"
+        cmp_file2 = temp / "file2"
+        make_comparable(file1, cmp_file1)
+        make_comparable(file2, cmp_file2)
+        return diff_default(cmp_file1, cmp_file2)
