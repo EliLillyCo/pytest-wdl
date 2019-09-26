@@ -1,6 +1,6 @@
 # Changes
 
-## v1.1 (dev)
+## v1.1 (2019.09.26)
 
 * Add ability to create executor plugins
 * Add ability to specify which executor (including multiple executors) to use by default and on a test-specific basis
