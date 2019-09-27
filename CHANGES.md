@@ -1,5 +1,9 @@
 # Changes
 
+## v1.1.1 (2019.09.26)
+
+* Fixes `license` entry in `setup.py` for proper rendering to release to PyPI.
+
 ## v1.1 (2019.09.26)
 
 * Add ability to create executor plugins
