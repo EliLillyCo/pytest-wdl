@@ -23,6 +23,7 @@ before_script:
 - export CROMWELL_JAR=/tmp/cromwell-45.jar
 script:
 - make test
+- make test_release_setup
 after_success:
 - bash <(curl -s https://codecov.io/bash)
 deploy:

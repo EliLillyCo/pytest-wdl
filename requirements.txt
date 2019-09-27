@@ -5,3 +5,5 @@ pytest>=5.1
 pytest-subtests
 subby>=0.1.6
 xphyle>=4.1.2
+readme_renderer>=24.0
+twine>=2.0.0

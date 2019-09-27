@@ -34,14 +34,7 @@ setup(
         "rb",
         "utf-8"
     ).read(),
-    license=codecs.open(
-        os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
-            "LICENSE"
-        ),
-        "rb",
-        "utf-8"
-    ).read(),
+    license="Apache License 2.0",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     entry_points={
