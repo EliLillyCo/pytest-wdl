@@ -1,6 +1,6 @@
 # Changes
 
-## v1.1.1 (2019.09.26)
+## v1.1.1 (2019.09.27)
 
 * Fixes `license` entry in `setup.py` for proper rendering to release to PyPI.
 
