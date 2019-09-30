@@ -17,12 +17,13 @@ import json
 import pytest
 
 from pytest_wdl.utils import tempdir
-from pytest_wdl.core import DefaultDataFile, create_executor
+from pytest_wdl.core import EXECUTORS, DefaultDataFile, create_executor
 from pytest_wdl.executors import get_workflow_inputs, make_serializable
 
 
 @pytest.mark.integration
-def test_executors(workflow_data, workflow_runner):
+@pytest.mark.parametrize("executor", EXECUTORS.keys())
+def test_executors(workflow_data, workflow_runner, executor):
     inputs = {
         "in_txt": workflow_data["in_txt"],
         "in_int": 1
@@ -35,14 +36,15 @@ def test_executors(workflow_data, workflow_runner):
         "test.wdl",
         inputs,
         outputs,
-        executors=["cromwell"] #list(EXECUTORS.keys())
+        executors=[executor]
     )
     # Test with the old workflow_runner signature
     workflow_runner(
         "test.wdl",
         "cat_file",
         inputs,
-        outputs
+        outputs,
+        executors=[executor]
     )
 
 
