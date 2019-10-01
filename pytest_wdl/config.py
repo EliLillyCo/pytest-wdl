@@ -160,4 +160,4 @@ class UserConfiguration:
         `self.remove_cache_dir` is True.
         """
         if self.remove_cache_dir:
-            shutil.rmtree(self.cache_dir)
+            shutil.rmtree(self.cache_dir, ignore_errors=True)
