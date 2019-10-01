@@ -8,7 +8,7 @@ task cat {
   >>>
 
   runtime {
-    docker: "frolvlad/alpine-bash"
+    docker: "ubuntu:latest"
   }
 
   output {
