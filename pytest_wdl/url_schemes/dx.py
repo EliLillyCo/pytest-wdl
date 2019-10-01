@@ -55,6 +55,6 @@ class DxUrlHandler(UrlHandler):
         if ":" in obj_id:
             project_id, file_id = obj_id.split(":")
         else:
-            project_id = dxpy.PROJECT_CONTEXT_ID
+            project_id = None
             file_id = obj_id
         return DxResponse(file_id, project_id)
