@@ -12,3 +12,18 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import docker
+
+
+def test_docker():
+    client = docker.client.from_env()
+    client.images.pull("frolvlad/alpine-bash:latest")
+
+    client.containers.run(
+        "frolvlad/alpine-bash:latest",
+        command=[
+            "/bin/bash"
+        ],
+        detach=True,
+        auto_remove=True
+    )
