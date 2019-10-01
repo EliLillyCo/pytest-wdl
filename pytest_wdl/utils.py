@@ -205,7 +205,7 @@ def context_dir(
             yield path
     finally:
         if cleanup and path.exists():
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def ensure_path(
