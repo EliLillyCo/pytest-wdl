@@ -22,6 +22,7 @@ install:
 before_script:
 - wget https://github.com/broadinstitute/cromwell/releases/download/45/cromwell-45.jar -O /tmp/cromwell-45.jar
 - export CROMWELL_JAR=/tmp/cromwell-45.jar
+- docker swarm init
 script:
 - make test
 - make test_release_setup
