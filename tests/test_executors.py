@@ -16,9 +16,13 @@ import json
 
 import pytest
 
-from pytest_wdl.utils import tempdir
+from pytest_wdl.config import ENV_DEFAULT_EXECUTORS
 from pytest_wdl.core import EXECUTORS, DefaultDataFile, create_executor
-from pytest_wdl.executors import get_workflow_inputs, make_serializable
+from pytest_wdl.executors import (
+    get_workflow_inputs, make_serializable, validate_outputs
+)
+from pytest_wdl.utils import tempdir
+from . import setenv
 
 
 @pytest.mark.integration
@@ -45,6 +49,62 @@ def test_executors(workflow_data, workflow_runner, executor):
         inputs,
         outputs,
         executors=[executor]
+    )
+
+
+@pytest.mark.integration
+def test_multiple_executors(workflow_data, workflow_runner):
+    inputs = {
+        "in_txt": workflow_data["in_txt"],
+        "in_int": 1
+    }
+    outputs = {
+        "out_txt": workflow_data["out_txt"],
+        "out_int": 1
+    }
+    workflow_runner(
+        "test.wdl",
+        inputs,
+        outputs,
+        executors=EXECUTORS.keys()
+    )
+
+
+# TODO: figure out how to override default_executors
+# def test_workflow_runner_error(workflow_data, workflow_runner):
+#     inputs = {
+#         "in_txt": workflow_data["in_txt"],
+#         "in_int": 1
+#     }
+#     outputs = {
+#         "out_txt": workflow_data["out_txt"],
+#         "out_int": 1
+#     }
+#
+#     with pytest.raises(RuntimeError):
+#         workflow_runner(
+#             "test.wdl",
+#             inputs,
+#             outputs,
+#             executors=[]
+#         )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("executor", ["miniwdl"])
+def test_task(workflow_data, workflow_runner, executor):
+    inputs = {
+        "in_txt": workflow_data["in_txt"],
+    }
+    outputs = {
+        "out_txt": workflow_data["out_txt"],
+    }
+    workflow_runner(
+        "test.wdl",
+        inputs,
+        outputs,
+        executors=[executor],
+        task_name="cat"
     )
 
 
@@ -118,3 +178,55 @@ def test_make_serializable():
 def test_create_executor():
     with pytest.raises(RuntimeError):
         create_executor("foo", [], None)
+
+
+def test_validate_outputs():
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": 1}, {"bar": 1}, ""
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": 1}, {"baz": 1}, "foo"
+        )
+    validate_outputs(
+        {"foo.bar": None}, {"bar": None}, "foo"
+    )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": None}, {"bar": 1}, "foo"
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": 1}, {"bar": None}, "foo"
+        )
+    validate_outputs(
+        {"foo.bar": [1, 2, 3]}, {"bar": [1, 2, 3]}, "foo"
+    )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": [1, 2, 3]}, {"bar": [1, 2]}, "foo"
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": [1, 2, 3]}, {"bar": [3, 2, 1]}, "foo"
+        )
+    validate_outputs(
+        {"foo.bar": {"a": 1}}, {"bar": {"a": 1}}, "foo"
+    )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": {"a": 1}}, {"bar": {"b": 1}}, "foo"
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": {"a": 1}}, {"bar": {"a": 1, "b": 2}}, "foo"
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": {"a": 1}}, {"bar": {"a": 2}}, "foo"
+        )
+    with pytest.raises(AssertionError):
+        validate_outputs(
+            {"foo.bar": 1}, {"bar": 2}, "foo"
+        )

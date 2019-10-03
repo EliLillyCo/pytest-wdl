@@ -64,6 +64,13 @@ def test_url_localizer():
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
 
+        # test that the file is overwritten
+        with open(foo, "wt") as out:
+            out.write("bork")
+        UrlLocalizer(good_url, UserConfiguration(None, cache_dir=d)).localize(foo)
+        with open(foo, "rt") as inp:
+            assert inp.read() == "foo"
+
     with pytest.raises(RuntimeError):
         UrlLocalizer(bad_url, UserConfiguration(None, cache_dir=d)).localize(foo)
 

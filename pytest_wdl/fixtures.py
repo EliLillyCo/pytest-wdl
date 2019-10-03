@@ -94,7 +94,7 @@ def project_root(
     root = find_project_path(*project_root_files, start=path, return_parent=True)
     if root:
         return root
-    else:
+    else:  # TODO: test this
         # If the project root can't be identified, fall back to the parent of
         # the current directory (which is probably tests).
         return path.parent
@@ -112,7 +112,7 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
         test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():
             return test_data
-    raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
+    raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")  # TODO: test this
 
 
 def workflow_data_descriptors(

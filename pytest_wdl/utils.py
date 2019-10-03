@@ -61,7 +61,7 @@ class PluginFactory(Generic[T]):
             )
             self.factory = getattr(module, self.entry_point.attrs[0])
         plugin = self.factory(*args, **kwargs)
-        if not isinstance(plugin, self.return_type):
+        if not isinstance(plugin, self.return_type):  # TODO: test this
             raise RuntimeError(
                 f"Expected plugin {plugin} to be an instance of {self.return_type}"
             )

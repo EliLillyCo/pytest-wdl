@@ -26,7 +26,7 @@ from pytest_wdl.utils import LOG, PluginFactory
 
 try:
     from tqdm import tqdm as progress
-except ImportError:
+except ImportError:  # pragma: no-cover
     LOG.debug(
         "tqdm is not installed; progress bar will not be displayed when "
         "downloading files"

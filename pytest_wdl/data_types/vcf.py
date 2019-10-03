@@ -57,7 +57,7 @@ def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> i
             cmd = ["grep -vE '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
             output = subby.sub(cmd, stdin=infile)
             with open_(outfile, "wt") as out:
-                if compare_phase:
+                if compare_phase:  # TODO: test this
                     out.write(output)
                 else:
                     # Normalize the allele separator and sort the alleles

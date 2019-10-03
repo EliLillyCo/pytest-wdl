@@ -21,7 +21,8 @@ import pytest
 
 from pytest_wdl.utils import (
     tempdir, chdir, context_dir, ensure_path, resolve_file,
-    find_executable_path, find_project_path, env_map, plugin_factory_map
+    find_executable_path, find_project_path, env_map, plugin_factory_map,
+    safe_string
 )
 from . import setenv, make_executable
 
@@ -202,3 +203,7 @@ def test_plugin_factory_map():
     entry_points.append(ep3)
     with pytest.raises(RuntimeError):
         plugin_factory_map(None, entry_points=entry_points)
+
+
+def test_safe_string():
+    assert safe_string("a+b*c") == "a_b_c"
