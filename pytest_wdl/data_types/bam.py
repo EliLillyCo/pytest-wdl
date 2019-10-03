@@ -102,7 +102,7 @@ def assert_bam_files_equal(
         compare_tag_columns: Whether to include tag columns (12+) when comparing
             all columns
     """
-    with tempdir(cleanup=False) as temp:
+    with tempdir() as temp:
         # Compare all reads using subset of columns
         cmp_file1 = temp / "all_reads_subset_columns_file1"
         cmp_file2 = temp / "all_reads_subset_columns_file2"
@@ -182,7 +182,7 @@ def bam_to_sam(
                     start = i
                     break
 
-        with tempdir(cleanup=False) as temp:
+        with tempdir() as temp:
             temp_sam = temp / f"output_{str(output_sam.stem)}.sam"
             with open_(temp_sam, "w") as out:
                 out.write("".join(lines[start:]))
@@ -198,7 +198,7 @@ def bam_to_sam(
 
 
 def diff_bam_columns(file1: Path, file2: Path, columns: str) -> int:
-    with tempdir(cleanup=False) as temp:
+    with tempdir() as temp:
         def make_comparable(inpath, output):
             subby.run(f"cat {inpath} | cut -f {columns}", stdout=output)
 
