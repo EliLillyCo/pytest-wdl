@@ -22,24 +22,28 @@ from typing import Sequence, Optional
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
 
 
+# Import dxpy dynamically
+_dxpy = None
+
+
+def get_dxpy():
+    global _dxpy
+    if _dxpy is None:
+        import importlib
+        try:
+            _dxpy = importlib.import_module("dxpy")
+        except ImportError:
+            raise RuntimeError("The dx:// URL scheme requires dxpy to be installed")
+    return _dxpy
+
+
 class DxResponse(Response):
     def __init__(self, file_id: str, project_id: Optional[str] = None):
         self.file_id = file_id
         self.project_id = project_id
-        # Import dxpy dynamically
-        self._dxpy = None
-
-    def dxpy(self):
-        if self._dxpy is None:
-            import importlib
-            try:
-                self._dxpy = importlib.import_module("dxpy")
-            except ImportError:
-                raise RuntimeError("The dx:// URL scheme requires dxpy to be installed")
-        return self._dxpy
 
     def download_file(self, destination: Path, show_progress: bool = False):
-        self.dxpy.download_dxfile(
+        get_dxpy().download_dxfile(
             self.file_id,
             str(destination),
             show_progress=show_progress,
