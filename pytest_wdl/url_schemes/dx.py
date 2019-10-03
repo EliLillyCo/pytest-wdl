@@ -19,8 +19,6 @@ from pathlib import Path
 
 from typing import Sequence, Optional
 
-import dxpy
-
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
 
 
@@ -28,9 +26,17 @@ class DxResponse(Response):
     def __init__(self, file_id: str, project_id: Optional[str] = None):
         self.file_id = file_id
         self.project_id = project_id
+        # Import dxpy dynamically
+        self._dxpy = None
+
+    def dxpy(self):
+        if self._dxpy is None:
+            import importlib
+            self._dxpy = importlib.import_module("dxpy")
+        return self._dxpy
 
     def download_file(self, destination: Path, show_progress: bool = False):
-        dxpy.download_dxfile(
+        self.dxpy.download_dxfile(
             self.file_id,
             str(destination),
             show_progress=show_progress,
