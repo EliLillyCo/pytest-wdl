@@ -127,7 +127,7 @@ def diff_default(file1: Path, file2: Path) -> int:
     Returns:
         Number of different lines.
     """
-    with tempdir(cleanup=False) as temp:
+    with tempdir() as temp:
         # Remove trailing whitespace, and ensure a newline at the end of the file
         cmp_file1 = temp / "file1"
         cmp_file2 = temp / "file2"
