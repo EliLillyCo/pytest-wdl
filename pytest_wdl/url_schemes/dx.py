@@ -19,9 +19,25 @@ from pathlib import Path
 
 from typing import Sequence, Optional
 
-import dxpy
-
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
+
+
+# Import dxpy dynamically
+_dxpy = None
+
+
+def get_dxpy():
+    global _dxpy
+    if _dxpy is None:
+        import importlib
+        try:
+            _dxpy = importlib.import_module("dxpy")
+        except ImportError:
+            raise RuntimeError(
+                "The dx:// URL scheme requires dxpy, which is not installed. "
+                "Update with pip install pytest-wdl[dx]"
+            )
+    return _dxpy
 
 
 class DxResponse(Response):
@@ -30,7 +46,7 @@ class DxResponse(Response):
         self.project_id = project_id
 
     def download_file(self, destination: Path, show_progress: bool = False):
-        dxpy.download_dxfile(
+        get_dxpy().download_dxfile(
             self.file_id,
             str(destination),
             show_progress=show_progress,

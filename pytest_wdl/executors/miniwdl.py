@@ -13,12 +13,11 @@
 #    limitations under the License.
 import logging
 from pathlib import Path
-import pkg_resources
 from typing import Optional
 
 from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
 
-from WDL import CLI, Error, Tree, runtime
+from WDL import CLI, Error, Tree, runtime, _util
 
 
 class MiniwdlExecutor(Executor):
@@ -89,21 +88,20 @@ class MiniwdlExecutor(Executor):
         logger.setLevel(CLI.NOTICE_LEVEL)
         CLI.install_coloredlogs(logger)
 
-        try:
-            logger.debug(pkg_resources.get_distribution("miniwdl"))
-        except pkg_resources.DistributionNotFound as exc:
-            logger.debug(
-                "miniwdl version unknown ({}: {})".format(type(exc).__name__, exc)
-            )
-        for pkg in ["docker", "lark-parser", "argcomplete", "pygtail"]:
-            logger.debug(pkg_resources.get_distribution(pkg))
+        _util.ensure_swarm(logger)
 
         try:
             if isinstance(target, Tree.Task):
                 entrypoint = runtime.run_local_task
             else:
                 entrypoint = runtime.run_local_workflow
-            rundir, output_env = entrypoint(target, input_env)
+            rundir, output_env = entrypoint(
+                target,
+                input_env,
+                #run_dir=rundir,
+                #copy_input_files=copy_input_files,
+                #max_workers=max_workers,
+            )
         except Error.EvalError as exn:
             log_source(logger, exn)
             raise

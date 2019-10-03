@@ -1,5 +1,5 @@
 coverage
-miniwdl>=0.3.0
+miniwdl>=0.5.0
 pysam
 pytest>=5.1
 pytest-subtests
