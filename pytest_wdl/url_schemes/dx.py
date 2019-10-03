@@ -32,7 +32,10 @@ class DxResponse(Response):
     def dxpy(self):
         if self._dxpy is None:
             import importlib
-            self._dxpy = importlib.import_module("dxpy")
+            try:
+                self._dxpy = importlib.import_module("dxpy")
+            except ImportError:
+                raise RuntimeError("The dx:// URL scheme requires dxpy to be installed")
         return self._dxpy
 
     def download_file(self, destination: Path, show_progress: bool = False):
