@@ -33,7 +33,10 @@ def get_dxpy():
         try:
             _dxpy = importlib.import_module("dxpy")
         except ImportError:
-            raise RuntimeError("The dx:// URL scheme requires dxpy to be installed")
+            raise RuntimeError(
+                "The dx:// URL scheme requires dxpy , which is not installed. "
+                "Update with pip install pytest-wdl[dx]"
+            )
     return _dxpy
 
 
