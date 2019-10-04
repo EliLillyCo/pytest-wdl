@@ -1,11 +1,27 @@
-from pathlib import Path
+import logging
 from typing import Sequence, Optional
 import urllib.request
 from urllib.request import Request
 
+import pytest
+
 from pytest_wdl.url_schemes import Response, BaseResponse, UrlHandler, Method
 from pytest_wdl.localizers import download_file
 from pytest_wdl.utils import tempdir
+
+LOG = logging.getLogger(__name__)
+
+try:
+    # test whether dxpy is installed and the user is logged in
+    import dxpy
+    assert dxpy.SECURITY_CONTEXT
+    no_dx = False
+except:
+    LOG.warning(
+        "dxpy is not installed or user is not logged into a DNAnexus account; "
+        "DNAnexus URL handler will not be tested"
+    )
+    no_dx = True
 
 
 class MockResponse(BaseResponse):
@@ -68,3 +84,8 @@ def test_url_schemes():
         assert handler.response_called is True
     finally:
         urllib.request._opener = opener
+
+
+@pytest.mark.skipif(no_dx)
+def test_dx():
+    pass
