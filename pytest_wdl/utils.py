@@ -32,7 +32,6 @@ from typing import (
 
 from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
-from xphyle import open_
 
 
 LOG = logging.getLogger("pytest-wdl")
@@ -500,7 +499,7 @@ def compare_files_with_hash(file1: Path, file2: Path, hash_name: str = "md5"):
 
 def hash_file(path: Path, hash_name: str = "md5") -> str:
     assert hash_name in hashlib.algorithms_guaranteed
-    with open_(path, "rb") as inp:
+    with open(path, "rb") as inp:
         hashobj = hashlib.new(hash_name)
         hashobj.update(inp.read())
         return hashobj.hexdigest()

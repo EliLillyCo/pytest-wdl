@@ -121,7 +121,7 @@ class JsonLocalizer(Localizer):
 
     def localize(self, destination: Path):
         LOG.debug(f"Persisting {destination} from contents")
-        with open_(destination, "wt") as out:
+        with open(destination, "wt") as out:
             json.dump(self.contents, out)
 
 
