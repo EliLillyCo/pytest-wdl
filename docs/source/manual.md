@@ -111,6 +111,9 @@ As a short-cut, the "class" attribute can be omitted and the map describing the 
     "url": "http://example.com/my.bam",
     "http_headers": {
       "auth_token": "TOKEN"
+    },
+    "digests": {
+      "md5": "8db3048a86e16a08d2d8341d1c72fecb"
     }
   },
   "reference": {
@@ -140,6 +143,7 @@ The available keys for configuring file inputs/outputs are:
         * `env`: The name of an environment variable in which to look up the header value.
         * `value`: The header value; only used if an environment variable is not specified or is unset.
 * `contents`: The contents of the file, specified as a string. The file is written to `path` the first time it is requested.
+* `digests`: Optional mapping of hash algorithm name to digest. These are digests that have been computed on the remote file and are used to validate the downloaded file. Currently only used for files resolved from URLs.
 
 In addition, the following keys are recognized for output files only:
 
