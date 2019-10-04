@@ -46,7 +46,12 @@ class Method(Enum):
 
 class Response(metaclass=ABCMeta):
     @abstractmethod
-    def download_file(self, destination: Path, show_progress: bool = False, **digests):
+    def download_file(
+        self,
+        destination: Path,
+        show_progress: bool = False,
+        digests: Optional[dict] = None
+    ):
         """
         Download a file to a specific destination.
 
@@ -57,7 +62,7 @@ class Response(metaclass=ABCMeta):
                 validate the downloaded file.
 
         Raises:
-
+            DigestsNotEqualError
         """
         pass
 
@@ -71,7 +76,12 @@ class BaseResponse(Response, metaclass=ABCMeta):
     def read(self, block_size: int):
         pass
 
-    def download_file(self, destination: Path, show_progress: bool = False, **digests):
+    def download_file(
+        self,
+        destination: Path,
+        show_progress: bool = False,
+        digests: Optional[dict] = None
+    ):
         total_size = self.get_content_length()
         block_size = 16 * 1024
         if total_size and total_size < block_size:

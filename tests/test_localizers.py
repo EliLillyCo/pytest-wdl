@@ -109,3 +109,7 @@ def test_url_localizer_set_proxies():
     assert len(proxies) == 1
     assert "https" in proxies
     assert proxies["https"] == "https://foo.com/proxy"
+
+
+def test_url_localizer_with_digests():
+    pass

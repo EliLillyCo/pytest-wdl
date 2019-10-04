@@ -53,7 +53,7 @@ class UrlLocalizer(Localizer):
         self.url = url
         self.user_config = user_config
         self._http_headers = http_headers
-        self.digests = digests or {}
+        self.digests = digests
 
     def localize(self, destination: Path):
         try:
@@ -63,7 +63,7 @@ class UrlLocalizer(Localizer):
                 http_headers=self.http_headers,
                 proxies=self.user_config.proxies,
                 show_progress=self.user_config.show_progress,
-                **self.digests
+                self.digests
             )
         except Exception as err:
             # Delete the destination since it might be incomplete
@@ -142,7 +142,7 @@ def download_file(
     http_headers: Optional[dict] = None,
     proxies: Optional[dict] = None,
     show_progress: bool = True,
-    **digests
+    digests: Optional[dict] = None
 ):
     req = request.Request(url)
     if http_headers:
@@ -163,4 +163,4 @@ def download_file(
         downloader = ResponseWrapper(rsp)
 
     LOG.debug("Downloading url %s to %s", url, str(destination))
-    downloader.download_file(destination, show_progress, **digests)
+    downloader.download_file(destination, show_progress, digests)
