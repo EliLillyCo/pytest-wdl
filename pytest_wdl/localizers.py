@@ -70,7 +70,7 @@ class UrlLocalizer(Localizer):
             if destination.exists():
                 try:
                     destination.unlink()
-                except IOError:
+                except IOError:  # TODO: test this
                     LOG.exception(
                         "Error deleting file %s; localization failed, so it may be "
                         "incomplete", str(destination)

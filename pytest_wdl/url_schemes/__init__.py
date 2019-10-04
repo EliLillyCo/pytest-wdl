@@ -26,7 +26,7 @@ from pytest_wdl.utils import LOG, PluginFactory, DigestsNotEqualError, hash_file
 
 try:
     from tqdm import tqdm as progress
-except ImportError:
+except ImportError:  # pragma: no-cover
     LOG.debug(
         "tqdm is not installed; progress bar will not be displayed when "
         "downloading files"
@@ -118,7 +118,7 @@ class BaseResponse(Response, metaclass=ABCMeta):
                 downloaded_size += len(buf)
                 out.write(buf)
 
-        if downloaded_size != total_size:
+        if downloaded_size != total_size:  # TODO: test this
             raise AssertionError(
                 f"Size of downloaded file {destination} does not match expected size "
                 f"{total_size}"
@@ -128,7 +128,7 @@ class BaseResponse(Response, metaclass=ABCMeta):
             for hash_name, expected_digest in digests.items():
                 try:
                     actual_digest = hash_file(destination, hash_name)
-                except AssertionError:
+                except AssertionError:  # TODO: test this
                     LOG.warning(
                         "Hash algorithm %s is not supported; cannot verify file %s",
                         hash_name, destination
