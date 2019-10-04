@@ -23,7 +23,6 @@ from pathlib import Path
 import re
 
 import subby
-from xphyle import open_
 
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
@@ -56,8 +55,8 @@ def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> i
         def make_comparable(infile, outfile):
             cmd = ["grep -vE '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
             output = subby.sub(cmd, stdin=infile)
-            with open_(outfile, "wt") as out:
-                if compare_phase:  # TODO: test this
+            with open(outfile, "wt") as out:
+                if compare_phase:
                     out.write(output)
                 else:
                     # Normalize the allele separator and sort the alleles

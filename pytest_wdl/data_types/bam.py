@@ -22,7 +22,6 @@ import re
 from typing import Optional
 
 import subby
-from xphyle import open_
 
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
@@ -184,7 +183,7 @@ def bam_to_sam(
 
         with tempdir() as temp:
             temp_sam = temp / f"output_{str(output_sam.stem)}.sam"
-            with open_(temp_sam, "w") as out:
+            with open(temp_sam, "w") as out:
                 out.write("".join(lines[start:]))
             if sorting is Sorting.COORDINATE:
                 sort_cols = "-k3,3 -k4,4n -k2,2n"
@@ -193,7 +192,7 @@ def bam_to_sam(
             sorted_sam = subby.sub(f"cat {str(temp_sam)} | sort {sort_cols}")
             lines = lines[:start] + [sorted_sam]
 
-    with open_(output_sam, "w") as out:
+    with open(output_sam, "w") as out:
         out.write("".join(lines))
 
 
