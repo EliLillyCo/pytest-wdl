@@ -108,12 +108,21 @@ class BaseResponse(Response, metaclass=ABCMeta):
         else:
             reader = functools.partial(self.read, block_size)
 
+        downloaded_size = 0
+
         with open_(destination, "wb") as out:
             while True:
                 buf = reader()
                 if not buf:
                     break
+                downloaded_size += len(buf)
                 out.write(buf)
+
+        if downloaded_size != total_size:
+            raise AssertionError(
+                f"Size of downloaded file {destination} does not match expected size "
+                f"{total_size}"
+            )
 
         if digests:
             for hash_name, expected_digest in digests.items():
@@ -127,8 +136,8 @@ class BaseResponse(Response, metaclass=ABCMeta):
                     continue
                 if actual_digest != expected_digest:
                     raise DigestsNotEqualError(
-                        f"{hash_name} digest of downloaded file {destination} does not "
-                        f"match expected value"
+                        f"{hash_name} digest {actual_digest} of downloaded file"
+                        f" {destination} does match expected value {expected_digest}"
                     )
 
 

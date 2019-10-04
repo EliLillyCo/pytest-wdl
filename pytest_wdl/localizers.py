@@ -63,7 +63,7 @@ class UrlLocalizer(Localizer):
                 http_headers=self.http_headers,
                 proxies=self.user_config.proxies,
                 show_progress=self.user_config.show_progress,
-                self.digests
+                digests=self.digests
             )
         except Exception as err:
             # Delete the destination since it might be incomplete
