@@ -18,6 +18,7 @@
 from collections import defaultdict
 import contextlib
 import fnmatch
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -31,6 +32,7 @@ from typing import (
 
 from pkg_resources import EntryPoint, iter_entry_points
 from py._path.local import LocalPath
+from xphyle import open_
 
 
 LOG = logging.getLogger("pytest-wdl")
@@ -480,3 +482,25 @@ def resolve_value_descriptor(value_descriptor: Union[str, dict]) -> Optional:
         )
     else:
         return value_descriptor.get("value")
+
+
+class DigestsNotEqualError(AssertionError):
+    pass
+
+
+def compare_files_with_hash(file1: Path, file2: Path, hash_name: str = "md5"):
+    file1_digest = hash_file(file1, hash_name)
+    file2_digest = hash_file(file2, hash_name)
+    if file1_digest != file2_digest:
+        raise DigestsNotEqualError(
+            f"{hash_name} digests differ between expected identical files "
+            f"{file1}, {file2}"
+        )
+
+
+def hash_file(path: Path, hash_name: str = "md5") -> str:
+    assert hash_name in hashlib.algorithms_guaranteed
+    with open_(path, "rb") as inp:
+        hashobj = hashlib.new(hash_name)
+        hashobj.update(inp.read())
+        return hashobj.hexdigest()

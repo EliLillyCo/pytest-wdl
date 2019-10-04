@@ -22,7 +22,7 @@ from urllib.request import BaseHandler, Request, build_opener, install_opener
 from pkg_resources import iter_entry_points
 from xphyle import open_
 
-from pytest_wdl.utils import LOG, PluginFactory
+from pytest_wdl.utils import LOG, PluginFactory, DigestsNotEqualError, hash_file
 
 try:
     from tqdm import tqdm as progress
@@ -46,7 +46,19 @@ class Method(Enum):
 
 class Response(metaclass=ABCMeta):
     @abstractmethod
-    def download_file(self, destination: Path, show_progress: bool = False):
+    def download_file(self, destination: Path, show_progress: bool = False, **digests):
+        """
+        Download a file to a specific destination.
+
+        Args:
+            destination: Destination path
+            show_progress: Whether to show a progress bar
+            digests: Optional dict mapping hash names to digests. These are used to
+                validate the downloaded file.
+
+        Raises:
+
+        """
         pass
 
 
@@ -59,7 +71,7 @@ class BaseResponse(Response, metaclass=ABCMeta):
     def read(self, block_size: int):
         pass
 
-    def download_file(self, destination: Path, show_progress: bool = False):
+    def download_file(self, destination: Path, show_progress: bool = False, **digests):
         total_size = self.get_content_length()
         block_size = 16 * 1024
         if total_size and total_size < block_size:
@@ -92,6 +104,22 @@ class BaseResponse(Response, metaclass=ABCMeta):
                 if not buf:
                     break
                 out.write(buf)
+
+        if digests:
+            for hash_name, expected_digest in digests.items():
+                try:
+                    actual_digest = hash_file(destination, hash_name)
+                except AssertionError:
+                    LOG.warning(
+                        "Hash algorithm %s is not supported; cannot verify file %s",
+                        hash_name, destination
+                    )
+                    continue
+                if actual_digest != expected_digest:
+                    raise DigestsNotEqualError(
+                        f"{hash_name} digest of downloaded file {destination} does not "
+                        f"match expected value"
+                    )
 
 
 class ResponseWrapper(BaseResponse):

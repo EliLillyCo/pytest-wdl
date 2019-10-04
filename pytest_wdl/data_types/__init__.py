@@ -12,15 +12,13 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 from abc import ABCMeta, abstractmethod
-import hashlib
 from pathlib import Path
 from typing import Callable, Optional, Union, cast
 
 import subby
-from xphyle import open_
 
 from pytest_wdl.localizers import Localizer
-from pytest_wdl.utils import tempdir
+from pytest_wdl.utils import tempdir, compare_files_with_hash
 from xphyle import guess_file_format
 from xphyle.utils import transcode_file
 
@@ -187,21 +185,9 @@ BINARY_COMPARATORS = {
 }
 
 
-def assert_binary_files_equal(
-    file1: Path,
-    file2: Path,
-    hash_fn: Callable[[bytes], hashlib._hashlib.HASH] = hashlib.md5
-) -> None:
+def assert_binary_files_equal(file1: Path, file2: Path, digest: str = "md5") -> None:
     fmt = guess_file_format(file1)
     if fmt and fmt in BINARY_COMPARATORS:
         BINARY_COMPARATORS[fmt](file1, file2)
     else:
-        with open_(file1, "rb") as inp1:
-            file1_md5 = hash_fn(inp1.read()).hexdigest()
-        with open_(file2, "rb") as inp2:
-            file2_md5 = hash_fn(inp2.read()).hexdigest()
-        if file1_md5 != file2_md5:
-            raise AssertionError(
-                f"MD5 hashes differ between expected identical files "
-                f"{file1}, {file2}"
-            )
+        compare_files_with_hash(file1, file2, digest)

@@ -167,8 +167,9 @@ def create_data_file(
     url: Optional[str] = None,
     contents: Optional[Union[str, dict]] = None,
     env: Optional[str] = None,
-    datadirs: Optional[DataDirs] = None,
     http_headers: Optional[dict] = None,
+    digests: Optional[dict] = None,
+    datadirs: Optional[DataDirs] = None,
     **kwargs
 ) -> DataFile:
     if isinstance(type, dict):
@@ -193,7 +194,7 @@ def create_data_file(
         else:
             localizer = LinkLocalizer(env_path)
     elif url:
-        localizer = UrlLocalizer(url, user_config, http_headers)
+        localizer = UrlLocalizer(url, user_config, http_headers, digests)
         if not local_path:
             if name:
                 local_path = ensure_path(user_config.cache_dir / name)
