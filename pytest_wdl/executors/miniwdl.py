@@ -102,7 +102,7 @@ class MiniwdlExecutor(Executor):
                 #copy_input_files=copy_input_files,
                 #max_workers=max_workers,
             )
-        except Error.EvalError as exn:
+        except Error.EvalError as exn:  # TODO: test errors
             log_source(logger, exn)
             raise
         except runtime.task.TaskFailure as exn:

@@ -26,9 +26,9 @@ import subby
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
 
-try:  # pragma: no-cover
+try:
     import pysam
-except ImportError:
+except ImportError:  # pragma: no-cover
     raise ImportError(
         "Failed to import dependencies for bam type. To add support for BAM files, "
         "install the plugin with pip install pytest-wdl[bam]"

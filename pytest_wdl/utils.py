@@ -62,7 +62,7 @@ class PluginFactory(Generic[T]):
             )
             self.factory = getattr(module, self.entry_point.attrs[0])
         plugin = self.factory(*args, **kwargs)
-        if not isinstance(plugin, self.return_type):
+        if not isinstance(plugin, self.return_type):  # TODO: test this
             raise RuntimeError(
                 f"Expected plugin {plugin} to be an instance of {self.return_type}"
             )
@@ -153,15 +153,20 @@ def chdir(todir: Path):
 
 
 @contextlib.contextmanager
-def tempdir(change_dir: bool = False) -> Path:
+def tempdir(
+    change_dir: bool = False, tmproot: Optional[Path] = None,
+    cleanup: Optional[bool] = True
+) -> Path:
     """
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
 
     Args:
         change_dir: Whether to temporarily change to the temp dir.
+        tmproot: Root directory in which to create temporary directories.
+        cleanup: Whether to delete the temporary directory before exiting the context.
     """
-    temp = ensure_path(tempfile.mkdtemp())
+    temp = ensure_path(tempfile.mkdtemp(dir=tmproot))
     try:
         if change_dir:
             with chdir(temp):
@@ -169,7 +174,8 @@ def tempdir(change_dir: bool = False) -> Path:
         else:
             yield temp
     finally:
-        shutil.rmtree(temp)
+        if cleanup:
+            shutil.rmtree(temp)
 
 
 @contextlib.contextmanager

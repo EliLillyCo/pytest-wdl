@@ -46,7 +46,7 @@ class Executor(metaclass=ABCMeta):
                 **kwargs
             )
             return doc.workflow.name
-        else:
+        else:  # TODO: test this
             return safe_string(wdl_path.stem)
 
     @abstractmethod

@@ -171,7 +171,7 @@ def assert_text_files_equal(
 def compare_gzip(file1: Path, file2: Path):
     crc_size1 = subby.sub(f"gzip -lv {file1} | tail -1 | awk '{{print $2\":\"$7}}'")
     crc_size2 = subby.sub(f"gzip -lv {file2} | tail -1 | awk '{{print $2\":\"$7}}'")
-    if crc_size1 != crc_size2:
+    if crc_size1 != crc_size2:  # TODO: test this
         raise AssertionError(
             f"CRCs and/or uncompressed sizes differ between expected identical "
             f"gzip files {file1}, {file2}"
