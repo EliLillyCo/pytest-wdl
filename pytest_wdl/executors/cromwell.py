@@ -185,9 +185,10 @@ class CromwellExecutor(Executor):
                     ))
                     if failed:
                         failed_task = call_name
+                        failed_call = failed[0]
                         failed_task_stdout, failed_task_stderr = (
                             CromwellExecutor.read_cromwell_task_std(path)
-                            for path in (metadata["stdout"], metadata["stderr"])
+                            for path in (failed_call["stdout"], failed_call["stderr"])
                         )
 
                         num_failed = len(failed)
@@ -284,13 +285,14 @@ class CromwellExecutor(Executor):
         return imports_path
 
     @staticmethod
-    def read_cromwell_task_std(path: Path) -> Optional[str]:
-        if not path.exists():
-            path = path.with_suffix(".background")
-        if not path.exists():
-            return None
-        with open(path, "rt") as inp:
-            return inp.read()
+    def read_cromwell_task_std(path: str) -> Optional[str]:
+        if path:
+            p = Path(path)
+            if not p.exists():
+                p = p.with_suffix(".background")
+            if p.exists():
+                with open(p, "rt") as inp:
+                    return inp.read()
 
     @staticmethod
     def get_cromwell_outputs(output) -> dict:

@@ -105,12 +105,12 @@ class MiniwdlExecutor(Executor):
                 #max_workers=max_workers,
             )
         except Error.EvalError as err:  # TODO: test errors
-            log_source(logger, err)
+            MiniwdlExecutor.log_source(logger, err)
             raise
         except Error.RuntimeError as err:
             cause = err.__cause__ or err
             if isinstance(getattr(cause, "pos", None), Error.SourcePosition):
-                log_source(logger, cause)
+                MiniwdlExecutor.log_source(logger, cause)
             if isinstance(err, runtime.error.TaskFailure):
                 failed_task_exit_status = None
                 failed_task_stderr = None
@@ -149,17 +149,15 @@ class MiniwdlExecutor(Executor):
                 with open(path, "rt") as inp:
                     return inp.read()
 
-        return None
-
-
-def log_source(logger: logging.Logger, exn: Exception):
-    pos = cast(Error.SourcePosition, getattr(exn, "pos"))
-    logger.error(
-        "({} Ln {} Col {}) {}{}".format(
-            pos.uri,
-            pos.line,
-            pos.column,
-            exn.__class__.__name__,
-            (", " + str(exn) if str(exn) else ""),
+    @staticmethod
+    def log_source(logger: logging.Logger, exn: Exception):
+        pos = cast(Error.SourcePosition, getattr(exn, "pos"))
+        logger.error(
+            "({} Ln {} Col {}) {}{}".format(
+                pos.uri,
+                pos.line,
+                pos.column,
+                exn.__class__.__name__,
+                (", " + str(exn) if str(exn) else ""),
+            )
         )
-    )
