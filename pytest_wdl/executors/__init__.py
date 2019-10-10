@@ -37,6 +37,7 @@ class ExecutionFailedError(Exception):
         executor_stdout: Optional[str] = None,
         executor_stderr: Optional[str] = None,
         failed_task: Optional[str] = None,
+        failed_task_exit_status: Optional[int] = None,
         failed_task_stdout: Optional[str] = None,
         failed_task_stderr: Optional[str] = None,
         msg: Optional[str] = None
@@ -55,28 +56,33 @@ class ExecutionFailedError(Exception):
         self.executor_stdout = executor_stdout
         self.executor_stderr = executor_stderr
         self.failed_task = failed_task
+        self.failed_task_exit_status = failed_task_exit_status
         self.failed_task_stdout = failed_task_stdout
         self.failed_task_stderr = failed_task_stderr
+
+    @property
+    def exit_status_str(self) -> str:
+        if self.failed_task_exit_status:
+            return str(self.failed_task_exit_status)
+        else:
+            return "Unknown"
 
     def __str__(self):
         def wrap_std(std: str):
             if std:
-                return textwrap.indent(std, INDENT).lstrip()
+                return "\n" + textwrap.indent(std, INDENT)
             else:
-                return "None"
+                return " None"
 
         return textwrap.dedent(f"""
         {self.args[0]}:
             inputs:
                 {self.inputs}
-            executor_stdout:
-                {wrap_std(self.executor_stdout)}
-            executor_stderr:
-                {wrap_std(self.executor_stderr)}
-            failed_task_stdout:
-                {wrap_std(self.failed_task_stdout)}
-            failed_task_stderr:
-                {wrap_std(self.failed_task_stderr)}
+            executor_stdout:{wrap_std(self.executor_stdout)}
+            executor_stderr:{wrap_std(self.executor_stderr)}
+            failed_task_exit_status: {self.exit_status_str}
+            failed_task_stdout:{wrap_std(self.failed_task_stdout)}
+            failed_task_stderr:{wrap_std(self.failed_task_stderr)}
         """)
 
 

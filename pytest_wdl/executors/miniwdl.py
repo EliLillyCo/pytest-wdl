@@ -13,9 +13,11 @@
 #    limitations under the License.
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
-from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
+from pytest_wdl.executors import (
+    Executor, ExecutionFailedError, get_workflow_inputs, validate_outputs
+)
 
 from WDL import CLI, Error, Tree, runtime, _util
 
@@ -102,20 +104,35 @@ class MiniwdlExecutor(Executor):
                 #copy_input_files=copy_input_files,
                 #max_workers=max_workers,
             )
-        except Error.EvalError as exn:  # TODO: test errors
-            log_source(logger, exn)
+        except Error.EvalError as err:  # TODO: test errors
+            log_source(logger, err)
             raise
-        except runtime.task.TaskFailure as exn:
-            exn = exn.__cause__ or exn
-            if isinstance(exn, runtime.task.CommandFailure):
-                logger.error(
-                    "command's standard error in %s", getattr(exn, "stderr_file")
-                )
-            if isinstance(getattr(exn, "pos", None), Error.SourcePosition):
-                log_source(logger, exn)
+        except Error.RuntimeError as err:
+            cause = err.__cause__ or err
+            if isinstance(getattr(cause, "pos", None), Error.SourcePosition):
+                log_source(logger, cause)
+            if isinstance(err, runtime.error.TaskFailure):
+                failed_task_exit_status = None
+                failed_task_stderr = None
+                if isinstance(cause, runtime.task.CommandFailure):
+                    cmd_err = cast(runtime.task.CommandFailure, cause)
+                    failed_task_exit_status = cmd_err.exit_status
+                    failed_task_stderr = MiniwdlExecutor.read_miniwdl_command_std(
+                        cmd_err.stderr_file
+                    )
+
+                task_err = cast(runtime.error.TaskFailure, err)
+                raise ExecutionFailedError(
+                    "miniwdl",
+                    namespace or task,
+                    status="Failed",
+                    inputs=task_err.task.inputs,
+                    failed_task=task_err.task.name,
+                    failed_task_exit_status=failed_task_exit_status,
+                    failed_task_stderr=failed_task_stderr
+                ) from err
             else:
-                logger.error(f"{exn.__class__.__name__}, {str(exn)}")
-            raise
+                raise
 
         outputs = CLI.values_to_json(output_env, namespace=target.name)
 
@@ -124,13 +141,24 @@ class MiniwdlExecutor(Executor):
 
         return outputs
 
+    @staticmethod
+    def read_miniwdl_command_std(path: Optional[str] = None) -> Optional[str]:
+        if path:
+            p = Path(path)
+            if p.exists():
+                with open(path, "rt") as inp:
+                    return inp.read()
 
-def log_source(logger: logging.Logger, exn):
+        return None
+
+
+def log_source(logger: logging.Logger, exn: Exception):
+    pos = cast(Error.SourcePosition, getattr(exn, "pos"))
     logger.error(
         "({} Ln {} Col {}) {}{}".format(
-            exn.pos.uri,
-            exn.pos.line,
-            exn.pos.column,
+            pos.uri,
+            pos.line,
+            pos.column,
             exn.__class__.__name__,
             (", " + str(exn) if str(exn) else ""),
         )
