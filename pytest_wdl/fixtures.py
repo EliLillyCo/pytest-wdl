@@ -288,8 +288,8 @@ def workflow_runner(
         if not executors:
             executors = default_executors
 
-        def _run_test(executor_name):
-            executor = create_executor(executor_name, import_dir_paths, user_config)
+        def _run_test(_executor_name):
+            executor = create_executor(_executor_name, import_dir_paths, user_config)
             with context_dir(user_config.default_execution_dir, change_dir=True):
                 executor.run_workflow(
                     wdl_path,
