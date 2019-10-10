@@ -15,12 +15,75 @@ from abc import ABCMeta, abstractmethod
 import json
 from pathlib import Path
 import tempfile
+import textwrap
 from typing import List, Optional, Sequence, Tuple
 
 from pytest_wdl.data_types import DataFile
 from pytest_wdl.utils import ensure_path, safe_string
 
 from WDL import Tree
+
+
+INDENT = " " * 16
+
+
+class ExecutionFailedError(Exception):
+    def __init__(
+        self,
+        executor: str,
+        target: str,
+        status: str,
+        inputs: Optional[dict] = None,
+        executor_stdout: Optional[str] = None,
+        executor_stderr: Optional[str] = None,
+        failed_task: Optional[str] = None,
+        failed_task_exit_status: Optional[int] = None,
+        failed_task_stdout: Optional[str] = None,
+        failed_task_stderr: Optional[str] = None,
+        msg: Optional[str] = None
+    ):
+        if msg is None:
+            if failed_task and failed_task != target:
+                msg = f"{executor} failed with status {status} while running task " \
+                      f"{failed_task} of {target}"
+            else:
+                msg = f"{executor} failed with status {status} while running {target}"
+        super().__init__(msg)
+        self.executor = executor
+        self.target = target
+        self.status = status
+        self.inputs = inputs
+        self.executor_stdout = executor_stdout
+        self.executor_stderr = executor_stderr
+        self.failed_task = failed_task
+        self.failed_task_exit_status = failed_task_exit_status
+        self.failed_task_stdout = failed_task_stdout
+        self.failed_task_stderr = failed_task_stderr
+
+    @property
+    def exit_status_str(self) -> str:
+        if self.failed_task_exit_status:
+            return str(self.failed_task_exit_status)
+        else:
+            return "Unknown"
+
+    def __str__(self):
+        def wrap_std(std: str):
+            if std:
+                return "\n" + textwrap.indent(std, INDENT)
+            else:
+                return " None"
+
+        return textwrap.dedent(f"""
+        {self.args[0]}:
+            inputs:
+                {self.inputs}
+            executor_stdout:{wrap_std(self.executor_stdout)}
+            executor_stderr:{wrap_std(self.executor_stderr)}
+            failed_task_exit_status: {self.exit_status_str}
+            failed_task_stdout:{wrap_std(self.failed_task_stdout)}
+            failed_task_stderr:{wrap_std(self.failed_task_stderr)}
+        """)
 
 
 class Executor(metaclass=ABCMeta):
@@ -73,7 +136,7 @@ class Executor(metaclass=ABCMeta):
             Dict of outputs.
 
         Raises:
-            Exception: if there was an error executing the workflow
+            ExecutionFailedError: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
 

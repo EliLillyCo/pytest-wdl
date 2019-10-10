@@ -13,16 +13,15 @@
 #    limitations under the License.
 
 import json
+from typing import cast
 
 import pytest
 
-from pytest_wdl.config import ENV_DEFAULT_EXECUTORS
 from pytest_wdl.core import EXECUTORS, DefaultDataFile, create_executor
 from pytest_wdl.executors import (
-    get_workflow_inputs, make_serializable, validate_outputs
+    ExecutionFailedError, get_workflow_inputs, make_serializable, validate_outputs
 )
 from pytest_wdl.utils import tempdir
-from . import setenv
 
 
 @pytest.mark.integration
@@ -106,6 +105,31 @@ def test_task(workflow_data, workflow_runner, executor):
         executors=[executor],
         task_name="cat"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("executor", EXECUTORS.keys())
+def test_execution_failure(workflow_data, workflow_runner, executor):
+    inputs = {
+        "in_txt": workflow_data["in_txt"],
+        "in_int": 1,
+        "fail": True
+    }
+    outputs = {
+        "out_txt": workflow_data["out_txt"],
+        "out_int": 1
+    }
+    with pytest.raises(ExecutionFailedError) as exc_info:
+        workflow_runner(
+            "test.wdl",
+            inputs,
+            outputs,
+            executors=[executor]
+        )
+
+    err = cast(ExecutionFailedError, exc_info.value)
+    assert "foo_fail" in err.failed_task
+    assert err.failed_task_exit_status == 1
 
 
 def test_get_workflow_inputs():
