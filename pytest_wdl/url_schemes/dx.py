@@ -32,7 +32,7 @@ def get_dxpy():
         import importlib
         try:
             _dxpy = importlib.import_module("dxpy")
-        except ImportError:
+        except ImportError:  # pragma: no-cover
             raise RuntimeError(
                 "The dx:// URL scheme requires dxpy, which is not installed. "
                 "Update with pip install pytest-wdl[dx]"
@@ -65,7 +65,7 @@ class DxUrlHandler(UrlHandler):
 
     def urlopen(self, request: Request) -> Response:
         url = request.get_full_url()
-        if not url.startswith("dx://"):
+        if not url.startswith("dx://"):  # TODO: test this
             raise ValueError(f"Expected URL to start with 'dx://'; got {url}")
         obj_id = url[5:]
         if ":" in obj_id:
