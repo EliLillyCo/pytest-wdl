@@ -13,6 +13,7 @@
 #    limitations under the License.
 
 import json
+from typing import cast
 
 import pytest
 
@@ -118,13 +119,17 @@ def test_execution_failure(workflow_data, workflow_runner, executor):
         "out_txt": workflow_data["out_txt"],
         "out_int": 1
     }
-    with pytest.raises(ExecutionFailedError):
+    with pytest.raises(ExecutionFailedError) as exc_info:
         workflow_runner(
             "test.wdl",
             inputs,
             outputs,
             executors=[executor]
         )
+
+    err = cast(ExecutionFailedError, exc_info.value)
+    assert "foo_fail" in err.failed_task
+    assert err.failed_task_exit_status == 1
 
 
 def test_get_workflow_inputs():

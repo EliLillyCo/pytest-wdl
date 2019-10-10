@@ -175,6 +175,7 @@ class CromwellExecutor(Executor):
             else:
                 status = metadata["status"]
                 failed_task = None
+                failed_task_exit_status = None
                 failed_task_stdout = None
                 failed_task_stderr = None
                 msg = None
@@ -186,6 +187,7 @@ class CromwellExecutor(Executor):
                     if failed:
                         failed_task = call_name
                         failed_call = failed[0]
+                        failed_task_exit_status = failed_call["returnCode"]
                         failed_task_stdout, failed_task_stderr = (
                             CromwellExecutor.read_cromwell_task_std(path)
                             for path in (failed_call["stdout"], failed_call["stderr"])
@@ -209,6 +211,7 @@ class CromwellExecutor(Executor):
                     executor_stdout=exe.output,
                     executor_stderr=exe.error,
                     failed_task=failed_task,
+                    failed_task_exit_status=failed_task_exit_status,
                     failed_task_stdout=failed_task_stdout,
                     failed_task_stderr=failed_task_stderr,
                     msg=msg
