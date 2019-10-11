@@ -18,6 +18,8 @@ purposes, the implementaiton of these fixtures is done in the pytest_wdl.fixture
 module.
 """
 from pytest_wdl import fixtures
+from pytest_wdl.executors import ExecutionFailedError
+
 import pytest
 
 
