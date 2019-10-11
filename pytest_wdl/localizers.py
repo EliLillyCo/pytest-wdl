@@ -75,6 +75,11 @@ class UrlLocalizer(Localizer):
             try:
                 verify_digests(path, self.digests)
             except DigestsNotEqualError:
+                LOG.exception(
+                    "%s already exists but its digest does not match the expected "
+                    "digest; deleting the existing file and re-downloading from "
+                    "%s", str(path), self.url
+                )
                 path.unlink()
                 return False
         return True
