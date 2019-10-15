@@ -36,6 +36,50 @@ ENV_CROMWELL_ARGS = "CROMWELL_ARGS"
 UNSAFE_RE = re.compile(r"[^\w.-]")
 
 
+class Failures:
+    def __init__(
+        self,
+        num_failed: int,
+        failed_task: str,
+        failed_task_exit_status: Optional[str] = None,
+        failed_task_stdout: Optional[str] = None,
+        failed_task_stderr: Optional[str] = None
+    ):
+        self.num_failed = num_failed
+        self.failed_task = failed_task
+        self.failed_task_exit_status = failed_task_exit_status
+        self._failed_task_stdout_path = failed_task_stdout
+        self._failed_task_stdout = None
+        self._failed_task_stderr_path = failed_task_stderr
+        self._failed_task_stderr = None
+
+    @property
+    def failed_task_stdout(self):
+        if self._failed_task_stdout is None and self._failed_task_stderr_path:
+            self._failed_task_stdout = Failures._read_task_std(
+                self._failed_task_stdout_path
+            )
+        return self._failed_task_stdout
+
+    @property
+    def failed_task_stderr(self):
+        if self._failed_task_stderr is None and self._failed_task_stderr_path:
+            self._failed_task_stderr = Failures._read_task_std(
+                self._failed_task_stderr_path
+            )
+        return self._failed_task_stderr
+
+    @staticmethod
+    def _read_task_std(path: str) -> Optional[str]:
+        if path:
+            p = Path(path)
+            if not p.exists():
+                p = p.with_suffix(".background")
+            if p.exists():
+                with open(p, "rt") as inp:
+                    return inp.read()
+
+
 class CromwellExecutor(Executor):
     """
     Manages the running of WDL workflows using Cromwell.
@@ -173,47 +217,26 @@ class CromwellExecutor(Executor):
                 assert metadata["status"] == "Succeeded"
                 outputs = metadata["outputs"]
             else:
-                status = metadata["status"]
-                failed_task = None
-                failed_task_exit_status = None
-                failed_task_stdout = None
-                failed_task_stderr = None
+                failures = CromwellExecutor.get_failures(metadata)
                 msg = None
 
-                for call_name, call_metadatas in metadata["calls"].items():
-                    failed = list(filter(
-                        lambda md: md["executionStatus"] == "Failed", call_metadatas
-                    ))
-                    if failed:
-                        failed_task = call_name
-                        failed_call = failed[0]
-                        failed_task_exit_status = failed_call["returnCode"]
-                        failed_task_stdout, failed_task_stderr = (
-                            CromwellExecutor.read_cromwell_task_std(path)
-                            for path in (failed_call["stdout"], failed_call["stderr"])
-                        )
-
-                        num_failed = len(failed)
-                        if num_failed > 1:
-                            msg = \
-                                f"cromwell failed with status {status} on " \
-                                f"{num_failed} instances of {failed_task} of " \
-                                f"{workflow_name}; only showing output from the " \
-                                f"first failed task"
-
-                        break
+                if failures.num_failed > 1:
+                    msg = \
+                        f"cromwell failed on {failures.num_failed} instances of " \
+                        f"{failures.failed_task} of {workflow_name}; only showing " \
+                        f"output from the first failed task"
 
                 raise ExecutionFailedError(
                     executor="cromwell",
                     target=workflow_name,
-                    status=status,
+                    status="Failed",
                     inputs=inputs_dict,
                     executor_stdout=exe.output,
                     executor_stderr=exe.error,
-                    failed_task=failed_task,
-                    failed_task_exit_status=failed_task_exit_status,
-                    failed_task_stdout=failed_task_stdout,
-                    failed_task_stderr=failed_task_stderr,
+                    failed_task=failures.failed_task,
+                    failed_task_exit_status=failures.failed_task_exit_status,
+                    failed_task_stdout=failures.failed_task_stdout,
+                    failed_task_stderr=failures.failed_task_stderr,
                     msg=msg
                 )
         else:
@@ -288,16 +311,6 @@ class CromwellExecutor(Executor):
         return imports_path
 
     @staticmethod
-    def read_cromwell_task_std(path: str) -> Optional[str]:
-        if path:
-            p = Path(path)
-            if not p.exists():
-                p = p.with_suffix(".background")
-            if p.exists():
-                with open(p, "rt") as inp:
-                    return inp.read()
-
-    @staticmethod
     def get_cromwell_outputs(output) -> dict:
         lines = output.splitlines(keepends=False)
         if len(lines) < 2:
@@ -317,3 +330,30 @@ class CromwellExecutor(Executor):
         else:
             raise AssertionError("No outputs JSON found in Cromwell stdout")
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
+
+    @staticmethod
+    def get_failures(metadata: dict) -> Failures:
+        for call_name, call_metadatas in metadata["calls"].items():
+            failed = list(filter(
+                lambda md: md["executionStatus"] == "Failed", call_metadatas
+            ))
+            if failed:
+                failed_call = failed[0]
+                if "subWorkflowMetadata" in failed_call:
+                    return CromwellExecutor.get_failures(
+                        failed_call["subWorkflowMetadata"]
+                    )
+                else:
+                    if "returnCode" in failed_call:
+                        rc = failed_call["returnCode"]
+                    else:
+                        rc = "Unknown"
+                    return Failures(
+                        len(failed),
+                        call_name,
+                        rc,
+                        failed_call["stdout"],
+                        failed_call["stderr"]
+                    )
+        else:
+            raise RuntimeError("Workflow failed but could not find any failed calls")
