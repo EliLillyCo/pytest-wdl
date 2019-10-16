@@ -191,7 +191,7 @@ def test_data_resolver():
         fun.__name__ = "test_foo"
         dd = DataDirs(d, mod, fun)
         resolver = DataResolver(test_data, UserConfiguration(None, cache_dir=d))
-        with pytest.raises(ValueError):
+        with pytest.raises(FileNotFoundError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
         assert resolver.resolve("bar", dd) == 1

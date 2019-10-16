@@ -21,7 +21,7 @@ from urllib.request import BaseHandler, Request, build_opener, install_opener
 
 from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, PluginFactory, DigestsNotEqualError, hash_file
+from pytest_wdl.utils import LOG, PluginFactory, verify_digests
 
 try:
     from tqdm import tqdm as progress
@@ -124,20 +124,7 @@ class BaseResponse(Response, metaclass=ABCMeta):
             )
 
         if digests:
-            for hash_name, expected_digest in digests.items():
-                try:
-                    actual_digest = hash_file(destination, hash_name)
-                except AssertionError:  # TODO: test this
-                    LOG.warning(
-                        "Hash algorithm %s is not supported; cannot verify file %s",
-                        hash_name, destination
-                    )
-                    continue
-                if actual_digest != expected_digest:
-                    raise DigestsNotEqualError(
-                        f"{hash_name} digest {actual_digest} of downloaded file"
-                        f" {destination} does match expected value {expected_digest}"
-                    )
+            verify_digests(destination, digests)
 
 
 class ResponseWrapper(BaseResponse):

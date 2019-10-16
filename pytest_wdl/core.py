@@ -101,23 +101,27 @@ class DataResolver:
         self.user_config = user_config
 
     def resolve(self, name: str, datadirs: Optional[DataDirs] = None):
-        if name not in self.data_descriptors:
-            raise ValueError(f"Unrecognized name {name}")
+        if name in self.data_descriptors:
+            value = self.data_descriptors[name]
 
-        value = self.data_descriptors[name]
-
-        if isinstance(value, dict):
-            # Right now, "class" is just a marker for object types, of which
-            # "file" is a special case.
-            cls = value.get("class", "file")
-            if "value" in value:
-                value = value["value"]
-            if cls == "file":
-                return create_data_file(
-                    user_config=self.user_config,
-                    datadirs=datadirs,
-                    **cast(dict, value)
-                )
+            if isinstance(value, dict):
+                # Right now, "class" is just a marker for object types, of which
+                # "file" is a special case.
+                cls = value.get("class", "file")
+                if "value" in value:
+                    value = value["value"]
+                if cls == "file":
+                    value = create_data_file(
+                        user_config=self.user_config,
+                        datadirs=datadirs,
+                        **cast(dict, value)
+                    )
+        else:
+            value = create_data_file(
+                name=name,
+                user_config=self.user_config,
+                datadirs=datadirs
+            )
 
         return value
 

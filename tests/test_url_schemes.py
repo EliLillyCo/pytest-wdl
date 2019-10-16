@@ -15,6 +15,7 @@ try:
     # test whether dxpy is installed and the user is logged in
     import dxpy
     assert dxpy.SECURITY_CONTEXT
+    assert dxpy.whoami()
     no_dx = False
 except:
     no_dx = True

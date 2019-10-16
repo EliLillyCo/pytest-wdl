@@ -21,7 +21,9 @@ from xphyle import open_
 
 from pytest_wdl.config import UserConfiguration
 from pytest_wdl.url_schemes import Response, ResponseWrapper
-from pytest_wdl.utils import LOG, env_map, resolve_value_descriptor
+from pytest_wdl.utils import (
+    LOG, DigestsNotEqualError, env_map, resolve_value_descriptor, verify_digests
+)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -37,6 +39,17 @@ class Localizer(metaclass=ABCMeta):  # pragma: no-cover
             destination: Path to file where the non-local resource is to be localized.
         """
         pass
+
+    def verify(self, path: Path) -> bool:
+        """Verify that `path` exists and is valid.
+
+        Args:
+            path: Path to verify.
+
+        Returns:
+            True if the path is verified, else False
+        """
+        return path.exists()
 
 
 class UrlLocalizer(Localizer):
@@ -54,6 +67,22 @@ class UrlLocalizer(Localizer):
         self.user_config = user_config
         self._http_headers = http_headers
         self.digests = digests
+
+    def verify(self, path: Path) -> bool:
+        if not super().verify(path):
+            return False
+        if self.digests:
+            try:
+                verify_digests(path, self.digests)
+            except DigestsNotEqualError:
+                LOG.exception(
+                    "%s already exists but its digest does not match the expected "
+                    "digest; deleting the existing file and re-downloading from "
+                    "%s", str(path), self.url
+                )
+                path.unlink()
+                return False
+        return True
 
     def localize(self, destination: Path):
         try:

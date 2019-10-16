@@ -509,3 +509,20 @@ def hash_file(path: Path, hash_name: str = "md5") -> str:
         hashobj = hashlib.new(hash_name)
         hashobj.update(inp.read())
         return hashobj.hexdigest()
+
+
+def verify_digests(path: Path, digests: dict):
+    for hash_name, expected_digest in digests.items():
+        try:
+            actual_digest = hash_file(path, hash_name)
+        except AssertionError:  # TODO: test this
+            LOG.warning(
+                "Hash algorithm %s is not supported; cannot verify file %s",
+                hash_name, path
+            )
+            continue
+        if actual_digest != expected_digest:
+            raise DigestsNotEqualError(
+                f"{hash_name} digest {actual_digest} of file "
+                f"{path} does match expected value {expected_digest}"
+            )

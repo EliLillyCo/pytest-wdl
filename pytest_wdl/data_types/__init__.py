@@ -54,7 +54,13 @@ class DataFile(metaclass=ABCMeta):
     @property
     def path(self) -> Path:
         if not self.local_path.exists():
-            self.localizer.localize(self.local_path)
+            if self.localizer:
+                self.localizer.localize(self.local_path)
+            else:
+                raise RuntimeError(
+                    f"Localization to {self.local_path} is required but no localizer "
+                    f"is defined"
+                )
         return self.local_path
 
     def __str__(self) -> str:
