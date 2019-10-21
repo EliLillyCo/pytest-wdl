@@ -6,7 +6,7 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 
 ## Dependencies
 
-* Python 3.6+
+* Python 3.6 or 3.7 (3.8 is not yet fully supported)
 * Java 1.8+
 * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
 * [Docker](https://www.docker.com/get-started) daemon (if your WDL tasks depend on Docker images)
