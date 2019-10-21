@@ -26,6 +26,7 @@ import subby
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
 
+# TODO: fall back to command line samtools (if installed)
 try:
     import pysam
 except ImportError:  # pragma: no-cover
