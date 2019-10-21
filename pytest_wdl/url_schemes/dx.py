@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Sequence, Optional
 
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
-
+from pytest_wdl.utils import verify_digests
 
 # Import dxpy dynamically
 _dxpy = None
@@ -45,13 +45,20 @@ class DxResponse(Response):
         self.file_id = file_id
         self.project_id = project_id
 
-    def download_file(self, destination: Path, show_progress: bool = False):
+    def download_file(
+        self,
+        destination: Path,
+        show_progress: bool = False,
+        digests: Optional[dict] = None
+    ):
         get_dxpy().download_dxfile(
             self.file_id,
             str(destination),
             show_progress=show_progress,
             project=self.project_id
         )
+        if digests:
+            verify_digests(destination, digests)
 
 
 class DxUrlHandler(UrlHandler):
