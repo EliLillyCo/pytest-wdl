@@ -209,54 +209,52 @@ class CromwellExecutor(Executor):
 
         exe = subby.run(cmd, raise_on_error=False)
 
+        metadata = None
         if metadata_file.exists():
             with open(metadata_file, "rt") as inp:
                 metadata = json.load(inp)
 
-            if exe.ok:
+        if exe.ok:
+            if metadata:
                 assert metadata["status"] == "Succeeded"
                 outputs = metadata["outputs"]
             else:
-                failures = CromwellExecutor.get_failures(metadata)
-                msg = None
-
-                if failures.num_failed > 1:
-                    msg = \
-                        f"cromwell failed on {failures.num_failed} instances of " \
-                        f"{failures.failed_task} of {workflow_name}; only showing " \
-                        f"output from the first failed task"
-
-                raise ExecutionFailedError(
-                    executor="cromwell",
-                    target=workflow_name,
-                    status="Failed",
-                    inputs=inputs_dict,
-                    executor_stdout=exe.output,
-                    executor_stderr=exe.error,
-                    failed_task=failures.failed_task,
-                    failed_task_exit_status=failures.failed_task_exit_status,
-                    failed_task_stdout=failures.failed_task_stdout,
-                    failed_task_stderr=failures.failed_task_stderr,
-                    msg=msg
-                )
-        else:
-            if exe.ok:
                 LOG.warning(
                     f"Cromwell command completed successfully but did not generate "
                     f"a metadata file at {metadata_file}"
                 )
                 outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
+        else:
+            error_kwargs = {
+                "executor": "cromwell",
+                "target": workflow_name,
+                "status": "Failed",
+                "inputs": inputs_dict,
+                "executor_stdout": exe.output,
+                "executor_stderr": exe.error,
+            }
+            if metadata:
+                failures = CromwellExecutor.get_failures(metadata)
+                if failures:
+                    error_kwargs.update({
+                        "failed_task": failures.failed_task,
+                        "failed_task_exit_status": failures.failed_task_exit_status,
+                        "failed_task_stdout": failures.failed_task_stdout,
+                        "failed_task_stderr": failures.failed_task_stderr
+                    })
+                    if failures.num_failed > 1:
+                        error_kwargs["msg"] = \
+                            f"cromwell failed on {failures.num_failed} instances of " \
+                            f"{failures.failed_task} of {workflow_name}; only " \
+                            f"showing output from the first failed task"
+                else:
+                    error_kwargs["msg"] = f"cromwell failed on workflow {workflow_name}"
             else:
-                raise ExecutionFailedError(
-                    executor="cromwell",
-                    target=workflow_name,
-                    status="Failed",
-                    inputs=inputs_dict,
-                    executor_stdout=exe.output,
-                    executor_stderr=exe.error,
-                    msg=f"Cromwell command failed but did not generate a metadata "
-                        f"file at {metadata_file}"
-                )
+                error_kwargs["msg"] = \
+                    f"Cromwell command failed but did not generate a metadata " \
+                    f"file at {metadata_file}"
+
+            raise ExecutionFailedError(**error_kwargs)
 
         if expected:
             validate_outputs(outputs, expected, workflow_name)
@@ -332,7 +330,7 @@ class CromwellExecutor(Executor):
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
 
     @staticmethod
-    def get_failures(metadata: dict) -> Failures:
+    def get_failures(metadata: dict) -> Optional[Failures]:
         for call_name, call_metadatas in metadata["calls"].items():
             failed = list(filter(
                 lambda md: md["executionStatus"] == "Failed", call_metadatas
@@ -355,5 +353,3 @@ class CromwellExecutor(Executor):
                         failed_call["stdout"],
                         failed_call["stderr"]
                     )
-        else:
-            raise RuntimeError("Workflow failed but could not find any failed calls")
