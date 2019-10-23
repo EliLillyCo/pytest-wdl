@@ -1,0 +1,172 @@
+{
+  "workflowName": "rnaseq_batch",
+  "workflowProcessingEvents": [{
+    "timestamp": "2019-10-22T20:53:46.603Z",
+    "cromwellVersion": "46",
+    "cromwellId": "cromid-15505ed",
+    "description": "PickedUp"
+  }, {
+    "cromwellId": "cromid-15505ed",
+    "description": "Finished",
+    "timestamp": "2019-10-22T20:53:52.610Z",
+    "cromwellVersion": "46"
+  }],
+  "actualWorkflowLanguageVersion": "Biscayne",
+  "submittedFiles": {
+    "workflow": "version development\n\nimport \"rnaseq_structs.wdl\"\nimport \"rnaseq.wdl\"\n\nworkflow rnaseq_batch {\n  input {\n    Map[String, Map[String, Array[File]]] samples\n    GsnapIndex index\n    GsnapParameters gsnap_params\n    CountParameters count_params\n    GeneModel gene_model\n    String? quality_protocol\n    TrimParameters? trim_params\n    Int? num_align_subsets\n    Int? num_count_subsets\n    Boolean? output_trimmed\n    Boolean? retain_unmapped\n    File? bam_headers\n  }\n\n#  Int default_num_align_subsets = select_first([num_align_subsets, 1])\n#  Int default_num_count_subsets = select_first([num_count_subsets, 1])\n#  Boolean default_retain_unmapped = select_first([retain_unmapped, false])\n\n  scatter (sample in as_pairs(samples)) {\n    scatter (assay in as_pairs(sample.right)) {\n      call rnaseq.rnaseq {\n        input:\n          fastq_gzs=assay.right,\n          quality_protocol=quality_protocol,\n          index=index,\n          gsnap_params=gsnap_params,\n          trim_params=trim_params,\n          num_align_subsets=num_align_subsets,\n          num_count_subsets=num_count_subsets,\n          output_trimmed=output_trimmed,\n          retain_unmapped=retain_unmapped,\n          gene_model=gene_model,\n          bam_headers=bam_headers,\n          count_params=count_params,\n          output_prefix=assay.left\n      }\n      # collect assay level results\n      Map[String, Array[File]] trimmed_fastq_gzs = {assay.left: rnaseq.trimmed_fastq_gzs}\n#      Map[String, File?] trim_stats = {assay.left: rnaseq.trim_stats}\n      Map[String, Pair[File, File]] bam_and_index = {assay.left: (rnaseq.bam, rnaseq.bai)}\n      Map[String, File] counts = {assay.left: rnaseq.counts}\n      Map[String, Array[File]] unique_counts = {assay.left: rnaseq.unique_counts}\n      Map[String, Array[File]] multi_counts = {assay.left: rnaseq.multi_counts}\n      Map[String, Array[File]] unique_read_details = {assay.left: rnaseq.unique_read_details}\n      Map[String, Array[File]] multi_read_details = {assay.left: rnaseq.multi_read_details}\n#      Map[String, File?] rpms = {assay.left: rnaseq.rpms}\n    }\n    # collect sample level results\n    Map[String, Map[String, Array[File]]] sample_trimmed_fastq_gzs = {sample.left: as_map(flatten(trimmed_fastq_gzs))}\n#    Map[String, Map[String, File?]] sample_trim_stats = {sample.left: as_map(flatten(trim_stats))}\n    Map[String, Map[String, Pair[File, File]]] sample_assay_bam_and_index = {sample.left: as_map(flatten(bam_and_index))}\n    Map[String, Map[String, File]] sample_counts = {sample.left: as_map(flatten(counts))}\n    Map[String, Map[String, Array[File]]] sample_unique_counts = {sample.left: as_map(flatten(unique_counts))}\n    Map[String, Map[String, Array[File]]] sample_multi_counts = {sample.left: as_map(flatten(multi_counts))}\n    Map[String, Map[String, Array[File]]] sample_unique_read_details = {sample.left: as_map(flatten(unique_read_details))}\n    Map[String, Map[String, Array[File]]] sample_multi_read_details = {sample.left: as_map(flatten(multi_read_details))}\n#    Map[String, Map[String, File?]] sample_rpms = {sample.left: as_map(flatten(rpms))}\n  }\n\n\n  output {\n    Map[String, Map[String, Array[File]]] batch_trimmed_fastq_gzs = as_map(flatten(sample_trimmed_fastq_gzs))\n#    Map[String, Map[String, File?]?]? batch_trim_stats = as_map(flatten(sample_trim_stats))\n    Map[String, Map[String, Pair[File, File]]] batch_assay_bam_and_index = as_map(flatten(sample_assay_bam_and_index))\n    Map[String, Map[String, File]] batch_counts = as_map(flatten(sample_counts))\n    Map[String, Map[String, Array[File]]] batch_unique_counts = as_map(flatten(sample_unique_counts))\n    Map[String, Map[String, Array[File]]] batch_multi_counts = as_map(flatten(sample_multi_counts))\n    Map[String, Map[String, Array[File]]] batch_unique_read_details = as_map(flatten(sample_unique_read_details))\n    Map[String, Map[String, Array[File]]] batch_multi_read_details = as_map(flatten(sample_multi_read_details))\n#    Map[String, Map[String, File?]] batch_rpms = as_map(flatten(sample_rpms))\n  }\n\n  meta {\n    description: \"Trim and align RNA-seq reads from a batch of samples and return assay level results that are mapped to their assay name and those assays are mapped to their sample name\"\n  }\n\n  parameter_meta {\n    samples: \"Map the sample name to assay name to an array of 1-3 gzipped FASTQ file(s) to align\"\n    quality_protocol: \"Format of the quality scores (illumina or sanger)\"\n    index: \"Gsnap index to use\"\n    gsnap_params: \"Optional gsnap parameters\"\n    trim_params: \"Optional trimming parameters\"\n    num_align_subsets: \"Number of subsets into which input fastqs are divided for alignment\"\n    num_count_subsets: \"Number of subsets into which alignments are divided for counting\"\n    output_trimmed: \"If trimming is performed, whether to output the trimmed reads\"\n    retain_unmapped: \"Whether unmapped reads should be retained in the output BAM file\"\n    gene_model: \"The gene model to use for counting\"\n    bam_headers: \"BAM headers to use for splitting the genome\"\n    output_prefix: \"Prefix to use for output files\"\n  }\n}\n",
+    "root": "",
+    "options": "{\n\n}",
+    "inputs": "{\"rnaseq_batch.samples\": {\"test_sample_name\": {\"test\": [\"/Users/user/PycharmProjects/rnaseqbatch/data/SRR064287_chr22_1.fq.gz\", \"/Users/user/PycharmProjects/rnaseqbatch/data/SRR064287_chr22_2.fq.gz\"]}}, \"rnaseq_batch.quality_protocol\": \"sanger\", \"rnaseq_batch.index\": {\"genome_id\": \"GRCh37_chr22\", \"index_targz\": \"/Users/user/PycharmProjects/rnaseqbatch/data/gsnap_chr22.tar.gz\"}, \"rnaseq_batch.gsnap_params\": {\"novel_splicing\": true}, \"rnaseq_batch.trim_params\": {\"trimmer\": \"sickle\"}, \"rnaseq_batch.count_params\": {\"gene_lookups_targz\": \"/Users/user/PycharmProjects/rnaseqbatch/data/eg2.tar.gz\"}, \"rnaseq_batch.output_trimmed\": true, \"rnaseq_batch.gene_model\": {\"gff\": \"/Users/user/PycharmProjects/rnaseqbatch/data/chr22_gene_model.gff.gz\", \"tbi\": \"/Users/user/PycharmProjects/rnaseqbatch/data/chr22_gene_model.gff.gz.tbi\"}}",
+    "workflowUrl": "",
+    "labels": "{}"
+  },
+  "calls": {
+    "ScatterAt27_14": [{
+      "retryableFailure": false,
+      "executionStatus": "Failed",
+      "shardIndex": 0,
+      "failures": [{
+        "causedBy": [{
+          "message": "Failed to evaluate input 'num_align_subsets' (reason 1 of 1): Failed to lookup input value for required input num_align_subsets",
+          "causedBy": []
+        }, {
+          "message": "Failed to evaluate input 'retain_unmapped' (reason 1 of 1): Failed to lookup input value for required input retain_unmapped",
+          "causedBy": []
+        }, {
+          "message": "Failed to evaluate input 'bam_headers' (reason 1 of 1): Failed to lookup input value for required input bam_headers",
+          "causedBy": []
+        }, {
+          "message": "Failed to evaluate input 'num_count_subsets' (reason 1 of 1): Failed to lookup input value for required input num_count_subsets",
+          "causedBy": []
+        }],
+        "message": "Failed to evaluate inputs for sub workflow"
+      }],
+      "end": "2019-10-22T20:53:51.592Z",
+      "attempt": 1,
+      "start": "2019-10-22T20:53:51.563Z"
+    }]
+  },
+  "outputs": {
+
+  },
+  "workflowRoot": "/Users/user/PycharmProjects/rnaseqbatch/data/cromwell-executions/rnaseq_batch/d3c50103-53a8-4e1a-879e-71ae90ff01d7",
+  "actualWorkflowLanguage": "WDL",
+  "id": "d3c50103-53a8-4e1a-879e-71ae90ff01d7",
+  "inputs": {
+    "num_align_subsets": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_multi_subset.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_orphans.gsnap_cpu": 32,
+    "bam_headers": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.gsnap_align.gsnap_cpu": 32,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.merge_subsets.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.subset_size_mb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.gsnap_align.disk_gb": null,
+    "retain_unmapped": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.gsnap_align.sort_memory_gb_per_cpu": 1,
+    "quality_protocol": "sanger",
+    "rnaseq_batch.rnaseq.rnaseq.trim.trim.trim_cutadapt.cpu": 8,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_unique_all.memory_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_unique_all.output_suffix": null,
+    "samples": {
+      "test_sample_name": {
+        "test": ["/Users/user/PycharmProjects/rnaseqbatch/data/SRR064287_chr22_1.fq.gz", "/Users/user/PycharmProjects/rnaseqbatch/data/SRR064287_chr22_2.fq.gz"]
+      }
+    },
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_orphans.sort_cpu": 4,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.find_regions.memory_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_multi_all.output_suffix": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_subsets.sort_memory_gb_per_cpu": 1,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.gsnap_align.gsnap_memory_gb": 30,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_multi_subset.memory_gb": null,
+    "gene_model": {
+      "tbi": "/Users/user/PycharmProjects/rnaseqbatch/data/chr22_gene_model.gff.gz.tbi",
+      "gff": "/Users/user/PycharmProjects/rnaseqbatch/data/chr22_gene_model.gff.gz"
+    },
+    "rnaseq_batch.rnaseq.rnaseq.trim.trim.trim_sickle.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_subsets.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_orphans.sort_memory_gb_per_cpu": 1,
+    "gsnap_params": {
+      "multiple_primaries": null,
+      "novel_splicing": true,
+      "batch_mode": null,
+      "version": null,
+      "use_splice_sites": null,
+      "quiet_if_excessive": null,
+      "npaths": null,
+      "no_chimeras": null
+    },
+    "rnaseq_batch.rnaseq.rnaseq.trim.trim.trim_cutadapt.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_multi_all.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_orphans.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.merge_subsets.docker_image_version": "1.9",
+    "trim_params": {
+      "nextseq_min_quality": null,
+      "read2_adapters_3p": null,
+      "trimmer": "sickle",
+      "trim_5p": null,
+      "read1_adapters_5p": null,
+      "max_n": null,
+      "version": null,
+      "min_quality": null,
+      "trim_n": null,
+      "min_length": null,
+      "read1_adapters_3p": null,
+      "read2_adapters_5p": null,
+      "remove_adapters_count": null
+    },
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_unique_subset.memory_gb": null,
+    "output_trimmed": true,
+    "num_count_subsets": null,
+    "count_params": {
+      "strand_match": null,
+      "distance_5p": null,
+      "output_cell_id": null,
+      "version": null,
+      "min_mapq": null,
+      "distance_3p": null,
+      "output_example_reads": null,
+      "gene_lookups_targz": "/Users/user/PycharmProjects/rnaseqbatch/data/eg2.tar.gz",
+      "output_all_reads": null,
+      "keep_overhanging_reads": null,
+      "max_alignments": null
+    },
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_unique_subset.disk_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_multi_all.memory_gb": null,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.gsnap_align.sort_cpu": 4,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_subsets.gsnap_memory_gb": 30,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_subsets.sort_cpu": 4,
+    "rnaseq_batch.rnaseq.rnaseq.bam2simple_counts.bam2simple_counts.count_unique_all.disk_gb": null,
+    "index": {
+      "genome_id": "GRCh37_chr22",
+      "index_targz": "/Users/user/PycharmProjects/rnaseqbatch/data/gsnap_chr22.tar.gz"
+    },
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_subsets.gsnap_cpu": 32,
+    "rnaseq_batch.rnaseq.rnaseq.align.align.align_orphans.gsnap_memory_gb": 30
+  },
+  "labels": {
+    "cromwell-workflow-id": "cromwell-d3c50103-53a8-4e1a-879e-71ae90ff01d7"
+  },
+  "submission": "2019-10-22T20:53:46.552Z",
+  "status": "Failed",
+  "failures": [{
+    "message": "Workflow failed",
+    "causedBy": [{
+      "message": "Failed to evaluate inputs for sub workflow",
+      "causedBy": [{
+        "causedBy": [],
+        "message": "Failed to evaluate input 'num_align_subsets' (reason 1 of 1): Failed to lookup input value for required input num_align_subsets"
+      }, {
+        "message": "Failed to evaluate input 'retain_unmapped' (reason 1 of 1): Failed to lookup input value for required input retain_unmapped",
+        "causedBy": []
+      }, {
+        "message": "Failed to evaluate input 'bam_headers' (reason 1 of 1): Failed to lookup input value for required input bam_headers",
+        "causedBy": []
+      }, {
+        "causedBy": [],
+        "message": "Failed to evaluate input 'num_count_subsets' (reason 1 of 1): Failed to lookup input value for required input num_count_subsets"
+      }]
+    }]
+  }],
+  "end": "2019-10-22T20:53:52.609Z",
+  "start": "2019-10-22T20:53:46.644Z"
+}
