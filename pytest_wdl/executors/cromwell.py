@@ -356,8 +356,8 @@ class CromwellExecutor(Executor):
 
                     stdout = stderr = None
                     if "stdout" in failed_call:
-                        stdout = failed_call["stdout"]
-                        stderr = failed_call["stderr"]
+                        stdout = Path(failed_call["stdout"])
+                        stderr = Path(failed_call["stderr"])
                     elif "failures" in failed_call:
                         failure = failed_call["failures"][0]
                         stderr = failure["message"]

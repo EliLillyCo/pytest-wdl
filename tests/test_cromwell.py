@@ -173,8 +173,10 @@ def test_failure_metadata(workflow_data):
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
-    assert "6717f340-b948-4e97-ac2c-bdba793893f5" in failures._failed_task_stdout_path
-    assert "6717f340-b948-4e97-ac2c-bdba793893f5" in failures._failed_task_stderr_path
+    assert "6717f340-b948-4e97-ac2c-bdba793893f5" in \
+           str(failures._failed_task_stdout_path)
+    assert "6717f340-b948-4e97-ac2c-bdba793893f5" in \
+           str(failures._failed_task_stderr_path)
 
     m47 = workflow_data["metadata47.json"]
     with open(m47.path, "rt") as inp:
@@ -183,8 +185,10 @@ def test_failure_metadata(workflow_data):
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
-    assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in failures._failed_task_stdout_path
-    assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in failures._failed_task_stderr_path
+    assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in \
+           str(failures._failed_task_stdout_path)
+    assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in \
+           str(failures._failed_task_stderr_path)
 
 
 def test_call_failure_metadata(workflow_data):
@@ -195,4 +199,4 @@ def test_call_failure_metadata(workflow_data):
     assert failures.num_failed == 1
     assert failures.failed_task == "ScatterAt27_14"
     assert failures.failed_task_exit_status == "Unknown"
-    assert "Failed to evaluate inputs for sub workflow" in failures._failed_task_stderr_path
+    assert "Failed to evaluate inputs for sub workflow" in failures._failed_task_stderr
