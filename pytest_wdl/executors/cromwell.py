@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 import subby
 
@@ -42,16 +42,24 @@ class Failures:
         num_failed: int,
         failed_task: str,
         failed_task_exit_status: Optional[str] = None,
-        failed_task_stdout: Optional[str] = None,
-        failed_task_stderr: Optional[str] = None
+        failed_task_stdout: Optional[Union[Path, str]] = None,
+        failed_task_stderr: Optional[Union[Path, str]] = None
     ):
         self.num_failed = num_failed
         self.failed_task = failed_task
         self.failed_task_exit_status = failed_task_exit_status
-        self._failed_task_stdout_path = failed_task_stdout
+        self._failed_task_stdout_path = None
         self._failed_task_stdout = None
-        self._failed_task_stderr_path = failed_task_stderr
+        self._failed_task_stderr_path = None
         self._failed_task_stderr = None
+        if isinstance(failed_task_stdout, Path):
+            self._failed_task_stdout_path = cast(Path, failed_task_stdout)
+        else:
+            self._failed_task_stdout = cast(str, failed_task_stdout)
+        if isinstance(failed_task_stderr, Path):
+            self._failed_task_stderr_path = cast(Path, failed_task_stderr)
+        else:
+            self._failed_task_stderr = cast(str, failed_task_stderr)
 
     @property
     def failed_task_stdout(self):
@@ -70,13 +78,12 @@ class Failures:
         return self._failed_task_stderr
 
     @staticmethod
-    def _read_task_std(path: str) -> Optional[str]:
+    def _read_task_std(path: Path) -> Optional[str]:
         if path:
-            p = Path(path)
-            if not p.exists():
-                p = p.with_suffix(".background")
-            if p.exists():
-                with open(p, "rt") as inp:
+            if not path.exists():
+                path = path.with_suffix(".background")
+            if path.exists():
+                with open(path, "rt") as inp:
                     return inp.read()
 
 

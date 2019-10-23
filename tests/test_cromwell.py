@@ -185,3 +185,14 @@ def test_failure_metadata(workflow_data):
     assert failures.failed_task_exit_status == "Unknown"
     assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in failures._failed_task_stdout_path
     assert "563012ef-e593-42dc-9de0-f0a682ce23e3" in failures._failed_task_stderr_path
+
+
+def test_call_failure_metadata(workflow_data):
+    m = workflow_data["metadata_call_failed.json"]
+    with open(m.path, "rt") as inp:
+        m_dict = json.load(inp)
+    failures = CromwellExecutor.get_failures(m_dict)
+    assert failures.num_failed == 1
+    assert failures.failed_task == "ScatterAt27_14"
+    assert failures.failed_task_exit_status == "Unknown"
+    assert "Failed to evaluate inputs for sub workflow" in failures._failed_task_stderr_path
