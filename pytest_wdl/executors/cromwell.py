@@ -346,10 +346,17 @@ class CromwellExecutor(Executor):
                         rc = failed_call["returnCode"]
                     else:
                         rc = "Unknown"
-                    return Failures(
-                        len(failed),
-                        call_name,
-                        rc,
-                        failed_call["stdout"],
-                        failed_call["stderr"]
-                    )
+
+                    stdout = stderr = None
+                    if "stdout" in failed_call:
+                        stdout = failed_call["stdout"]
+                        stderr = failed_call["stderr"]
+                    elif "failures" in failed_call:
+                        failure = failed_call["failures"][0]
+                        stderr = failure["message"]
+                        if "causedBy" in failure:
+                            stderr = "\n  ".join(
+                                [stderr] + [cb["message"] for cb in failure["causedBy"]]
+                            )
+
+                    return Failures(len(failed), call_name, rc, stdout, stderr)
