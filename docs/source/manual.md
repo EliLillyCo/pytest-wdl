@@ -197,6 +197,8 @@ The `workflow_runner` fixture is a callable that runs the workflow using the exe
 * `inputs`: Dict that will be serialized to JSON and provided to the executor as the workflow inputs. If not specified, the workflow must not have any required inputs.
 * `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
 * `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, the name of the workflow is extracted from the WDL file.
+* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+* `imports_file`: Specify the imports file to use. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
 
 You can also pass executor-specific keyword arguments. 
 
@@ -204,15 +206,22 @@ You can also pass executor-specific keyword arguments.
 
 #### Cromwell
 
-* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
-* `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
+* `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
 
 #### Miniwdl
 
 * `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.
-* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+
+#### dxWDL
+
+* `project_id`: ID of the project where the workflow will be built. Defaults to the currently selected project. You can also specify different projects for workflows and data using `workflow_project_id` and `data_project_id` varaibles.
+* `folder`: The folder within the project where the workflow will be built. Defaults to '/'. You can also specify different folders for workflows and data using `workflow_folder_id` and `data_folder_id` varaibles.
+* `stage_id`: Stage ID to use when inputs don't come prefixed with the stage. Defaults to "stage-common".
+* `force`: Boolean; whether to force the workflow to be built even if the WDL file has not changed since the last build.
+* `archive`: Boolean; whether to archive existing applets/workflows (True) or overwrite them (False). Defaults to True.
+* `extras`: Extras file to use when building the workflow.
 
 ## Configuration
 
@@ -309,16 +318,30 @@ In the http_headers section of the configuration file, you can define a list of 
 
 ##### Executor-specific configuration
 
-###### Cromwell
+###### Java-based Executors
+
+These options apply to all Java-based executors (currently Cromwell and dxWDL):
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `java_bin` | `JAVA_HOME` | Path to java executable; If not specified, then Java executable is expected to be in $JAVA_HOME/bin/java | None |
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (if `cromwell_config_file` is specified |
-| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
+
+####### Cromwell
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; recommended to use `-Ddocker.hash-lookup.enabled=false` to disable Docker lookup by hash |
+
+####### dxWDL
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
+| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
 
 ##### Fixtures
 

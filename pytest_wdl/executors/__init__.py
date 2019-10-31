@@ -13,17 +13,22 @@
 #    limitations under the License.
 from abc import ABCMeta, abstractmethod
 import json
+import os
 from pathlib import Path
 import tempfile
 import textwrap
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 from pytest_wdl.data_types import DataFile
-from pytest_wdl.utils import ensure_path, safe_string
+from pytest_wdl.utils import (
+    ensure_path, safe_string, find_executable_path, find_in_classpath
+)
 
 from WDL import Tree
 
 
+ENV_JAVA_HOME = "JAVA_HOME"
+ENV_JAVA_ARGS = "JAVA_ARGS"
 INDENT = " " * 16
 
 
@@ -97,21 +102,6 @@ class Executor(metaclass=ABCMeta):
     def __init__(self, import_dirs: Optional[List[Path]] = None):
         self.import_dirs = import_dirs or []
 
-    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
-        if "workflow_name" in kwargs:
-            return kwargs["workflow_name"]
-        elif Tree:
-            if "check_quant" not in kwargs:
-                kwargs["check_quant"] = False
-            doc = Tree.load(
-                str(wdl_path),
-                path=[str(path) for path in self.import_dirs],
-                **kwargs
-            )
-            return doc.workflow.name
-        else:  # TODO: test this
-            return safe_string(wdl_path.stem)
-
     @abstractmethod
     def run_workflow(
         self,
@@ -140,38 +130,75 @@ class Executor(metaclass=ABCMeta):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
+    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
+        if "workflow_name" in kwargs:
+            return kwargs["workflow_name"]
+        elif Tree:
+            if "check_quant" not in kwargs:
+                kwargs["check_quant"] = False
+            doc = Tree.load(
+                str(wdl_path),
+                path=[str(path) for path in self.import_dirs],
+                **kwargs
+            )
+            return doc.workflow.name
+        else:  # TODO: test this
+            return safe_string(wdl_path.stem)
 
-def get_workflow_inputs(
-    inputs_dict: Optional[dict] = None,
-    inputs_file: Optional[Path] = None,
-    namespace: Optional[str] = None
-) -> Tuple[dict, Path]:
-    """
-    Persist workflow inputs to a file, or load workflow inputs from a file.
+    @classmethod
+    def _get_workflow_inputs(
+        cls: "Executor",
+        inputs_dict: Optional[dict] = None,
+        inputs_file: Optional[Path] = None,
+        namespace: Optional[str] = None,
+        resolve_data_files: bool = True
+    ) -> Tuple[dict, Path]:
+        """
+        Persist workflow inputs to a file, or load workflow inputs from a file.
 
-    Args:
-        inputs_dict: Dict of input names/values.
-        inputs_file: JSON file with workflow inputs.
-        namespace: Name of the workflow; used to prefix the input parameters when
-            creating the inputs file from the inputs dict.
+        Args:
+            inputs_dict: Dict of input names/values.
+            inputs_file: JSON file with workflow inputs.
+            namespace: Name of the workflow; used to prefix the input parameters when
+                creating the inputs file from the inputs dict.
+            resolve_data_files: Whether to localize data files and convert them to Paths.
 
-    Returns:
-        A tuple (inputs_dict, inputs_file)
-    """
-    if inputs_file:
+        Returns:
+            A tuple (inputs_dict, inputs_file)
+        """
+        if inputs_file:
+            inputs_dict, inputs_file = cls._read_inputs(inputs_file)
+            if inputs_dict:
+                return inputs_dict, inputs_file
+
+        if inputs_dict:
+            inputs_dict = cls._format_inputs(inputs_dict, namespace, resolve_data_files)
+            cls._write_inputs(inputs_dict, inputs_file)
+
+        return inputs_dict, inputs_file
+
+    @classmethod
+    def _read_inputs(cls, inputs_file: Path) -> Tuple[Optional[dict], Path]:
         inputs_file = ensure_path(inputs_file)
+        inputs_dict = None
         if inputs_file.exists():
             with open(inputs_file, "rt") as inp:
                 inputs_dict = json.load(inp)
-                return inputs_dict, inputs_file
+        return inputs_dict, inputs_file
 
-    if inputs_dict:
+    @classmethod
+    def _format_inputs(
+        cls, inputs_dict: dict, namespace: Optional[str],
+        resolve_data_files: bool = True
+    ) -> dict:
         prefix = f"{namespace}." if namespace else ""
-        inputs_dict = dict(
-            (f"{prefix}{key}", make_serializable(value))
+        return dict(
+            (f"{prefix}{key}", cls._make_serializable(value, resolve_data_files))
             for key, value in inputs_dict.items()
         )
 
+    @classmethod
+    def _write_inputs(cls, inputs_dict: dict, inputs_file: Path) -> Path:
         if inputs_file:
             inputs_file = ensure_path(inputs_file, is_file=True, create=True)
         else:
@@ -180,95 +207,158 @@ def get_workflow_inputs(
         with open(inputs_file, "wt") as out:
             json.dump(inputs_dict, out, default=str)
 
-    return inputs_dict, inputs_file
+        return inputs_file
 
+    @classmethod
+    def _make_serializable(cls: "Executor", value, resolve_data_files: bool = True):
+        """
+        Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+        Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+        method, otherwise they are converted to strings.
 
-def make_serializable(value):
-    """
-    Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
-    Currently, arbitrary objects can be serialized by implementing an `as_dict()`
-    method, otherwise they are converted to strings.
+        Args:
+            value: The value to make serializable.
+            resolve_data_files: Whether to localize data files and resolve them to paths.
 
-    Args:
-        value: The value to make serializable.
-
-    Returns:
-        The serializable value.
-    """
-    if isinstance(value, str):
+        Returns:
+            The serializable value.
+        """
+        if isinstance(value, str):
+            return value
+        if isinstance(value, DataFile):
+            if resolve_data_files:
+                return value.path
+            else:
+                return value
+        if isinstance(value, dict):
+            return dict((k, cls._make_serializable(v)) for k, v in value.items())
+        if isinstance(value, Sequence):
+            return [cls._make_serializable(v) for v in value]
+        if hasattr(value, "as_dict"):
+            return value.as_dict()
         return value
-    if isinstance(value, DataFile):
-        return value.path
-    if isinstance(value, dict):
-        return dict((k, make_serializable(v)) for k, v in value.items())
-    if isinstance(value, Sequence):
-        return [make_serializable(v) for v in value]
-    if hasattr(value, "as_dict"):
-        return value.as_dict()
-    return value
 
+    @classmethod
+    def _validate_outputs(
+        cls: "Executor", outputs: dict, expected: dict, target: str
+    ) -> None:
+        """
+        Validate expected and actual outputs are equal.
 
-def validate_outputs(outputs: dict, expected: dict, target: str) -> None:
-    """
-    Validate expected and actual outputs are equal.
+        Args:
+            outputs: Actual outputs
+            expected: Expected outputs
+            target: Execution target (i.e. workflow name)
 
-    Args:
-        outputs: Actual outputs
-        expected: Expected outputs
-        target: Execution target (i.e. workflow name)
+        Raises:
+            AssertionError
+        """
+        for name, expected_value in expected.items():
+            key = f"{target}.{name}"
+            if key not in outputs:
+                raise AssertionError(f"Workflow did not generate output {key}")
+            cls._compare_output_values(expected_value, outputs[key], key)
 
-    Raises:
-        AssertionError
-    """
-    for name, expected_value in expected.items():
-        key = f"{target}.{name}"
-        if key not in outputs:
-            raise AssertionError(f"Workflow did not generate output {key}")
-        compare_output_values(expected_value, outputs[key], key)
+    @classmethod
+    def _compare_output_values(
+        cls: "Executor", expected_value, actual_value, name: str
+    ) -> None:
+        """
+        Compare two values and raise an error if they are not equal.
 
+        Args:
+            expected_value:
+            actual_value:
+            name: Name of the output being compared
 
-def compare_output_values(expected_value, actual_value, name: str) -> None:
-    """
-    Compare two values and raise an error if they are not equal.
-
-    Args:
-        expected_value:
-        actual_value:
-        name: Name of the output being compared
-
-    Raises:
-        AssertionError
-    """
-    if actual_value is None:
-        if expected_value is None:
-            return
-        else:
+        Raises:
+            AssertionError
+        """
+        if actual_value is None:
+            if expected_value is None:
+                return
+            else:
+                raise AssertionError(
+                    f"Expected and actual values differ for {name}: "
+                    f"{expected_value} != {actual_value}"
+                )
+        elif isinstance(expected_value, list):
+            if len(expected_value) != len(actual_value):
+                raise AssertionError(
+                    f"Expected and actual values differ in length for {name}: "
+                    f"{len(expected_value)} != {len(actual_value)}"
+                )
+            for i, (exp, act) in enumerate(zip(expected_value, actual_value)):
+                cls._compare_output_values(exp, act, f"{name}[{i}]")
+        elif isinstance(expected_value, dict):
+            if len(expected_value) != len(actual_value):
+                raise AssertionError(
+                    f"Expected and actual values differ in length for {name}: "
+                    f"{len(expected_value)} != {len(actual_value)}"
+                )
+            for key, exp in expected_value.items():
+                assert key in actual_value
+                cls._compare_output_values(exp, actual_value[key], f"{name}.{key}")
+        elif isinstance(expected_value, DataFile):
+            # TODO: pass name
+            expected_value.assert_contents_equal(actual_value)
+        elif expected_value != actual_value:
             raise AssertionError(
                 f"Expected and actual values differ for {name}: "
                 f"{expected_value} != {actual_value}"
             )
-    elif isinstance(expected_value, list):
-        if len(expected_value) != len(actual_value):
-            raise AssertionError(
-                f"Expected and actual values differ in length for {name}: "
-                f"{len(expected_value)} != {len(actual_value)}"
-            )
-        for i, (exp, act) in enumerate(zip(expected_value, actual_value)):
-            compare_output_values(exp, act, f"{name}[{i}]")
-    elif isinstance(expected_value, dict):
-        if len(expected_value) != len(actual_value):
-            raise AssertionError(
-                f"Expected and actual values differ in length for {name}: "
-                f"{len(expected_value)} != {len(actual_value)}"
-            )
-        for key, exp in expected_value.items():
-            assert key in actual_value
-            compare_output_values(exp, actual_value[key], f"{name}.{key}")
-    elif isinstance(expected_value, DataFile):
-        # TODO: pass name
-        expected_value.assert_contents_equal(actual_value)
-    elif expected_value != actual_value:
-        raise AssertionError(
-            f"Expected and actual values differ for {name}: "
-            f"{expected_value} != {actual_value}"
+
+
+class JavaExecutor(Executor, metaclass=ABCMeta):
+    """
+    Manages the running of WDL workflows using Cromwell.
+
+    Args:
+        import_dirs:
+        java_bin: Path to the java executable.
+        java_args: Default Java arguments to use; can be overidden by passing
+            `java_args=...` to `run_workflow`.
+    """
+
+    def __init__(
+        self,
+        import_dirs: Optional[List[Path]] = None,
+        java_bin: Optional[Union[str, Path]] = None,
+        java_args: Optional[str] = None
+    ):
+        super().__init__(import_dirs)
+
+        if not java_bin:
+            java_home = os.environ.get(ENV_JAVA_HOME)
+            if java_home:
+                java_bin = Path(java_home) / "bin" / "java"
+            else:
+                java_bin = find_executable_path("java")
+
+        if not java_bin:
+            raise FileNotFoundError("Could not find java executable")
+
+        self.java_bin = ensure_path(
+            java_bin, exists=True, is_file=True, executable=True
         )
+
+        self.java_args = java_args or os.environ.get(ENV_JAVA_ARGS)
+
+    @staticmethod
+    def resolve_jar_file(
+        file_name_pattern: str, jar_path: Optional[Path] = None,
+        env_var: Optional[str] = None,
+    ):
+        if not jar_path:
+            path_str = None
+            if env_var:
+                path_str = os.environ.get(env_var)
+            if path_str:
+                jar_path = ensure_path(path_str)
+            else:
+                jar_path = find_in_classpath(file_name_pattern)
+
+        if not jar_path:
+            raise FileNotFoundError(f"Could not find JAR file {file_name_pattern}")
+
+        return ensure_path(jar_path, is_file=True, exists=True)
