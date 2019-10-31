@@ -6,13 +6,14 @@ from setuptools import setup, find_packages
 extras_require = {
     "bam": ["pysam"],
     "dx": ["dxpy"],
-    "progress": ["tqdm"]
+    "progress": ["tqdm"],
+    "dxwdl": ["dxpy"]
 }
-extras_require["all"] = [
+extras_require["all"] = list(set(
     lib
     for lib_array in extras_require.values()
     for lib in lib_array
-]
+))
 
 
 setup(
@@ -48,7 +49,13 @@ setup(
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
-            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor"
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
+            "dxwdl = pytest_wdl.executors.dxwdl:DxWdlExecutor"
+        ],
+        "pytest_wdl.fixtures": [
+            "dxwdl_project = pytest_wdl.executors.dxwdl:dxwdl_project",
+            "dxwdl_folder = pytest_wdl.executors.dxwdl:dxwdl_project",
+            "dxwdl_project = pytest_wdl.executors.dxwdl:dxwdl_project"
         ],
         "pytest_wdl.url_schemes": [
             "dx = pytest_wdl.url_schemes.dx:DxUrlHandler"

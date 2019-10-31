@@ -15,9 +15,7 @@ import logging
 from pathlib import Path
 from typing import Optional, cast
 
-from pytest_wdl.executors import (
-    Executor, ExecutionFailedError, get_workflow_inputs, validate_outputs
-)
+from pytest_wdl.executors import Executor, ExecutionFailedError
 
 from WDL import CLI, Error, Tree, runtime, _util
 
@@ -72,7 +70,7 @@ class MiniwdlExecutor(Executor):
             else:
                 namespace = doc.workflow.name
 
-        inputs_dict, inputs_file = get_workflow_inputs(
+        inputs_dict, inputs_file = MiniwdlExecutor._get_workflow_inputs(
             inputs,
             kwargs.get("inputs_file"),
             namespace=namespace
@@ -145,7 +143,7 @@ class MiniwdlExecutor(Executor):
         outputs = CLI.values_to_json(output_env, namespace=target.name)
 
         if expected:
-            validate_outputs(outputs, expected, target.name)
+            MiniwdlExecutor._validate_outputs(outputs, expected, target.name)
 
         return outputs
 

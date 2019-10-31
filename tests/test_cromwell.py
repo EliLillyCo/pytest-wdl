@@ -123,7 +123,7 @@ def test_get_workflow_imports():
         with open(wdl, "wt") as out:
             out.write("foo")
         executor = CromwellExecutor([wdl_dir])
-        zip_path = executor.get_workflow_imports()
+        zip_path = executor._get_workflow_imports()
         assert zip_path.exists()
         with zipfile.ZipFile(zip_path, "r") as import_zip:
             names = import_zip.namelist()
@@ -140,7 +140,7 @@ def test_get_workflow_imports():
             out.write("foo")
         imports_file = d / "imports.zip"
         executor = CromwellExecutor([wdl_dir])
-        zip_path = executor.get_workflow_imports(imports_file)
+        zip_path = executor._get_workflow_imports(imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
         with zipfile.ZipFile(zip_path, "r") as import_zip:
@@ -160,7 +160,7 @@ def test_get_workflow_imports():
         with open(imports_file, "wt") as out:
             out.write("foo")
         executor = CromwellExecutor()
-        zip_path = executor.get_workflow_imports(imports_file=imports_file)
+        zip_path = executor._get_workflow_imports(imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
 
@@ -169,7 +169,7 @@ def test_failure_metadata(workflow_data):
     m44 = workflow_data["metadata44.json"]
     with open(m44.path, "rt") as inp:
         m44_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m44_dict)
+    failures = CromwellExecutor._get_failures(m44_dict)
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
@@ -181,7 +181,7 @@ def test_failure_metadata(workflow_data):
     m47 = workflow_data["metadata47.json"]
     with open(m47.path, "rt") as inp:
         m47_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m47_dict)
+    failures = CromwellExecutor._get_failures(m47_dict)
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
@@ -195,7 +195,7 @@ def test_call_failure_metadata(workflow_data):
     m = workflow_data["metadata_call_failed.json"]
     with open(m.path, "rt") as inp:
         m_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m_dict)
+    failures = CromwellExecutor._get_failures(m_dict)
     assert failures.num_failed == 1
     assert failures.failed_task == "ScatterAt27_14"
     assert failures.failed_task_exit_status == "Unknown"
