@@ -6,8 +6,7 @@ from setuptools import setup, find_packages
 extras_require = {
     "bam": ["pysam"],
     "dx": ["dxpy"],
-    "progress": ["tqdm"],
-    "dxwdl": ["dxpy"]
+    "progress": ["tqdm"]
 }
 extras_require["all"] = list(set(
     lib
@@ -43,22 +42,17 @@ setup(
             "pytest_wdl = pytest_wdl"
         ],
         "pytest_wdl.data_types": [
-            "bam = pytest_wdl.data_types.bam:BamDataFile",
+            "bam = pytest_wdl.data_types.bam:BamDataFile[bam]",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
             "json = pytest_wdl.data_types.json:JsonDataFile"
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
             "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
-            "dxwdl = pytest_wdl.executors.dxwdl:DxWdlExecutor"
-        ],
-        "pytest_wdl.fixtures": [
-            "dxwdl_project = pytest_wdl.executors.dxwdl:dxwdl_project",
-            "dxwdl_folder = pytest_wdl.executors.dxwdl:dxwdl_project",
-            "dxwdl_project = pytest_wdl.executors.dxwdl:dxwdl_project"
+#            "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]"
         ],
         "pytest_wdl.url_schemes": [
-            "dx = pytest_wdl.url_schemes.dx:DxUrlHandler"
+            "dx = pytest_wdl.providers.dx:DxUrlHandler[dx]"
         ]
     },
     py_modules=["pytest_wdl"],

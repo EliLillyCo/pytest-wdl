@@ -1,20 +1,119 @@
+#    Copyright 2019 Eli Lilly and Company
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+from argparse import Namespace
+import contextlib
+import os
 from pathlib import Path
 import shutil
 import tempfile
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from unittest.mock import patch
 
 import dxpy
+from dxpy.scripts import dx
 from dxpy.utils.job_log_client import DXJobLogStreamClient
 import subby
 
+from pytest_wdl import config
 from pytest_wdl.data_types import DataFile
 from pytest_wdl.executors import ExecutionFailedError, JavaExecutor
 from pytest_wdl.localizers import UrlLocalizer
-from pytest_wdl.utils import LOG, ensure_path
+from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
+from pytest_wdl.utils import LOG, ensure_path, verify_digests
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
 ENV_DXWDL_JAR = "DXWDL_JAR"
+
+
+@contextlib.contextmanager
+def login(logout: bool = False):
+    if dxpy.SECURITY_CONTEXT:
+        yield
+    else:
+        conf = config.get_instance().get_executor_defaults("dxwdl")
+        username = conf.get("username")
+        token = conf.get("token")
+        if "DX_USERNAME" not in os.environ and username:
+            os.environ["DX_USERNAME"] = username
+        args = Namespace(
+            auth_token=None,
+            token=token,
+            host=None,
+            port=None,
+            protocol="https",
+            timeout=conf.get("timeout", "1d"),
+            save=True,
+            staging=False,
+            projects=False
+        )
+        try:
+            if not token and "password" in conf:
+                with patch("builtins.input", return_value=username), \
+                        patch("getpass.getpass", return_value=conf["password"]):
+                    dx.login(args)
+            else:
+                # If token is not specified, this will require interactive login
+                dx.login(args)
+            yield
+        finally:
+            if logout:
+                dx.logout(args)
+
+
+class DxResponse(Response):
+    def __init__(self, file_id: str, project_id: Optional[str] = None):
+        self.file_id = file_id
+        self.project_id = project_id
+
+    def download_file(
+        self,
+        destination: Path,
+        show_progress: bool = False,
+        digests: Optional[dict] = None
+    ):
+        with login():
+            dxpy.download_dxfile(
+                self.file_id,
+                str(destination),
+                show_progress=show_progress,
+                project=self.project_id
+            )
+        if digests:
+            verify_digests(destination, digests)
+
+
+class DxUrlHandler(UrlHandler):
+    @property
+    def scheme(self) -> str:
+        return "dx"
+
+    @property
+    def handles(self) -> Sequence[Method]:
+        return [Method.OPEN]
+
+    def urlopen(self, request: Request) -> Response:
+        url = request.get_full_url()
+        if not url.startswith("dx://"):  # TODO: test this
+            raise ValueError(f"Expected URL to start with 'dx://'; got {url}")
+        obj_id = url[5:]
+        if ":" in obj_id:
+            project_id, file_id = obj_id.split(":")
+        else:
+            project_id = None
+            file_id = obj_id
+        return DxResponse(file_id, project_id)
 
 
 class DxWdlExecutor(JavaExecutor):
@@ -50,13 +149,11 @@ class DxWdlExecutor(JavaExecutor):
         expected: Optional[dict] = None,
         **kwargs
     ) -> dict:
-        cls = self.__class__
-        workflow_name = self._get_workflow_name(wdl_path, kwargs)
-        workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
-
         def get_arg(name: str, default=None):
             return kwargs.get(name) or self.defaults.get(name) or default
 
+        cls = self.__class__
+        workflow_name = self._get_workflow_name(wdl_path, kwargs)
         namespace = get_arg("stage_id", "stage-common")
         inputs_file = kwargs.get("inputs_file")
         inputs_dict = None
@@ -73,25 +170,27 @@ class DxWdlExecutor(JavaExecutor):
             inputs_dict = JavaExecutor._format_inputs(inputs_dict, namespace, False)
             cls._resolve_data_files(inputs, project_id, folder)
 
-        analysis = workflow.run(inputs_dict)
+        with login():
+            workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
+            analysis = workflow.run(inputs_dict)
 
-        try:
-            analysis.wait_on_done()
-            outputs = self._get_analysis_outputs(analysis, expected.keys(), namespace)
-            if expected:
-                cls._validate_outputs(outputs, expected, workflow_name)
-            return outputs
-        except dxpy.exceptions.DXJobFailureError:
-            raise ExecutionFailedError(
-                "dxWDL",
-                workflow_name,
-                analysis.describe()["state"],
-                inputs_dict,
-                **cls._get_failed_task(analysis)
-            )
-        finally:
-            if self._cleanup_cache:
-                shutil.rmtree(self.dxwdl_cache_dir)
+            try:
+                analysis.wait_on_done()
+                outputs = self._get_analysis_outputs(analysis, expected.keys(), namespace)
+                if expected:
+                    cls._validate_outputs(outputs, expected, workflow_name)
+                return outputs
+            except dxpy.exceptions.DXJobFailureError:
+                raise ExecutionFailedError(
+                    "dxWDL",
+                    workflow_name,
+                    analysis.describe()["state"],
+                    inputs_dict,
+                    **cls._get_failed_task(analysis)
+                )
+            finally:
+                if self._cleanup_cache:
+                    shutil.rmtree(self.dxwdl_cache_dir)
 
     def _resolve_workflow(
         self, wdl_path: Path, workflow_name: str, kwargs: dict

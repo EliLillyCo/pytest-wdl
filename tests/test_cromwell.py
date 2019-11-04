@@ -20,8 +20,9 @@ from pytest_wdl.utils import tempdir
 import pytest
 
 from pytest_wdl.utils import ENV_PATH, ENV_CLASSPATH
+from pytest_wdl.executors import ENV_JAVA_HOME
 from pytest_wdl.executors.cromwell import (
-    ENV_CROMWELL_CONFIG, ENV_JAVA_HOME, ENV_CROMWELL_JAR, CromwellExecutor, Failures
+    ENV_CROMWELL_CONFIG, ENV_CROMWELL_JAR, CromwellExecutor
 )
 from . import setenv, make_executable
 

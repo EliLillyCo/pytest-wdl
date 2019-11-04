@@ -13,9 +13,8 @@
 #    limitations under the License.
 
 from pathlib import Path
-from pytest_wdl.fixtures import (
-    ENV_USER_CONFIG, DEFAULT_USER_CONFIG_FILE, import_dirs, user_config_file
-)
+from pytest_wdl.config import ENV_USER_CONFIG, DEFAULT_USER_CONFIG_FILE
+from pytest_wdl.fixtures import import_dirs, user_config_file
 from pytest_wdl.utils import tempdir
 import pytest
 from . import setenv, mock_request

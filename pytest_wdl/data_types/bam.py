@@ -27,13 +27,7 @@ from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_defaul
 from pytest_wdl.utils import tempdir
 
 # TODO: fall back to command line samtools (if installed)
-try:
-    import pysam
-except ImportError:  # pragma: no-cover
-    raise ImportError(
-        "Failed to import dependencies for bam type. To add support for BAM files, "
-        "install the plugin with pip install pytest-wdl[bam]"
-    )
+import pysam
 
 
 INVARIATE_COLUMNS = "1,2,5,10,11"
