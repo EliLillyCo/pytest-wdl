@@ -216,6 +216,8 @@ You can also pass executor-specific keyword arguments.
 
 #### dxWDL
 
+Requires the `dxpy` package to be installed.
+
 * `project_id`: ID of the project where the workflow will be built. Defaults to the currently selected project. You can also specify different projects for workflows and data using `workflow_project_id` and `data_project_id` varaibles.
 * `folder`: The folder within the project where the workflow will be built. Defaults to '/'. You can also specify different folders for workflows and data using `workflow_folder_id` and `data_folder_id` varaibles.
 * `stage_id`: Stage ID to use when inputs don't come prefixed with the stage. Defaults to "stage-common".
@@ -338,10 +340,15 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 
 ####### dxWDL
 
+The dxWDL executor (as well as URLs using the dx:// scheme) require you to be logged into DNAnexus. If you are not already logged in when you run the tests, you will be logged in the first time you do anything that makes an API call to DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically, otherwise you will be asked to log in interactively.
+
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
 | `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+| `dx_username` | None | Username to use for logging into DNAnexus if the user is not already logged in | None |
+| `dx_password` | None | Password to use for logging into DNAnexus if the user is not already logged in | None |
+| `dx_token` | None | Token to use for logging into DNAnexus if the user is not already logged in (mutually exclusive with username/password | None |
 
 ##### Fixtures
 

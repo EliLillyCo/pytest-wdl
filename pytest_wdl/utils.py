@@ -30,7 +30,7 @@ from typing import (
     Dict, Generic, Iterable, Optional, Sequence, Type, TypeVar, Union, cast
 )
 
-from pkg_resources import EntryPoint, iter_entry_points
+from pkg_resources import EntryPoint, ResolutionError, iter_entry_points
 from py._path.local import LocalPath
 
 
@@ -57,10 +57,7 @@ class PluginFactory(Generic[T]):
 
     def __call__(self, *args, **kwargs) -> T:
         if self.factory is None:
-            module = __import__(
-                self.entry_point.module_name, fromlist=['__name__'], level=0
-            )
-            self.factory = getattr(module, self.entry_point.attrs[0])
+            self.factory = self.entry_point.resolve()
         plugin = self.factory(*args, **kwargs)
         if not isinstance(plugin, self.return_type):  # TODO: test this
             raise RuntimeError(
@@ -106,7 +103,17 @@ def plugin_factory_map(
                     f"same name: {name}"
                 )
 
-        factory_map[name] = PluginFactory(points[0], return_type)
+        ep = points[0]
+
+        try:
+            ep.require()
+        except ResourceWarning as err:
+            LOG.warning(
+                "Plugin %s is not available because it is missing an extra "
+                "dependency: %s", name, str(err)
+            )
+
+        factory_map[name] = PluginFactory(ep, return_type)
 
     return factory_map
 

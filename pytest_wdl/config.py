@@ -22,6 +22,8 @@ from typing import Dict, List, Optional, Union
 from pytest_wdl.utils import ensure_path, env_map
 
 
+ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
+DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
 ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
 KEY_CACHE_DIR = "cache_dir"
 ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
@@ -137,6 +139,7 @@ class UserConfiguration:
         self.executor_defaults = executor_defaults or {}
         if "executors" in defaults:
             for name, d in defaults["executors"].items():
+                name = name.lower()
                 if name not in self.executor_defaults:
                     self.executor_defaults[name] = d
 
@@ -150,7 +153,7 @@ class UserConfiguration:
         Returns:
             A dict with the executor configuration values, if any.
         """
-        return self.executor_defaults.get(executor_name, {})
+        return self.executor_defaults.get(executor_name.lower(), {})
 
     def cleanup(self) -> None:
         """
@@ -159,3 +162,50 @@ class UserConfiguration:
         """
         if self.remove_cache_dir:
             shutil.rmtree(self.cache_dir, ignore_errors=True)
+
+
+_INSTANCE: Optional[UserConfiguration] = None
+
+
+def default_user_config_file() -> Path:
+    config_file = os.environ.get(ENV_USER_CONFIG)
+    config_path = None
+    if config_file:
+        config_path = ensure_path(config_file)
+    else:
+        default_config_paths = [
+            Path.home() / DEFAULT_USER_CONFIG_FILE,
+            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
+        ]
+        for default_config_path in default_config_paths:
+            if default_config_path.exists():
+                config_path = default_config_path
+                break
+    if config_path and not config_path.exists():
+        raise FileNotFoundError(f"Config file {config_path} does not exist")
+    return config_path
+
+
+def set_instance(
+    config: Optional[UserConfiguration] = None,
+    path: Optional[Path] = None,
+):
+    global _INSTANCE
+    if config:
+        _INSTANCE = config
+    else:
+        if not path:
+            path = default_user_config_file()
+        _INSTANCE = UserConfiguration(path)
+
+
+def get_instance() -> UserConfiguration:
+    global _INSTANCE
+    return _INSTANCE
+
+
+def cleanup():
+    global _INSTANCE
+    if _INSTANCE:
+        _INSTANCE.cleanup()
+    _INSTANCE = None

@@ -18,9 +18,7 @@ from typing import cast
 import pytest
 
 from pytest_wdl.core import EXECUTORS, DefaultDataFile, create_executor
-from pytest_wdl.executors import (
-    ExecutionFailedError, get_workflow_inputs, make_serializable, validate_outputs
-)
+from pytest_wdl.executors import Executor, ExecutionFailedError
 from pytest_wdl.utils import tempdir
 
 
@@ -133,7 +131,7 @@ def test_execution_failure(workflow_data, workflow_runner, executor):
 
 
 def test_get_workflow_inputs():
-    actual_inputs_dict, inputs_path = get_workflow_inputs(
+    actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
         {"bar": 1}, namespace="foo"
     )
     assert inputs_path.exists()
@@ -145,7 +143,7 @@ def test_get_workflow_inputs():
 
     with tempdir() as d:
         inputs_file = d / "inputs.json"
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
+        actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
             {"bar": 1}, inputs_file, "foo"
         )
         assert inputs_file == inputs_path
@@ -161,7 +159,7 @@ def test_get_workflow_inputs():
         inputs_dict = {"foo.bar": 1}
         with open(inputs_file, "wt") as out:
             json.dump(inputs_dict, out)
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
+        actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
             inputs_file=inputs_file, namespace="foo"
         )
         assert inputs_file == inputs_path
@@ -172,18 +170,18 @@ def test_get_workflow_inputs():
 
 
 def test_make_serializable():
-    assert make_serializable(1) == 1
-    assert make_serializable("foo") == "foo"
-    assert make_serializable((1.1, 2.2)) == [1.1, 2.2]
+    assert Executor._make_serializable(1) == 1
+    assert Executor._make_serializable("foo") == "foo"
+    assert Executor._make_serializable((1.1, 2.2)) == [1.1, 2.2]
 
     with tempdir() as d:
         foo = d / "foo"
         with open(foo, "wt") as out:
             out.write("foo")
         df = DefaultDataFile(foo)
-        assert make_serializable(df) == foo
-        assert make_serializable([df]) == [foo]
-        assert make_serializable({"a": df}) == {"a": foo}
+        assert Executor._make_serializable(df) == foo
+        assert Executor._make_serializable([df]) == [foo]
+        assert Executor._make_serializable({"a": df}) == {"a": foo}
 
     class Obj:
         def __init__(self, a: str, b: int):
@@ -196,7 +194,7 @@ def test_make_serializable():
                 "b": self.b
             }
 
-    assert make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}
+    assert Executor._make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}
 
 
 def test_create_executor():
@@ -206,51 +204,51 @@ def test_create_executor():
 
 def test_validate_outputs():
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": 1}, ""
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"baz": 1}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": None}, {"bar": None}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": None}, {"bar": 1}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": None}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": [1, 2, 3]}, {"bar": [1, 2, 3]}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": [1, 2, 3]}, {"bar": [1, 2]}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": [1, 2, 3]}, {"bar": [3, 2, 1]}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": {"a": 1}}, {"bar": {"a": 1}}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"b": 1}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"a": 1, "b": 2}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"a": 2}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": 2}, "foo"
         )
