@@ -20,7 +20,6 @@ instead of string paths. For backward compatibility fixtures that produce a path
 still return string paths, but this support will be dropped in a future version.
 """
 import json
-import os
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
 
@@ -49,7 +48,7 @@ def user_config_file() -> Optional[Path]:
 
 
 def user_config(user_config_file: Optional[Path]) -> UserConfiguration:
-    config.set_instance(user_config_file)
+    config.set_instance(path=user_config_file)
     yield config.get_instance()
     config.cleanup()
 
