@@ -167,13 +167,13 @@ class Executor(metaclass=ABCMeta):
             A tuple (inputs_dict, inputs_file)
         """
         if inputs_file:
-            inputs_dict, inputs_file = cls._read_inputs(inputs_file)
-            if inputs_dict:
-                return inputs_dict, inputs_file
+            inputs_dict_from_file, inputs_file = cls._read_inputs(inputs_file)
+            if inputs_dict_from_file:
+                return inputs_dict_from_file, inputs_file
 
         if inputs_dict:
             inputs_dict = cls._format_inputs(inputs_dict, namespace, resolve_data_files)
-            cls._write_inputs(inputs_dict, inputs_file)
+            inputs_file = cls._write_inputs(inputs_dict, inputs_file)
 
         return inputs_dict, inputs_file
 

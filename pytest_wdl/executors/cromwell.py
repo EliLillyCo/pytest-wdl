@@ -169,7 +169,7 @@ class CromwellExecutor(JavaExecutor):
 
         imports_file = self._get_workflow_imports(kwargs.get("imports_file"))
 
-        inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
+        inputs_arg = f"-i {inputs_file}" if inputs_file else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
