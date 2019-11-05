@@ -94,8 +94,8 @@ def test_url_schemes():
 def test_dx():
     rsp = urlopen(f"dx://{DX_FILE_ID}")
     assert isinstance(rsp, Response)
-    import pytest_wdl.url_schemes.dx
-    assert isinstance(rsp, pytest_wdl.url_schemes.dx.DxResponse)
+    import pytest_wdl.providers.dx
+    assert isinstance(rsp, pytest_wdl.providers.dx.DxResponse)
     with tempdir() as d:
         outfile = d / "readme.txt"
         cast(Response, rsp).download_file(outfile, False)
