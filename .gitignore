@@ -13,6 +13,7 @@ docs/source/modules.rst
 docs/source/pytest_wdl.rst
 docs/source/pytest_wdl.data_types.rst
 docs/source/pytest_wdl.executors.rst
+docs/source/pytest_wdl.url_schemes.rst
 
 # Environments
 .env
