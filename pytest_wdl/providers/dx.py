@@ -40,6 +40,12 @@ ENV_DXWDL_JAR = "DXWDL_JAR"
 @contextlib.contextmanager
 def login(logout: bool = False):
     if dxpy.SECURITY_CONTEXT:
+        try:
+            dxpy.whoami()
+        except dxpy.exceptions.InvalidAuthentication:
+            dxpy.SECURITY_CONTEXT = None
+
+    if dxpy.SECURITY_CONTEXT:
         yield
     else:
         conf = config.get_instance().get_executor_defaults("dxwdl")
@@ -83,6 +89,7 @@ class DxResponse(Response):
         show_progress: bool = False,
         digests: Optional[dict] = None
     ):
+        destination.parent.mkdir(parents=True, exist_ok=True)
         with login():
             dxpy.download_dxfile(
                 self.file_id,
