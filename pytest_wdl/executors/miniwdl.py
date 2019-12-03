@@ -81,7 +81,7 @@ class MiniwdlExecutor(Executor):
         target, input_env, input_json = CLI.runner_input(
             doc=doc,
             inputs=[],
-            input_file=inputs_file,
+            input_file=str(inputs_file),
             empty=[],
             task=task
         )
@@ -108,26 +108,34 @@ class MiniwdlExecutor(Executor):
             MiniwdlExecutor.log_source(logger, err)
             raise
         except Error.RuntimeError as err:
-            cause = err.__cause__ or err
-            if isinstance(getattr(cause, "pos", None), Error.SourcePosition):
-                MiniwdlExecutor.log_source(logger, cause)
-            if isinstance(err, runtime.error.TaskFailure):
+            MiniwdlExecutor.log_source(logger, err)
+
+            if isinstance(err, runtime.error.RunFailed):
+                # This will be a workflow- or a task-level failure, depending on
+                # whether a workflow or task was executed. If it is workflow-level,
+                # we need to get the task-level error that caused the workflow to fail.
+                if isinstance(err.exe, Tree.Workflow):
+                    err = err.__cause__
+
+                task_err = cast(runtime.error.RunFailed, err)
+                cause = task_err.__cause__
                 failed_task_exit_status = None
                 failed_task_stderr = None
-                if isinstance(cause, runtime.task.CommandFailure):
-                    cmd_err = cast(runtime.task.CommandFailure, cause)
+                if isinstance(cause, runtime.error.CommandFailed):
+                    # If the task failed due to an error in the command, populate the
+                    # command exit status and stderr.
+                    cmd_err = cast(runtime.error.CommandFailed, cause)
                     failed_task_exit_status = cmd_err.exit_status
                     failed_task_stderr = MiniwdlExecutor.read_miniwdl_command_std(
                         cmd_err.stderr_file
                     )
 
-                task_err = cast(runtime.error.TaskFailure, err)
                 raise ExecutionFailedError(
                     "miniwdl",
                     namespace or task,
                     status="Failed",
-                    inputs=task_err.task.inputs,
-                    failed_task=task_err.task.name,
+                    inputs=task_err.exe.inputs,
+                    failed_task=task_err.exe.name,
                     failed_task_exit_status=failed_task_exit_status,
                     failed_task_stderr=failed_task_stderr
                 ) from err
@@ -151,13 +159,19 @@ class MiniwdlExecutor(Executor):
 
     @staticmethod
     def log_source(logger: logging.Logger, exn: Exception):
-        pos = cast(Error.SourcePosition, getattr(exn, "pos"))
-        logger.error(
-            "({} Ln {} Col {}) {}{}".format(
-                pos.uri,
-                pos.line,
-                pos.column,
-                exn.__class__.__name__,
-                (", " + str(exn) if str(exn) else ""),
+        if isinstance(exn, runtime.error.RunFailed):
+            pos = cast(runtime.error.RunFailed, exn).exe.pos
+        elif hasattr(exn, "pos"):
+            pos = cast(Error.SourcePosition, getattr(exn, "pos"))
+        else:
+            return
+        if pos:
+            logger.error(
+                "({} Ln {} Col {}) {}{}".format(
+                    pos.uri,
+                    pos.line,
+                    pos.column,
+                    exn.__class__.__name__,
+                    (", " + str(exn) if str(exn) else ""),
+                )
             )
-        )

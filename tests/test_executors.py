@@ -108,7 +108,7 @@ def test_task(workflow_data, workflow_runner, executor):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("executor", EXECUTORS.keys())
+@pytest.mark.parametrize("executor", ["miniwdl"]) #EXECUTORS.keys())
 def test_execution_failure(workflow_data, workflow_runner, executor):
     inputs = {
         "in_txt": workflow_data["in_txt"],
