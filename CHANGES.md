@@ -1,5 +1,15 @@
 # Changes
 
+## v1.2.0 (dev)
+
+* When comparing BAM files, by default only compare HD, SQ, and RG headers
+* Enhance the error message that is displayed when a workflow fails
+* Add ability to validate data file digests
+* Optionally show progress bar when downloading data file
+* Update miniwdl minimum version to 0.5.2, and update the miniwdl executor to use `docker swarm`
+* Update xphyle minimum version to 4.1.3
+* Other bugfixes
+
 ## v1.1.1 (2019.09.27)
 
 * Fixes `license` entry in `setup.py` for proper rendering to release to PyPI.
