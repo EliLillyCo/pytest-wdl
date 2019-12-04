@@ -26,7 +26,6 @@ from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
 from pytest_subtests import SubTests
-from xphyle import open_
 
 from pytest_wdl.core import (
     DataResolver, DataManager, DataDirs, UserConfiguration, create_executor
@@ -94,7 +93,7 @@ def project_root(
     root = find_project_path(*project_root_files, start=path, return_parent=True)
     if root:
         return root
-    else:
+    else:  # TODO: test this
         # If the project root can't be identified, fall back to the parent of
         # the current directory (which is probably tests).
         return path.parent
@@ -107,12 +106,12 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     Args:
         request: A FixtureRequest object
     """
-    tests = find_project_path("tests", start=Path(request.fspath.dirpath()))
-    if tests:
-        test_data = tests / DEFAULT_TEST_DATA_FILE
-        if test_data.exists():
-            return test_data
-    raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")
+    return find_project_path(
+        Path(DEFAULT_TEST_DATA_FILE),
+        Path("tests") / DEFAULT_TEST_DATA_FILE,
+        start=Path(request.fspath.dirpath()),
+        assert_exists=True
+    )
 
 
 def workflow_data_descriptors(
@@ -139,7 +138,7 @@ def workflow_data_descriptors(
         is_file=True,
         exists=True
     )
-    with open_(workflow_data_descriptor_path, "rt") as inp:
+    with open(workflow_data_descriptor_path, "rt") as inp:
         return json.load(inp)
 
 
@@ -218,7 +217,7 @@ def import_dirs(
 
         paths = []
 
-        with open_(import_paths, "rt") as inp:
+        with open(import_paths, "rt") as inp:
             for path_str in inp.read().splitlines(keepends=False):
                 path = Path(path_str)
                 if not path.is_absolute():
@@ -289,8 +288,8 @@ def workflow_runner(
         if not executors:
             executors = default_executors
 
-        def _run_test(executor_name):
-            executor = create_executor(executor_name, import_dir_paths, user_config)
+        def _run_test(_executor_name):
+            executor = create_executor(_executor_name, import_dir_paths, user_config)
             with context_dir(user_config.default_execution_dir, change_dir=True):
                 executor.run_workflow(
                     wdl_path,

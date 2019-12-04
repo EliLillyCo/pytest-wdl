@@ -21,7 +21,9 @@ from xphyle import open_
 
 from pytest_wdl.config import UserConfiguration
 from pytest_wdl.url_schemes import Response, ResponseWrapper
-from pytest_wdl.utils import LOG, env_map, resolve_value_descriptor
+from pytest_wdl.utils import (
+    LOG, DigestsNotEqualError, env_map, resolve_value_descriptor, verify_digests
+)
 
 
 class Localizer(metaclass=ABCMeta):  # pragma: no-cover
@@ -38,6 +40,17 @@ class Localizer(metaclass=ABCMeta):  # pragma: no-cover
         """
         pass
 
+    def verify(self, path: Path) -> bool:
+        """Verify that `path` exists and is valid.
+
+        Args:
+            path: Path to verify.
+
+        Returns:
+            True if the path is verified, else False
+        """
+        return path.exists()
+
 
 class UrlLocalizer(Localizer):
     """
@@ -47,11 +60,29 @@ class UrlLocalizer(Localizer):
         self,
         url: str,
         user_config: UserConfiguration,
-        http_headers: Optional[dict] = None
+        http_headers: Optional[dict] = None,
+        digests: Optional[dict] = None
     ):
         self.url = url
         self.user_config = user_config
         self._http_headers = http_headers
+        self.digests = digests
+
+    def verify(self, path: Path) -> bool:
+        if not super().verify(path):
+            return False
+        if self.digests:
+            try:
+                verify_digests(path, self.digests)
+            except DigestsNotEqualError:
+                LOG.exception(
+                    "%s already exists but its digest does not match the expected "
+                    "digest; deleting the existing file and re-downloading from "
+                    "%s", str(path), self.url
+                )
+                path.unlink()
+                return False
+        return True
 
     def localize(self, destination: Path):
         try:
@@ -60,14 +91,15 @@ class UrlLocalizer(Localizer):
                 destination,
                 http_headers=self.http_headers,
                 proxies=self.user_config.proxies,
-                show_progress=self.user_config.show_progress
+                show_progress=self.user_config.show_progress,
+                digests=self.digests
             )
         except Exception as err:
             # Delete the destination since it might be incomplete
             if destination.exists():
                 try:
                     destination.unlink()
-                except:
+                except IOError:  # TODO: test this
                     LOG.exception(
                         "Error deleting file %s; localization failed, so it may be "
                         "incomplete", str(destination)
@@ -118,7 +150,7 @@ class JsonLocalizer(Localizer):
 
     def localize(self, destination: Path):
         LOG.debug(f"Persisting {destination} from contents")
-        with open_(destination, "wt") as out:
+        with open(destination, "wt") as out:
             json.dump(self.contents, out)
 
 
@@ -138,7 +170,8 @@ def download_file(
     destination: Path,
     http_headers: Optional[dict] = None,
     proxies: Optional[dict] = None,
-    show_progress: bool = True
+    show_progress: bool = True,
+    digests: Optional[dict] = None
 ):
     req = request.Request(url)
     if http_headers:
@@ -159,4 +192,4 @@ def download_file(
         downloader = ResponseWrapper(rsp)
 
     LOG.debug("Downloading url %s to %s", url, str(destination))
-    downloader.download_file(destination, show_progress)
+    downloader.download_file(destination, show_progress, digests)

@@ -18,6 +18,7 @@
 from collections import defaultdict
 import contextlib
 import fnmatch
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -61,7 +62,7 @@ class PluginFactory(Generic[T]):
             )
             self.factory = getattr(module, self.entry_point.attrs[0])
         plugin = self.factory(*args, **kwargs)
-        if not isinstance(plugin, self.return_type):
+        if not isinstance(plugin, self.return_type):  # TODO: test this
             raise RuntimeError(
                 f"Expected plugin {plugin} to be an instance of {self.return_type}"
             )
@@ -152,15 +153,20 @@ def chdir(todir: Path):
 
 
 @contextlib.contextmanager
-def tempdir(change_dir: bool = False) -> Path:
+def tempdir(
+    change_dir: bool = False, tmproot: Optional[Path] = None,
+    cleanup: Optional[bool] = True
+) -> Path:
     """
     Context manager that creates a temporary directory, yields it, and then
     deletes it after return from the yield.
 
     Args:
         change_dir: Whether to temporarily change to the temp dir.
+        tmproot: Root directory in which to create temporary directories.
+        cleanup: Whether to delete the temporary directory before exiting the context.
     """
-    temp = ensure_path(tempfile.mkdtemp())
+    temp = ensure_path(tempfile.mkdtemp(dir=tmproot))
     try:
         if change_dir:
             with chdir(temp):
@@ -168,7 +174,8 @@ def tempdir(change_dir: bool = False) -> Path:
         else:
             yield temp
     finally:
-        shutil.rmtree(temp)
+        if cleanup:
+            shutil.rmtree(temp)
 
 
 @contextlib.contextmanager
@@ -205,7 +212,7 @@ def context_dir(
             yield path
     finally:
         if cleanup and path.exists():
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def ensure_path(
@@ -480,3 +487,42 @@ def resolve_value_descriptor(value_descriptor: Union[str, dict]) -> Optional:
         )
     else:
         return value_descriptor.get("value")
+
+
+class DigestsNotEqualError(AssertionError):
+    pass
+
+
+def compare_files_with_hash(file1: Path, file2: Path, hash_name: str = "md5"):
+    file1_digest = hash_file(file1, hash_name)
+    file2_digest = hash_file(file2, hash_name)
+    if file1_digest != file2_digest:
+        raise DigestsNotEqualError(
+            f"{hash_name} digests differ between expected identical files "
+            f"{file1}, {file2}"
+        )
+
+
+def hash_file(path: Path, hash_name: str = "md5") -> str:
+    assert hash_name in hashlib.algorithms_guaranteed
+    with open(path, "rb") as inp:
+        hashobj = hashlib.new(hash_name)
+        hashobj.update(inp.read())
+        return hashobj.hexdigest()
+
+
+def verify_digests(path: Path, digests: dict):
+    for hash_name, expected_digest in digests.items():
+        try:
+            actual_digest = hash_file(path, hash_name)
+        except AssertionError:  # TODO: test this
+            LOG.warning(
+                "Hash algorithm %s is not supported; cannot verify file %s",
+                hash_name, path
+            )
+            continue
+        if actual_digest != expected_digest:
+            raise DigestsNotEqualError(
+                f"{hash_name} digest {actual_digest} of file "
+                f"{path} does match expected value {expected_digest}"
+            )

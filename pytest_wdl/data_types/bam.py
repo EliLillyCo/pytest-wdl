@@ -19,17 +19,17 @@ from enum import Enum
 from functools import partial
 from pathlib import Path
 import re
-from typing import Optional
+from typing import Iterable, Optional
 
 import subby
-from xphyle import open_
 
 from pytest_wdl.data_types import DataFile, assert_text_files_equal, diff_default
 from pytest_wdl.utils import tempdir
 
-try:  # pragma: no-cover
+# TODO: fall back to command line samtools (if installed)
+try:
     import pysam
-except ImportError:
+except ImportError:  # pragma: no-cover
     raise ImportError(
         "Failed to import dependencies for bam type. To add support for BAM files, "
         "install the plugin with pip install pytest-wdl[bam]"
@@ -109,13 +109,13 @@ def assert_bam_files_equal(
         bam_to_sam(
             file1,
             cmp_file1,
-            headers=False,
+            headers=None,
             sorting=Sorting.NAME
         )
         bam_to_sam(
             file2,
             cmp_file2,
-            headers=False,
+            headers=None,
             sorting=Sorting.NAME
         )
         assert_text_files_equal(
@@ -131,14 +131,12 @@ def assert_bam_files_equal(
         bam_to_sam(
             file1,
             cmp_file1,
-            headers=True,
             min_mapq=min_mapq,
             sorting=Sorting.COORDINATE,
         )
         bam_to_sam(
             file2,
             cmp_file2,
-            headers=True,
             min_mapq=min_mapq,
             sorting=Sorting.COORDINATE
         )
@@ -157,7 +155,7 @@ def assert_bam_files_equal(
 def bam_to_sam(
     input_bam: Path,
     output_sam: Path,
-    headers: bool = True,
+    headers: Optional[Iterable[str]] = ("HD", "SQ", "RG"),
     min_mapq: Optional[int] = None,
     sorting: Sorting = Sorting.NONE
 ):
@@ -167,34 +165,39 @@ def bam_to_sam(
     opts = []
     if headers:
         opts.append("-h")
+        headers = set(headers)
     if min_mapq:
         opts.extend(["-q", str(min_mapq)])
     sam = pysam.view(*opts, str(input_bam)).rstrip()
     # Replace any randomly assigned readgroups with a common placeholder
     sam = re.sub(r"UNSET-\w*\b", "UNSET-placeholder", sam)
 
-    if sorting is not Sorting.NONE:
-        lines = sam.splitlines(keepends=True)
-        start = 0
-        if headers:
-            for i, line in enumerate(lines):
-                if not line.startswith("@"):
-                    start = i
-                    break
+    lines = sam.splitlines(keepends=True)
+    header_lines = []
+    start = 0
+    if headers:
+        for i, line in enumerate(lines):
+            if not line.startswith("@"):
+                start = i
+                break
+            elif line[1:3] in headers:
+                header_lines.append(line)
 
+    body_lines = lines[start:]
+    if sorting is not Sorting.NONE:
         with tempdir() as temp:
             temp_sam = temp / f"output_{str(output_sam.stem)}.sam"
-            with open_(temp_sam, "w") as out:
-                out.write("".join(lines[start:]))
+            with open(temp_sam, "w") as out:
+                out.write("".join(body_lines))
             if sorting is Sorting.COORDINATE:
                 sort_cols = "-k3,3 -k4,4n -k2,2n"
             else:
                 sort_cols = "-k1,1 -k2,2n"
             sorted_sam = subby.sub(f"cat {str(temp_sam)} | sort {sort_cols}")
-            lines = lines[:start] + [sorted_sam]
+            body_lines = [sorted_sam]
 
-    with open_(output_sam, "w") as out:
-        out.write("".join(lines))
+    with open(output_sam, "w") as out:
+        out.write("".join(header_lines + body_lines))
 
 
 def diff_bam_columns(file1: Path, file2: Path, columns: str) -> int:

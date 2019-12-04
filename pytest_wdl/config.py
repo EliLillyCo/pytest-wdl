@@ -19,8 +19,6 @@ import shutil
 import tempfile
 from typing import Dict, List, Optional, Union
 
-from xphyle import open_
-
 from pytest_wdl.utils import ensure_path, env_map
 
 
@@ -80,7 +78,7 @@ class UserConfiguration:
         executor_defaults: Optional[Dict[str, dict]] = None,
     ):
         if config_file:
-            with open_(config_file, "rt") as inp:
+            with open(config_file, "rt") as inp:
                 defaults = json.load(inp)
         else:
             defaults = {}
@@ -160,4 +158,4 @@ class UserConfiguration:
         `self.remove_cache_dir` is True.
         """
         if self.remove_cache_dir:
-            shutil.rmtree(self.cache_dir)
+            shutil.rmtree(self.cache_dir, ignore_errors=True)

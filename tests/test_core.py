@@ -13,13 +13,16 @@
 #    limitations under the License.
 
 import gzip
+import json
 from typing import cast
 from unittest.mock import Mock
 
 import pytest
 
 from pytest_wdl.config import UserConfiguration
-from pytest_wdl.core import DefaultDataFile, DataDirs, DataResolver, create_data_file
+from pytest_wdl.core import (
+    DefaultDataFile, DataDirs, DataManager, DataResolver, create_data_file
+)
 from pytest_wdl.localizers import LinkLocalizer, UrlLocalizer
 from pytest_wdl.utils import tempdir
 from . import GOOD_URL, setenv
@@ -104,6 +107,34 @@ def test_data_file_dict_type():
         df.assert_contents_equal(DefaultDataFile(bar))
 
 
+def test_data_file_class():
+    dd = DataResolver(data_descriptors={
+        "foo": {
+            "class": "bar",
+            "value": 1
+        }
+    }, user_config=UserConfiguration())
+    assert dd.resolve("foo") == 1
+
+
+def test_data_file_json_contents():
+    with tempdir() as d:
+        foo = d / "foo.json"
+        df = create_data_file(
+            user_config=UserConfiguration(),
+            path=foo,
+            contents={
+                "a": 1,
+                "b": "foo"
+            }
+        )
+        with open(df.path, "rt") as inp:
+            assert json.load(inp) == {
+                "a": 1,
+                "b": "foo"
+            }
+
+
 def test_data_dirs():
     with tempdir() as d:
         mod = Mock()
@@ -160,7 +191,7 @@ def test_data_resolver():
         fun.__name__ = "test_foo"
         dd = DataDirs(d, mod, fun)
         resolver = DataResolver(test_data, UserConfiguration(None, cache_dir=d))
-        with pytest.raises(ValueError):
+        with pytest.raises(FileNotFoundError):
             resolver.resolve("bork", dd)
         assert resolver.resolve("foo", dd).path == foo_txt
         assert resolver.resolve("bar", dd) == 1
@@ -328,6 +359,26 @@ def test_data_resolver_create_from_datadir():
 
         with pytest.raises(FileNotFoundError):
             resolver.resolve("bobble")
+
+
+def test_data_manager():
+    dm = DataManager(
+        data_resolver=DataResolver(
+            {
+                "foo": {
+                    "class": "x",
+                    "value": 1
+                },
+                "bar": {
+                    "class": "x",
+                    "value": 2
+                }
+            }, UserConfiguration()
+        ),
+        datadirs=None
+    )
+    assert [1, 2] == dm.get_list("foo", "bar")
+    assert {"foo": 1, "bork": 2} == dm.get_dict("foo", bork="bar")
 
 
 def test_http_header_set_in_workflow_data():

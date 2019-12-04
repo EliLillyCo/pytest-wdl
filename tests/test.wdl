@@ -8,7 +8,7 @@ task cat {
   >>>
 
   runtime {
-    docker: "frolvlad/alpine-bash"
+    docker: "frolvlad/alpine-bash:latest"
   }
 
   output {
@@ -19,19 +19,32 @@ task cat {
 workflow cat_file {
   File in_txt
   Int in_int
+  Boolean? fail
+
+  Boolean default_fail = select_first([fail, false])
 
   call cat {
     input: in_txt = in_txt
   }
 
-  call submodule.foo {
-    input:
-      s = "foo"
+  if (default_fail) {
+    call submodule.foo_fail {
+      input:
+        s = "foo"
+    }
   }
+  if (!default_fail) {
+    call submodule.foo {
+      input:
+        s = "foo"
+    }
+  }
+
+  File foo_out = select_first([foo_fail.out, foo.out])
 
   output {
     File out_txt = cat.out_txt
-    File out2 = foo.out
+    File out2 = foo_out
     Int out_int = in_int
   }
 }

@@ -2,11 +2,13 @@
 [![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
 [![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
 
+<img width="200" alt="logo" src="docs/source/logo.png"/>
+
 This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl).
 
 ## Dependencies
 
-* Python 3.6+
+* Python 3.6 or 3.7 (3.8 is not yet fully supported)
 * Java 1.8+
 * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
 * [Docker](https://www.docker.com/get-started) daemon (if your WDL tasks depend on Docker images)

@@ -17,11 +17,13 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 import subby
 
-from pytest_wdl.executors import Executor, get_workflow_inputs, validate_outputs
+from pytest_wdl.executors import (
+    ExecutionFailedError, Executor, get_workflow_inputs, validate_outputs
+)
 from pytest_wdl.utils import (
     LOG, ensure_path, find_executable_path, find_in_classpath
 )
@@ -32,6 +34,57 @@ ENV_CROMWELL_JAR = "CROMWELL_JAR"
 ENV_CROMWELL_CONFIG = "CROMWELL_CONFIG"
 ENV_CROMWELL_ARGS = "CROMWELL_ARGS"
 UNSAFE_RE = re.compile(r"[^\w.-]")
+
+
+class Failures:
+    def __init__(
+        self,
+        num_failed: int,
+        failed_task: str,
+        failed_task_exit_status: Optional[str] = None,
+        failed_task_stdout: Optional[Union[Path, str]] = None,
+        failed_task_stderr: Optional[Union[Path, str]] = None
+    ):
+        self.num_failed = num_failed
+        self.failed_task = failed_task
+        self.failed_task_exit_status = failed_task_exit_status
+        self._failed_task_stdout_path = None
+        self._failed_task_stdout = None
+        self._failed_task_stderr_path = None
+        self._failed_task_stderr = None
+        if isinstance(failed_task_stdout, Path):
+            self._failed_task_stdout_path = cast(Path, failed_task_stdout)
+        else:
+            self._failed_task_stdout = cast(str, failed_task_stdout)
+        if isinstance(failed_task_stderr, Path):
+            self._failed_task_stderr_path = cast(Path, failed_task_stderr)
+        else:
+            self._failed_task_stderr = cast(str, failed_task_stderr)
+
+    @property
+    def failed_task_stdout(self):
+        if self._failed_task_stdout is None and self._failed_task_stderr_path:
+            self._failed_task_stdout = Failures._read_task_std(
+                self._failed_task_stdout_path
+            )
+        return self._failed_task_stdout
+
+    @property
+    def failed_task_stderr(self):
+        if self._failed_task_stderr is None and self._failed_task_stderr_path:
+            self._failed_task_stderr = Failures._read_task_std(
+                self._failed_task_stderr_path
+            )
+        return self._failed_task_stderr
+
+    @staticmethod
+    def _read_task_std(path: Path) -> Optional[str]:
+        if path:
+            if not path.exists():
+                path = path.with_suffix(".background")
+            if path.exists():
+                with open(path, "rt") as inp:
+                    return inp.read()
 
 
 class CromwellExecutor(Executor):
@@ -134,7 +187,7 @@ class CromwellExecutor(Executor):
             Dict of outputs.
 
         Raises:
-            Exception: if there was an error executing Cromwell
+            ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
         workflow_name = self._get_workflow_name(wdl_path, kwargs)
@@ -149,10 +202,12 @@ class CromwellExecutor(Executor):
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
+        metadata_file = Path.cwd() / "metadata.json"
 
         cmd = (
             f"{self.java_bin} {java_args} -jar {self.cromwell_jar_file} run "
-            f"{cromwell_args} {inputs_arg} {imports_zip_arg} {wdl_path}"
+            f"-m {metadata_file} {cromwell_args} {inputs_arg} {imports_zip_arg} "
+            f"{wdl_path}"
         )
         LOG.info(
             f"Executing cromwell command '{cmd}' with inputs "
@@ -160,12 +215,53 @@ class CromwellExecutor(Executor):
         )
 
         exe = subby.run(cmd, raise_on_error=False)
-        if not exe.ok:
-            raise Exception(
-                f"Cromwell command failed; stdout={exe.output}; stderr={exe.error}"
-            )
 
-        outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
+        metadata = None
+        if metadata_file.exists():
+            with open(metadata_file, "rt") as inp:
+                metadata = json.load(inp)
+
+        if exe.ok:
+            if metadata:
+                assert metadata["status"] == "Succeeded"
+                outputs = metadata["outputs"]
+            else:
+                LOG.warning(
+                    f"Cromwell command completed successfully but did not generate "
+                    f"a metadata file at {metadata_file}"
+                )
+                outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
+        else:
+            error_kwargs = {
+                "executor": "cromwell",
+                "target": workflow_name,
+                "status": "Failed",
+                "inputs": inputs_dict,
+                "executor_stdout": exe.output,
+                "executor_stderr": exe.error,
+            }
+            if metadata:
+                failures = CromwellExecutor.get_failures(metadata)
+                if failures:
+                    error_kwargs.update({
+                        "failed_task": failures.failed_task,
+                        "failed_task_exit_status": failures.failed_task_exit_status,
+                        "failed_task_stdout": failures.failed_task_stdout,
+                        "failed_task_stderr": failures.failed_task_stderr
+                    })
+                    if failures.num_failed > 1:
+                        error_kwargs["msg"] = \
+                            f"cromwell failed on {failures.num_failed} instances of " \
+                            f"{failures.failed_task} of {workflow_name}; only " \
+                            f"showing output from the first failed task"
+                else:
+                    error_kwargs["msg"] = f"cromwell failed on workflow {workflow_name}"
+            else:
+                error_kwargs["msg"] = \
+                    f"Cromwell command failed but did not generate a metadata " \
+                    f"file at {metadata_file}"
+
+            raise ExecutionFailedError(**error_kwargs)
 
         if expected:
             validate_outputs(outputs, expected, workflow_name)
@@ -239,3 +335,35 @@ class CromwellExecutor(Executor):
         else:
             raise AssertionError("No outputs JSON found in Cromwell stdout")
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
+
+    @staticmethod
+    def get_failures(metadata: dict) -> Optional[Failures]:
+        for call_name, call_metadatas in metadata["calls"].items():
+            failed = list(filter(
+                lambda md: md["executionStatus"] == "Failed", call_metadatas
+            ))
+            if failed:
+                failed_call = failed[0]
+                if "subWorkflowMetadata" in failed_call:
+                    return CromwellExecutor.get_failures(
+                        failed_call["subWorkflowMetadata"]
+                    )
+                else:
+                    if "returnCode" in failed_call:
+                        rc = failed_call["returnCode"]
+                    else:
+                        rc = "Unknown"
+
+                    stdout = stderr = None
+                    if "stdout" in failed_call:
+                        stdout = Path(failed_call["stdout"])
+                        stderr = Path(failed_call["stderr"])
+                    elif "failures" in failed_call:
+                        failure = failed_call["failures"][0]
+                        stderr = failure["message"]
+                        if "causedBy" in failure:
+                            stderr = "\n  ".join(
+                                [stderr] + [cb["message"] for cb in failure["causedBy"]]
+                            )
+
+                    return Failures(len(failed), call_name, rc, stdout, stderr)

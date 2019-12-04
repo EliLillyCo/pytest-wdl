@@ -18,7 +18,7 @@ from pytest_wdl.config import UserConfiguration
 from pytest_wdl.localizers import (
     LinkLocalizer, StringLocalizer, JsonLocalizer, UrlLocalizer
 )
-from pytest_wdl.utils import tempdir
+from pytest_wdl.utils import DigestsNotEqualError, tempdir
 from . import GOOD_URL, no_internet, setenv
 
 
@@ -60,12 +60,50 @@ def test_url_localizer():
     bad_url = "foo"
     with tempdir() as d:
         foo = d / "foo"
+        UrlLocalizer(
+            good_url,
+            UserConfiguration(None, cache_dir=d),
+            digests={"md5": "acbd18db4cc2f85cedef654fccc4a4d8"}
+        ).localize(foo)
+        with open(foo, "rt") as inp:
+            assert inp.read() == "foo"
+
+        # test that the file is overwritten
+        with open(foo, "wt") as out:
+            out.write("bork")
         UrlLocalizer(good_url, UserConfiguration(None, cache_dir=d)).localize(foo)
         with open(foo, "rt") as inp:
             assert inp.read() == "foo"
 
     with pytest.raises(RuntimeError):
+        with tempdir() as d:
+            foo = d / "foo"
+            UrlLocalizer(
+                good_url,
+                UserConfiguration(None, cache_dir=d),
+                digests={"md5": "XXX"}
+            ).localize(foo)
+
+    with pytest.raises(RuntimeError):
         UrlLocalizer(bad_url, UserConfiguration(None, cache_dir=d)).localize(foo)
+
+
+# @pytest.mark.skipif(no_internet, reason="no internet available")
+# def test_url_localizer_corrupt_file():
+#     good_url = GOOD_URL
+#     with tempdir() as d:
+#         foo = d / "foo"
+#         # The localizer should detect that the file already exists, but that the
+#         # digests don't match and overwrite it
+#         with open(foo, "wt") as out:
+#             out.write("blahblahblah")
+#         UrlLocalizer(
+#             good_url,
+#             UserConfiguration(None, cache_dir=d),
+#             digests={"md5": "acbd18db4cc2f85cedef654fccc4a4d8"}
+#         ).localize(foo)
+#         with open(foo, "rt") as inp:
+#             assert inp.read() == "foo"
 
 
 def test_url_localizer_add_headers():

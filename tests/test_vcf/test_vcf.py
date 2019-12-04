@@ -50,13 +50,16 @@ def test_vcf_data_file_different():
             "##fileformat=VCFv4.2\n"
             "chr1\t1111\t.\tA\tG\t1000\tPASS\t."
         )
-        v1 = VcfDataFile(temp / "foo1.vcf", localizer1, allowed_diff_lines=1)
+        v1 = VcfDataFile(temp / "foo1.vcf", localizer1, allowed_diff_lines=0)
         localizer2 = StringLocalizer(
             "##fileformat=VCFv4.2\n"
             "chr1\t1111\t.\tA\tG\t999.9\tPASS\t.\n"
             "chr1\t2222\t.\tT\tC\t500\tPASS\t."
         )
         v2 = VcfDataFile(temp / "foo2.vcf", localizer2)
+        with pytest.raises(AssertionError):
+            v1.assert_contents_equal(v2)
+        v1.set_compare_opts(allowed_diff_lines=1)
         v1.assert_contents_equal(v2)
 
 

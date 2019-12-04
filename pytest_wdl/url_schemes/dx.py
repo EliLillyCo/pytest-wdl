@@ -19,9 +19,25 @@ from pathlib import Path
 
 from typing import Sequence, Optional
 
-import dxpy
-
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
+from pytest_wdl.utils import verify_digests
+
+# Import dxpy dynamically
+_dxpy = None
+
+
+def get_dxpy():
+    global _dxpy
+    if _dxpy is None:
+        import importlib
+        try:
+            _dxpy = importlib.import_module("dxpy")
+        except ImportError:  # pragma: no-cover
+            raise RuntimeError(
+                "The dx:// URL scheme requires dxpy, which is not installed. "
+                "Update with pip install pytest-wdl[dx]"
+            )
+    return _dxpy
 
 
 class DxResponse(Response):
@@ -29,13 +45,20 @@ class DxResponse(Response):
         self.file_id = file_id
         self.project_id = project_id
 
-    def download_file(self, destination: Path, show_progress: bool = False):
-        dxpy.download_dxfile(
+    def download_file(
+        self,
+        destination: Path,
+        show_progress: bool = False,
+        digests: Optional[dict] = None
+    ):
+        get_dxpy().download_dxfile(
             self.file_id,
             str(destination),
             show_progress=show_progress,
             project=self.project_id
         )
+        if digests:
+            verify_digests(destination, digests)
 
 
 class DxUrlHandler(UrlHandler):
@@ -49,12 +72,12 @@ class DxUrlHandler(UrlHandler):
 
     def urlopen(self, request: Request) -> Response:
         url = request.get_full_url()
-        if not url.startswith("dx://"):
+        if not url.startswith("dx://"):  # TODO: test this
             raise ValueError(f"Expected URL to start with 'dx://'; got {url}")
         obj_id = url[5:]
         if ":" in obj_id:
             project_id, file_id = obj_id.split(":")
         else:
-            project_id = dxpy.PROJECT_CONTEXT_ID
+            project_id = None
             file_id = obj_id
         return DxResponse(file_id, project_id)
