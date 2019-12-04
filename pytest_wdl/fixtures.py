@@ -106,11 +106,20 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     Args:
         request: A FixtureRequest object
     """
-    tests = find_project_path("tests", start=Path(request.fspath.dirpath()))
+    path = Path(request.fspath.dirpath())
+
+    # Look in tests/ folder first
+    tests = find_project_path("tests", start=path)
     if tests:
         test_data = tests / DEFAULT_TEST_DATA_FILE
         if test_data.exists():
             return test_data
+
+    # Next look in the current directory
+    test_data = path / DEFAULT_TEST_DATA_FILE
+    if test_data.exists():
+        return test_data
+
     raise FileNotFoundError(f"Could not find {DEFAULT_TEST_DATA_FILE} file")  # TODO: test this
 
 
