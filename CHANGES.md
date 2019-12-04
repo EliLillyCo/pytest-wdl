@@ -1,7 +1,8 @@
 # Changes
 
-## v1.2.0 (dev)
+## v1.2.0 (2019.12.04)
 
+* Fix #86 - enable test_data.json file to be located in the same directory as the WDL file
 * When comparing BAM files, by default only compare HD, SQ, and RG headers
 * Enhance the error message that is displayed when a workflow fails
 * Add ability to validate data file digests
