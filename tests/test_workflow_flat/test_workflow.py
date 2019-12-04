@@ -5,7 +5,7 @@ import pytest
 
 
 @pytest.mark.integration
-def test_hello_world_parent_workflow(workflow_data, workflow_runner):
+def test_workflow(workflow_data, workflow_runner):
     """Test the hello_world parent workflow with fixed inputs and outputs."""
     inputs = {
         "input_files": [

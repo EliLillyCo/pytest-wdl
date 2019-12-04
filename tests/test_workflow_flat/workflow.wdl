@@ -6,7 +6,7 @@ workflow hello_world_workflow {
   }
 
   scatter (file in input_files) {
-    call hello_world.hello_world {
+    call hello_world {
       input:
         input_file=file,
         output_filename=basename(file) + ".renamed"
