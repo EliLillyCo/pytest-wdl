@@ -248,7 +248,7 @@ def ensure_path(
             raise an exception if the path is not a directory.
         executable: If True and `is_file` is True and the file exists, raise an
             exception if it is not executable.
-        create: Create the directory (or parent, if `path` is an existing file) if
+        create: Create the directory (or parent, if `is_file` = True) if
             it does not exist. Ignored if `exists` is True.
 
     Returns:
