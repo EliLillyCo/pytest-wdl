@@ -245,12 +245,13 @@ def test_data_resolver_create_from_contents():
     with tempdir() as d:
         resolver = DataResolver({
             "foo": {
-                "path": "foo.txt",
+                "path": "dir1/dir2/foo.txt",
                 "contents": "foo"
             }
         }, UserConfiguration(None, cache_dir=d))
+        parent = d / "dir1" / "dir2"
         foo = resolver.resolve("foo")
-        assert foo.path == d / "foo.txt"
+        assert foo.path == parent / "foo.txt"
         with open(foo.path, "rt") as inp:
             assert inp.read() == "foo"
 
@@ -284,11 +285,11 @@ def test_data_resolver_create_from_url():
         resolver = DataResolver({
             "foo": {
                 "url": GOOD_URL,
-                "path": "sample.vcf"
+                "path": "dir1/dir2/sample.vcf"
             }
         }, UserConfiguration(None, cache_dir=d))
         foo = resolver.resolve("foo")
-        assert foo.path == d / "sample.vcf"
+        assert foo.path == d / "dir1" / "dir2" / "sample.vcf"
         with open(foo.path, "rt") as inp:
             assert inp.read() == "foo"
 

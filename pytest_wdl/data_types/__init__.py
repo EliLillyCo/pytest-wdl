@@ -18,7 +18,7 @@ from typing import Callable, Optional, Union, cast
 import subby
 
 from pytest_wdl.localizers import Localizer
-from pytest_wdl.utils import tempdir, compare_files_with_hash
+from pytest_wdl.utils import compare_files_with_hash, ensure_path, tempdir
 from xphyle import guess_file_format
 from xphyle.utils import transcode_file
 
@@ -55,6 +55,7 @@ class DataFile(metaclass=ABCMeta):
     def path(self) -> Path:
         if not self.local_path.exists():
             if self.localizer:
+                ensure_path(self.local_path, is_file=True, create=True)
                 self.localizer.localize(self.local_path)
             else:
                 raise RuntimeError(
