@@ -1,5 +1,9 @@
 # Changes
 
+## v1.2.1 (2019.12.11)
+
+* Fixes #93 - ensures parent directories exist when localizing a file
+
 ## v1.2.0 (2019.12.04)
 
 * Fix #86 - enable test_data.json file to be located in the same directory as the WDL file
