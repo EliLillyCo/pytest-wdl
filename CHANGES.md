@@ -1,6 +1,6 @@
 # Changes
 
-## v1.2.1 (2019.12.11)
+## v1.2.1 (2019.12.12)
 
 * Fixes #93 - ensures parent directories exist when localizing a file
 
