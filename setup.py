@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 
 extras_require = {
-    "bam": ["pysam"],
+    "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
     "progress": ["tqdm"]
 }
