@@ -7,9 +7,12 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 ## Dependencies
 
 * Python 3.6 or 3.7 (3.8 is not yet fully supported)
-* Java 1.8+
-* [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
-* [Docker](https://www.docker.com/get-started) daemon (if your WDL tasks depend on Docker images)
+* At least one of the supported workflow engines:
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
+    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
+    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
+* Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
+* If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
 
 Other python dependencies are installed when you install the library.
 
