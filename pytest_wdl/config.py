@@ -196,6 +196,7 @@ _INSTANCE: Optional[UserConfiguration] = None
 def default_user_config_file() -> Path:
     config_file = os.environ.get(ENV_USER_CONFIG)
     config_path = None
+
     if config_file:
         config_path = ensure_path(config_file)
     else:
@@ -207,8 +208,10 @@ def default_user_config_file() -> Path:
             if default_config_path.exists():
                 config_path = default_config_path
                 break
+
     if config_path and not config_path.exists():
         raise FileNotFoundError(f"Config file {config_path} does not exist")
+
     return config_path
 
 
