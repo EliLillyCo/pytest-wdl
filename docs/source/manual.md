@@ -218,6 +218,7 @@ You can also pass executor-specific keyword arguments.
 
 Requires the `dxpy` package to be installed.
 
+<!--* `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.-->
 * `project_id`: ID of the project where the workflow will be built. Defaults to the currently selected project. You can also specify different projects for workflows and data using `workflow_project_id` and `data_project_id` varaibles.
 * `folder`: The folder within the project where the workflow will be built. Defaults to '/'. You can also specify different folders for workflows and data using `workflow_folder_id` and `data_folder_id` varaibles.
 * `stage_id`: Stage ID to use when inputs don't come prefixed with the stage. Defaults to "stage-common".
@@ -276,6 +277,7 @@ The available configuration options are listed in the following table:
 | `show_progress` | N/A | Whether to show progress bars when downloading files | False | |
 | `default_executors` | PYTEST_WDL_EXECUTORS | Comma-delimited list of executor names to run by default | \["cromwell"\] | |
 | `executors` | Executor-dependent | Configuration options specific to each executor; see below | None | |
+| `providers` | Provider-dependent | Configuration options specific to each provider; see below | None | |
 | N/A | `LOGLEVEL` | Level of detail to log; can set to 'DEBUG', 'INFO', 'WARNING', or 'ERROR' | 'WARNING' | Use 'DEBUG' when developing plugins/fixtures/etc., otherwise 'WARNING' |
 
 ##### Proxies
@@ -346,6 +348,15 @@ The dxWDL executor (as well as URLs using the dx:// scheme) require you to be lo
 | -------------| ------------- | ----------- | ----------- |
 | `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
 | `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+
+##### Provider-specific configuration
+
+A "provider" is a remote (generally cloud-based) service that provides both an execution engine and data storage.
+
+###### DNAnexus
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
 | `dx_username` | None | Username to use for logging into DNAnexus if the user is not already logged in | None |
 | `dx_password` | None | Password to use for logging into DNAnexus if the user is not already logged in | None |
 | `dx_token` | None | Token to use for logging into DNAnexus if the user is not already logged in (mutually exclusive with username/password | None |

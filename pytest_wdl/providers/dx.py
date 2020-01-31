@@ -1,18 +1,19 @@
-#    Copyright 2019 Eli Lilly and Company
+# Copyright 2019 Eli Lilly and Company
 #
-#    Licensed under the Apache License, Version 2.0 (the "License");
-#    you may not use this file except in compliance with the License.
-#    You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#        http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#    Unless required by applicable law or agreed to in writing, software
-#    distributed under the License is distributed on an "AS IS" BASIS,
-#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#    See the License for the specific language governing permissions and
-#    limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from argparse import Namespace
 import contextlib
+from functools import partial
 import os
 from pathlib import Path
 import shutil
@@ -35,6 +36,7 @@ from pytest_wdl.utils import LOG, ensure_path, verify_digests
 
 ENV_JAVA_HOME = "JAVA_HOME"
 ENV_DXWDL_JAR = "DXWDL_JAR"
+OUTPUT_STAGE = "stage-outputs"
 
 
 @contextlib.contextmanager
@@ -48,7 +50,7 @@ def login(logout: bool = False):
     if dxpy.SECURITY_CONTEXT:
         yield
     else:
-        conf = config.get_instance().get_executor_defaults("dxwdl")
+        conf = config.get_instance().get_provider_defaults("dxwdl")
         username = conf.get("username")
         token = conf.get("token")
         if "DX_USERNAME" not in os.environ and username:
@@ -135,7 +137,6 @@ class DxWdlExecutor(JavaExecutor):
         java_args: Optional[str] = None,
         dxwdl_jar_file: Optional[Union[str, Path]] = None,
         dxwdl_cache_dir: Optional[Union[str, Path]] = None,
-        **defaults
     ):
         super().__init__(import_dirs, java_bin, java_args)
         self.dxwdl_jar_file = JavaExecutor.resolve_jar_file(
@@ -147,7 +148,6 @@ class DxWdlExecutor(JavaExecutor):
         else:
             self.dxwdl_cache_dir = ensure_path(tempfile.mkdtemp())
             self._cleanup_cache = True
-        self.defaults = defaults
 
     def run_workflow(
         self,
@@ -156,36 +156,28 @@ class DxWdlExecutor(JavaExecutor):
         expected: Optional[dict] = None,
         **kwargs
     ) -> dict:
-        def get_arg(name: str, default=None):
-            return kwargs.get(name) or self.defaults.get(name) or default
+        # TODO: handle "task_name" kwarg - run app instead of workflow
 
         cls = self.__class__
-        workflow_name = self._get_workflow_name(wdl_path, kwargs)
-        namespace = get_arg("stage_id", "stage-common")
-        inputs_file = kwargs.get("inputs_file")
-        inputs_dict = None
+        namespace = kwargs.get("stage_id", "stage-common")
 
-        if inputs_file:
-            inputs_dict, inputs_file = cls._read_inputs(inputs_file)
-
-        if not inputs_dict:
-            project_id = (
-                get_arg("data_project_id") or
-                get_arg("project_id", dxpy.PROJECT_CONTEXT_ID)
-            )
-            folder = get_arg("data_folder") or get_arg("folder", "/")
-            inputs_dict = JavaExecutor._format_inputs(inputs_dict, namespace, False)
-            cls._resolve_data_files(inputs, project_id, folder)
+        inputs_dict = cls._get_workflow_inputs(
+            inputs, namespace, kwargs, write_inputs=False
+        )
 
         with login():
+            workflow_name = self._get_workflow_name(wdl_path, kwargs)
             workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
             analysis = workflow.run(inputs_dict)
 
             try:
                 analysis.wait_on_done()
-                outputs = self._get_analysis_outputs(analysis, expected.keys(), namespace)
+
+                outputs = self._get_analysis_outputs(analysis, expected.keys())
+
                 if expected:
-                    cls._validate_outputs(outputs, expected, workflow_name)
+                    cls._validate_outputs(outputs, expected, OUTPUT_STAGE)
+
                 return outputs
             except dxpy.exceptions.DXJobFailureError:
                 raise ExecutionFailedError(
@@ -200,20 +192,20 @@ class DxWdlExecutor(JavaExecutor):
                     shutil.rmtree(self.dxwdl_cache_dir)
 
     def _resolve_workflow(
-        self, wdl_path: Path, workflow_name: str, kwargs: dict
+        self,
+        wdl_path: Path,
+        workflow_name: str,
+        kwargs: dict,
     ) -> dxpy.DXWorkflow:
-        def get_arg(name: str, default=None):
-            return kwargs.get(name) or self.defaults.get(name) or default
-
         if wdl_path in DxWdlExecutor._workflow_cache:
             return DxWdlExecutor._workflow_cache[wdl_path]
 
         project_id = (
-            get_arg("workflow_project_id") or
-            get_arg("project_id", dxpy.PROJECT_CONTEXT_ID)
+            kwargs.get("workflow_project_id") or
+            kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
         )
-        folder = get_arg("workflow_folder") or get_arg("folder", "/")
-        build_workflow = get_arg("force", False)
+        folder = kwargs.get("workflow_folder") or kwargs.get("folder", "/")
+        build_workflow = kwargs.get("force", False)
         workflow_id = None
 
         if not build_workflow:
@@ -227,7 +219,9 @@ class DxWdlExecutor(JavaExecutor):
                 }
             ))
 
-            if existing_workflow:
+            if not existing_workflow:
+                build_workflow = True
+            else:
                 created = existing_workflow[0]["describe"]["created"]
                 if wdl_path.stat().st_mtime > created:
                     build_workflow = True
@@ -241,16 +235,19 @@ class DxWdlExecutor(JavaExecutor):
                         workflow_id = existing_workflow[0]["id"]
 
         if build_workflow:
-            extras = get_arg("extras")
-            extras_arg = f"-extras {extras}" if extras else ""
-            archive = get_arg("archive")
-            archive_arg = "-a" if archive else "-f"
+            java_args = kwargs.get("java_args", self.java_args) or ""
             imports_args = " ".join(f"-imports {d}" for d in self.import_dirs)
+            extras = kwargs.get("extras")
+            extras_arg = f"-extras {extras}" if extras else ""
+            archive = kwargs.get("archive")
+            archive_arg = "-a" if archive else "-f"
+
             cmd = (
-                f"{self.java_bin} {self.java_args} -jar {self.dxwdl_jar_file} compile "
+                f"{self.java_bin} {java_args} -jar {self.dxwdl_jar_file} compile "
                 f"{wdl_path} -destination {project_id}:{folder} {imports_args} "
                 f"{extras_arg} {archive_arg}"
             )
+
             LOG.info(f"Building workflow with command '{cmd}'")
             workflow_id = subby.sub(cmd).splitlines(False)[-1]
 
@@ -259,73 +256,48 @@ class DxWdlExecutor(JavaExecutor):
         return workflow
 
     @classmethod
-    def _resolve_data_files(cls, inputs_dict: dict, project_id: str, folder: str):
-        def handle_data_files(
-            obj, _file_links: Optional[List] = None
-        ) -> Optional[List]:
-            """
-            Go through the input hierarchy, find all data files, and:
-            1. Upload any data that does not already exist on DNAnexus
-            2. Add ___dxfiles inputs
-            """
-            if isinstance(obj, str):
-                pass
-            if isinstance(obj, dict):
-                for value in cast(dict, obj).values():
-                    handle_data_files(value, _file_links)
-            elif isinstance(obj, Sequence):
-                for value in cast(Sequence, obj):
-                    handle_data_files(value, _file_links)
-            elif isinstance(obj, DataFile):
-                df = cast(DataFile, obj)
-                dxlink = None
+    def _format_inputs(
+        cls, inputs_dict: dict, namespace: Optional[str], kwargs
+    ) -> dict:
+        project_id = (
+            kwargs.get("data_project_id") or
+            kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
+        )
+        folder = kwargs.get("data_folder") or kwargs.get("folder", "/")
+        prefix = f"{namespace}." if namespace else ""
+        data_file_serializer = partial(
+            resolve_dx_data_file, project_id=project_id, folder=folder
+        )
+        formatted = {}
 
-                if isinstance(df.localizer, UrlLocalizer):
-                    ul = cast(UrlLocalizer, df.localizer)
-                    if ul.url.startswith("dx://"):
-                        dxlink = dxpy.dxlink(*ul.url[5:].split(":"))
+        for key, value in inputs_dict.items():
+            new_key = f"{prefix}{key}"
 
-                if dxlink is None:
-                    file_name = df.local_path.name
-                    existing_files = list(dxpy.find_data_objects(
-                        classname="file",
-                        state="closed",
-                        name=file_name,
-                        project=project_id,
-                        folder=folder,
-                        recurse=False
-                    ))
-                    if not existing_files:
-                        dxlink = dxpy.dxlink(dxpy.upload_local_file(
-                            str(df.path),
-                            name=file_name,
-                            project=project_id,
-                            folder=folder,
-                            wait_on_close=True
-                        ))
-                    elif len(existing_files) == 1:
-                        dxlink = dxpy.dxlink(existing_files[0]["id"], project_id)
-                    else:
-                        raise RuntimeError(
-                            f"Multiple files with name {file_name} found in "
-                            f"{project_id}:{folder}"
-                        )
+            # If the value is a dict (i.e. a WDL struct), we need to collect the links
+            # and add a special <key>___dxfiles input
+            if isinstance(value, dict):
+                data_file_links = []
 
-                _file_links.append(dxlink)
+                def link_saving_serializer(df: DataFile):
+                    link = data_file_serializer(df)
+                    data_file_links.append(link)
+                    return link
 
-            return _file_links
+                formatted[new_key] = cls._make_serializable(
+                    value, link_saving_serializer
+                )
 
-        for key in list(inputs_dict.keys()):
-            file_links = handle_data_files(inputs_dict, [])
-            if file_links:
-                inputs_dict[f"{key}___dxfiles"] = file_links
+                if data_file_links:
+                    formatted[f"{new_key}___dxfiles"] = data_file_links
+            else:
+                formatted[new_key] = cls._make_serializable(value, data_file_serializer)
 
-        return inputs_dict
+        return formatted
 
     @classmethod
     def _get_failed_task(cls, analysis: dxpy.DXAnalysis) -> dict:
         """
-        Find the causal failuree within an execution tree and get the logs.
+        Find the causal failure within an execution tree and get the logs.
         """
         query = {
             "project": dxpy.WORKSPACE_ID,
@@ -376,7 +348,10 @@ class DxWdlExecutor(JavaExecutor):
         return tuple("\n".join(log) for log in logs)
 
     def _get_analysis_outputs(
-        self, analysis: dxpy.DXAnalysis, expected: Iterable[str], default_namespace: str
+        self,
+        analysis: dxpy.DXAnalysis,
+        expected: Iterable[str],
+        default_namespace: str = OUTPUT_STAGE,
     ) -> dict:
         all_outputs = analysis.describe()["output"]
         output = {}
@@ -390,7 +365,7 @@ class DxWdlExecutor(JavaExecutor):
                     f"Did not find key {exp_key} in outputs of analysis "
                     f"{analysis.get_id()}"
                 )
-            output[key] = self._resolve_output(all_outputs[exp_key])
+            output[exp_key] = self._resolve_output(all_outputs[exp_key])
 
         return output
 
@@ -418,3 +393,40 @@ class DxWdlExecutor(JavaExecutor):
             return [self._resolve_output(val) for val in cast(Sequence, value)]
         else:
             return value
+
+
+def resolve_dx_data_file(df: DataFile, project_id: str, folder: str):
+    dxlink = None
+
+    if isinstance(df.localizer, UrlLocalizer):
+        ul = cast(UrlLocalizer, df.localizer)
+        if ul.url.startswith("dx://"):
+            dxlink = dxpy.dxlink(*ul.url[5:].split(":"))
+
+    if dxlink is None:
+        file_name = df.local_path.name
+        existing_files = list(dxpy.find_data_objects(
+            classname="file",
+            state="closed",
+            name=file_name,
+            project=project_id,
+            folder=folder,
+            recurse=False
+        ))
+        # TODO: batch uploads and use dxpy.sugar.transfers.Uploader for
+        #  parallelization
+        if not existing_files:
+            return dxpy.dxlink(dxpy.upload_local_file(
+                str(df.path),
+                name=file_name,
+                project=project_id,
+                folder=folder,
+                wait_on_close=True
+            ))
+        elif len(existing_files) == 1:
+            return dxpy.dxlink(existing_files[0]["id"], project_id)
+        else:
+            raise RuntimeError(
+                f"Multiple files with name {file_name} found in "
+                f"{project_id}:{folder}"
+            )

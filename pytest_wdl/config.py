@@ -78,6 +78,7 @@ class UserConfiguration:
         show_progress: Optional[bool] = None,
         executors: Optional[str] = None,
         executor_defaults: Optional[Dict[str, dict]] = None,
+        provider_defaults: Optional[Dict[str, dict]] = None,
     ):
         if config_file:
             with open(config_file, "rt") as inp:
@@ -105,6 +106,7 @@ class UserConfiguration:
             )
             if execution_dir_str:
                 execution_dir = ensure_path(execution_dir_str)
+
         if execution_dir:
             self.default_execution_dir = ensure_path(
                 execution_dir, is_file=False, create=True
@@ -114,6 +116,7 @@ class UserConfiguration:
 
         if not proxies and KEY_PROXIES in defaults:
             proxies = env_map(defaults[KEY_PROXIES])
+
         self.proxies = proxies or {}
 
         if not http_headers and KEY_HTTP_HEADERS in defaults:
@@ -121,6 +124,7 @@ class UserConfiguration:
             for d in http_headers:
                 if "pattern" in d:
                     d["pattern"] = re.compile(d.pop("pattern"))
+
         self.default_http_headers = http_headers or []
 
         self.show_progress = show_progress
@@ -134,14 +138,24 @@ class UserConfiguration:
                 executors = executors_str.split(",")
             else:
                 executors = defaults.get(KEY_DEFAULT_EXECUTORS, ["cromwell"])
+
         self.executors = executors
 
         self.executor_defaults = executor_defaults or {}
+
         if "executors" in defaults:
             for name, d in defaults["executors"].items():
                 name = name.lower()
                 if name not in self.executor_defaults:
                     self.executor_defaults[name] = d
+
+        self.provider_defaults = provider_defaults or {}
+
+        if "providers" in defaults:
+            for name, d in defaults["providers"].items():
+                name = name.lower()
+                if name not in self.provider_defaults:
+                    self.provider_defaults[name] = d
 
     def get_executor_defaults(self, executor_name: str) -> dict:
         """
@@ -154,6 +168,18 @@ class UserConfiguration:
             A dict with the executor configuration values, if any.
         """
         return self.executor_defaults.get(executor_name.lower(), {})
+
+    def get_provider_defaults(self, provider_name: str) -> dict:
+        """
+        Get default configuration values for the given provider.
+
+        Args:
+            provider_name: The provider name
+
+        Returns:
+            A dict with the provider configuration values, if any.
+        """
+        return self.provider_defaults.get(provider_name.lower(), {})
 
     def cleanup(self) -> None:
         """
