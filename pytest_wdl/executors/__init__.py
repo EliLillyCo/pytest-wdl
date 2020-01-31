@@ -178,8 +178,6 @@ class Executor(metaclass=ABCMeta):
 
         if not write_inputs:
             return inputs_dict
-        elif not inputs_file:
-            raise ValueError("Missing keyword argument 'inputs_file'")
         else:
             inputs_file = cls._write_inputs(inputs_dict, inputs_file)
             return inputs_dict, inputs_file

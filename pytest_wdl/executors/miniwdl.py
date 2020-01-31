@@ -77,7 +77,7 @@ class MiniwdlExecutor(Executor):
         target, input_env, input_json = CLI.runner_input(
             doc=doc,
             inputs=[],
-            input_file=inputs_file,
+            input_file=str(inputs_file),
             empty=[],
             task=task
         )
