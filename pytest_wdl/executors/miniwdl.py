@@ -71,9 +71,7 @@ class MiniwdlExecutor(Executor):
                 namespace = doc.workflow.name
 
         inputs_dict, inputs_file = MiniwdlExecutor._get_workflow_inputs(
-            inputs,
-            kwargs.get("inputs_file"),
-            namespace=namespace
+            inputs, namespace, kwargs
         )
 
         target, input_env, input_json = CLI.runner_input(

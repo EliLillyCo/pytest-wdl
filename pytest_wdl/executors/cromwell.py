@@ -164,7 +164,7 @@ class CromwellExecutor(JavaExecutor):
         workflow_name = self._get_workflow_name(wdl_path, kwargs)
 
         inputs_dict, inputs_file = cls._get_workflow_inputs(
-            inputs, kwargs.get("inputs_file"), workflow_name
+            inputs, workflow_name, kwargs
         )
 
         imports_file = self._get_workflow_imports(kwargs.get("imports_file"))

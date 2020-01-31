@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 import tempfile
 import textwrap
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union, cast
 
 from pytest_wdl.data_types import DataFile
 from pytest_wdl.utils import (
@@ -130,16 +130,14 @@ class Executor(metaclass=ABCMeta):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
-    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
+    def _get_workflow_name(self, wdl_path: Path, kwargs):
         if "workflow_name" in kwargs:
             return kwargs["workflow_name"]
         elif Tree:
-            if "check_quant" not in kwargs:
-                kwargs["check_quant"] = False
             doc = Tree.load(
                 str(wdl_path),
                 path=[str(path) for path in self.import_dirs],
-                **kwargs
+                check_quant=kwargs.get("check_quant", False)
             )
             return doc.workflow.name
         else:  # TODO: test this
@@ -149,33 +147,42 @@ class Executor(metaclass=ABCMeta):
     def _get_workflow_inputs(
         cls: "Executor",
         inputs_dict: Optional[dict] = None,
-        inputs_file: Optional[Path] = None,
         namespace: Optional[str] = None,
-        resolve_data_files: bool = True
-    ) -> Tuple[dict, Path]:
+        kwargs: Optional[dict] = None,
+        write_inputs: bool = True,
+    ) -> Union[dict, Tuple[dict, Path]]:
         """
         Persist workflow inputs to a file, or load workflow inputs from a file.
 
         Args:
             inputs_dict: Dict of input names/values.
-            inputs_file: JSON file with workflow inputs.
             namespace: Name of the workflow; used to prefix the input parameters when
                 creating the inputs file from the inputs dict.
-            resolve_data_files: Whether to localize data files and convert them to Paths.
+            write_inputs: Whether to write inputs to `inputs_file`, or a temporary file
+                if `inputs_file` is None.
+            kwargs:
 
         Returns:
-            A tuple (inputs_dict, inputs_file)
+            A tuple (inputs_dict, inputs_file) if `write_inputs` is True, otherwise
+            just inputs_dict.
         """
+        inputs_file = kwargs.get("inputs_file", None) if kwargs else None
+
         if inputs_file:
             inputs_dict_from_file, inputs_file = cls._read_inputs(inputs_file)
             if inputs_dict_from_file:
                 return inputs_dict_from_file, inputs_file
 
         if inputs_dict:
-            inputs_dict = cls._format_inputs(inputs_dict, namespace, resolve_data_files)
-            inputs_file = cls._write_inputs(inputs_dict, inputs_file)
+            inputs_dict = cls._format_inputs(inputs_dict, namespace, kwargs)
 
-        return inputs_dict, inputs_file
+        if not write_inputs:
+            return inputs_dict
+        elif not inputs_file:
+            raise ValueError("Missing keyword argument 'inputs_file'")
+        else:
+            inputs_file = cls._write_inputs(inputs_dict, inputs_file)
+            return inputs_dict, inputs_file
 
     @classmethod
     def _read_inputs(cls, inputs_file: Path) -> Tuple[Optional[dict], Path]:
@@ -188,12 +195,11 @@ class Executor(metaclass=ABCMeta):
 
     @classmethod
     def _format_inputs(
-        cls, inputs_dict: dict, namespace: Optional[str],
-        resolve_data_files: bool = True
+        cls, inputs_dict: dict, namespace: Optional[str], kwargs: dict
     ) -> dict:
         prefix = f"{namespace}." if namespace else ""
         return dict(
-            (f"{prefix}{key}", cls._make_serializable(value, resolve_data_files))
+            (f"{prefix}{key}", cls._make_serializable(value))
             for key, value in inputs_dict.items()
         )
 
@@ -210,7 +216,10 @@ class Executor(metaclass=ABCMeta):
         return inputs_file
 
     @classmethod
-    def _make_serializable(cls: "Executor", value, resolve_data_files: bool = True):
+    def _make_serializable(
+        cls: "Executor", value,
+        data_file_serializer: Callable[[DataFile], Any] = lambda df: df.path
+    ):
         """
         Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
         Currently, arbitrary objects can be serialized by implementing an `as_dict()`
@@ -218,7 +227,7 @@ class Executor(metaclass=ABCMeta):
 
         Args:
             value: The value to make serializable.
-            resolve_data_files: Whether to localize data files and resolve them to paths.
+            data_file_serializer: Function used to make a DataFile serializable.
 
         Returns:
             The serializable value.
@@ -226,10 +235,7 @@ class Executor(metaclass=ABCMeta):
         if isinstance(value, str):
             return value
         if isinstance(value, DataFile):
-            if resolve_data_files:
-                return value.path
-            else:
-                return value
+            return data_file_serializer(cast(DataFile, value))
         if isinstance(value, dict):
             return dict((k, cls._make_serializable(v)) for k, v in value.items())
         if isinstance(value, Sequence):
