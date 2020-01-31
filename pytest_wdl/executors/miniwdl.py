@@ -149,6 +149,7 @@ class MiniwdlExecutor(Executor):
     def read_miniwdl_command_std(path: Optional[str] = None) -> Optional[str]:
         if path:
             p = Path(path)
+
             if p.exists():
                 with open(path, "rt") as inp:
                     return inp.read()
