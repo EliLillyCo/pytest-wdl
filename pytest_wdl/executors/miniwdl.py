@@ -70,7 +70,7 @@ class MiniwdlExecutor(Executor):
             else:
                 namespace = doc.workflow.name
 
-        inputs_dict, inputs_file = MiniwdlExecutor._get_workflow_inputs(
+        inputs_dict, inputs_file = self._get_workflow_inputs(
             inputs, namespace, kwargs
         )
 
@@ -141,7 +141,7 @@ class MiniwdlExecutor(Executor):
         outputs = CLI.values_to_json(output_env, namespace=target.name)
 
         if expected:
-            MiniwdlExecutor._validate_outputs(outputs, expected, target.name)
+            self._validate_outputs(outputs, expected, target.name)
 
         return outputs
 

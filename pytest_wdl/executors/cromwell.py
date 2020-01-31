@@ -160,10 +160,9 @@ class CromwellExecutor(JavaExecutor):
             ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        cls = self.__class__
         workflow_name = self._get_workflow_name(wdl_path, kwargs)
 
-        inputs_dict, inputs_file = cls._get_workflow_inputs(
+        inputs_dict, inputs_file = self._get_workflow_inputs(
             inputs, workflow_name, kwargs
         )
 
@@ -201,7 +200,7 @@ class CromwellExecutor(JavaExecutor):
                     f"Cromwell command completed successfully but did not generate "
                     f"a metadata file at {metadata_file}"
                 )
-                outputs = cls._get_cromwell_outputs(exe.output)
+                outputs = self._get_cromwell_outputs(exe.output)
         else:
             error_kwargs = {
                 "executor": "cromwell",
@@ -212,7 +211,7 @@ class CromwellExecutor(JavaExecutor):
                 "executor_stderr": exe.error,
             }
             if metadata:
-                failures = cls._get_failures(metadata)
+                failures = self._get_failures(metadata)
                 if failures:
                     error_kwargs.update({
                         "failed_task": failures.failed_task,
@@ -235,7 +234,7 @@ class CromwellExecutor(JavaExecutor):
             raise ExecutionFailedError(**error_kwargs)
 
         if expected:
-            cls._validate_outputs(outputs, expected, workflow_name)
+            self._validate_outputs(outputs, expected, workflow_name)
 
         return outputs
 
