@@ -136,8 +136,8 @@ def test_execution_failure(workflow_data, workflow_runner, executor):
 
 
 # Test dxWDL separately
-@pytest.mark.skip#if(NO_DX, reason=DX_SKIP_MSG)
 @pytest.mark.integration
+@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
 def test_dxwdl_workflow(workflow_data, workflow_runner):
     with random_project_folder() as workflow_folder:
         inputs = {
