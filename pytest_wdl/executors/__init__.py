@@ -32,7 +32,13 @@ ENV_JAVA_ARGS = "JAVA_ARGS"
 INDENT = " " * 16
 
 
-class ExecutionFailedError(Exception):
+class ExecutorError(Exception):
+    def __init__(self, executor: str, msg: Optional[str] = None):
+        super().__init__(msg)
+        self.executor = executor
+
+
+class ExecutionFailedError(ExecutorError):
     def __init__(
         self,
         executor: str,
@@ -53,8 +59,7 @@ class ExecutionFailedError(Exception):
                       f"{failed_task} of {target}"
             else:
                 msg = f"{executor} failed with status {status} while running {target}"
-        super().__init__(msg)
-        self.executor = executor
+        super().__init__(executor, msg)
         self.target = target
         self.status = status
         self.inputs = inputs

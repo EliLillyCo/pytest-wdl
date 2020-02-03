@@ -21,17 +21,29 @@ import tempfile
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 from unittest.mock import patch
 
-import dxpy
-from dxpy.scripts import dx
-from dxpy.utils.job_log_client import DXJobLogStreamClient
-import subby
-
 from pytest_wdl import config
 from pytest_wdl.data_types import DataFile
-from pytest_wdl.executors import ExecutionFailedError, JavaExecutor
+from pytest_wdl.executors import ExecutorError, ExecutionFailedError, JavaExecutor
 from pytest_wdl.localizers import UrlLocalizer
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
 from pytest_wdl.utils import LOG, ensure_path, verify_digests
+
+try:
+    # test whether dxpy is installed and the user is logged in
+    import dxpy
+    assert dxpy.SECURITY_CONTEXT
+    assert dxpy.whoami()
+except:
+    LOG.exception(
+        "DNAnexus (dx) extensions require that a) you install 'dxpy' "
+        "(try 'pip install dxpy') and b) you log into your DNAnexus account via the "
+        "command line (try 'dx login')."
+    )
+    raise
+
+from dxpy.scripts import dx
+from dxpy.utils.job_log_client import DXJobLogStreamClient
+import subby
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
@@ -165,31 +177,40 @@ class DxWdlExecutor(JavaExecutor):
             inputs, namespace, kwargs, write_inputs=False
         )
 
-        with login():
-            workflow_name = self._get_workflow_name(wdl_path, kwargs)
-            workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
-            analysis = workflow.run(inputs_dict)
+        try:
+            with login():
+                workflow_name = self._get_workflow_name(wdl_path, kwargs)
+                workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
+                analysis = workflow.run(inputs_dict)
 
-            try:
-                analysis.wait_on_done()
+                try:
+                    analysis.wait_on_done()
 
-                outputs = self._get_analysis_outputs(analysis, expected.keys())
+                    outputs = self._get_analysis_outputs(analysis, expected.keys())
 
-                if expected:
-                    cls._validate_outputs(outputs, expected, OUTPUT_STAGE)
+                    if expected:
+                        cls._validate_outputs(outputs, expected, OUTPUT_STAGE)
 
-                return outputs
-            except dxpy.exceptions.DXJobFailureError:
-                raise ExecutionFailedError(
-                    "dxWDL",
-                    workflow_name,
-                    analysis.describe()["state"],
-                    inputs_dict,
-                    **cls._get_failed_task(analysis)
-                )
-            finally:
-                if self._cleanup_cache:
-                    shutil.rmtree(self.dxwdl_cache_dir)
+                    return outputs
+                except dxpy.exceptions.DXJobFailureError:
+                    raise ExecutionFailedError(
+                        "dxWDL",
+                        workflow_name,
+                        analysis.describe()["state"],
+                        inputs_dict,
+                        **cls._get_failed_task(analysis)
+                    )
+                finally:
+                    if self._cleanup_cache:
+                        shutil.rmtree(self.dxwdl_cache_dir)
+        except dxpy.exceptions.InvalidAuthentication as ierr:
+            raise ExecutorError("dxwdl", "Invalid DNAnexus credentials/token") from ierr
+        except dxpy.exceptions.ResourceNotFound as rerr:
+            raise ExecutorError("dxwdl", "Required resource was not found") from rerr
+        except dxpy.exceptions.PermissionDenied as perr:
+            raise ExecutorError(
+                "dxwdl", f"You must have at least CONTRIBUTE permission"
+            ) from perr
 
     def _resolve_workflow(
         self,
@@ -204,7 +225,17 @@ class DxWdlExecutor(JavaExecutor):
             kwargs.get("workflow_project_id") or
             kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
         )
-        folder = kwargs.get("workflow_folder") or kwargs.get("folder", "/")
+        folder = kwargs.get("workflow_folder") or kwargs.get("folder")
+
+        if not folder:
+            folder = "/"
+        else:
+            # Check that the project exists and create the folder (any any missing
+            # parents) if it doesn't exist. May also fail if the user does not have
+            # write access to the project.
+            project = dxpy.DXProject(project_id)
+            project.new_folder(folder, parents=True)
+
         build_workflow = kwargs.get("force", False)
         workflow_id = None
 
