@@ -437,37 +437,36 @@ class DxWdlExecutor(JavaExecutor):
 
 
 def resolve_dx_data_file(df: DataFile, project_id: str, folder: str):
-    dxlink = None
-
     if isinstance(df.localizer, UrlLocalizer):
         ul = cast(UrlLocalizer, df.localizer)
         if ul.url.startswith("dx://"):
-            dxlink = dxpy.dxlink(*ul.url[5:].split(":"))
+            return dxpy.dxlink(*ul.url[5:].split(":"))
 
-    if dxlink is None:
-        file_name = df.local_path.name
-        existing_files = list(dxpy.find_data_objects(
-            classname="file",
-            state="closed",
+    file_name = df.local_path.name
+
+    existing_files = list(dxpy.find_data_objects(
+        classname="file",
+        state="closed",
+        name=file_name,
+        project=project_id,
+        folder=folder,
+        recurse=False
+    ))
+
+    if not existing_files:
+        # TODO: batch uploads and use dxpy.sugar.transfers.Uploader for
+        #  parallelization
+        return dxpy.dxlink(dxpy.upload_local_file(
+            str(df.path),
             name=file_name,
             project=project_id,
             folder=folder,
-            recurse=False
+            wait_on_close=True
         ))
-        # TODO: batch uploads and use dxpy.sugar.transfers.Uploader for
-        #  parallelization
-        if not existing_files:
-            return dxpy.dxlink(dxpy.upload_local_file(
-                str(df.path),
-                name=file_name,
-                project=project_id,
-                folder=folder,
-                wait_on_close=True
-            ))
-        elif len(existing_files) == 1:
-            return dxpy.dxlink(existing_files[0]["id"], project_id)
-        else:
-            raise RuntimeError(
-                f"Multiple files with name {file_name} found in "
-                f"{project_id}:{folder}"
-            )
+    elif len(existing_files) == 1:
+        return dxpy.dxlink(existing_files[0]["id"], project_id)
+    else:
+        raise RuntimeError(
+            f"Multiple files with name {file_name} found in "
+            f"{project_id}:{folder}"
+        )
