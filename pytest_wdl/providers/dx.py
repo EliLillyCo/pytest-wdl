@@ -169,11 +169,9 @@ class DxWdlExecutor(JavaExecutor):
         **kwargs
     ) -> dict:
         # TODO: handle "task_name" kwarg - run app instead of workflow
-
-        cls = self.__class__
         namespace = kwargs.get("stage_id", "stage-common")
 
-        inputs_dict = cls._get_workflow_inputs(
+        inputs_dict = self._get_workflow_inputs(
             inputs, namespace, kwargs, write_inputs=False
         )
 
@@ -189,7 +187,7 @@ class DxWdlExecutor(JavaExecutor):
                     outputs = self._get_analysis_outputs(analysis, expected.keys())
 
                     if expected:
-                        cls._validate_outputs(outputs, expected, OUTPUT_STAGE)
+                        self._validate_outputs(outputs, expected, OUTPUT_STAGE)
 
                     return outputs
                 except dxpy.exceptions.DXJobFailureError:
@@ -198,7 +196,7 @@ class DxWdlExecutor(JavaExecutor):
                         workflow_name,
                         analysis.describe()["state"],
                         inputs_dict,
-                        **cls._get_failed_task(analysis)
+                        **self._get_failed_task(analysis)
                     )
                 finally:
                     if self._cleanup_cache:
@@ -225,16 +223,18 @@ class DxWdlExecutor(JavaExecutor):
             kwargs.get("workflow_project_id") or
             kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
         )
-        folder = kwargs.get("workflow_folder") or kwargs.get("folder")
+        folder = kwargs.get("workflow_folder") or kwargs.get("folder", "/")
 
-        if not folder:
-            folder = "/"
-        else:
-            # Check that the project exists and create the folder (any any missing
-            # parents) if it doesn't exist. May also fail if the user does not have
-            # write access to the project.
-            project = dxpy.DXProject(project_id)
-            project.new_folder(folder, parents=True)
+        # # This probably isn't necessary, since (I think) dxWDL creates the folder
+        # # if it doesn't exist
+        # if not folder:
+        #     folder = "/"
+        # else:
+        #     # Check that the project exists and create the folder (any any missing
+        #     # parents) if it doesn't exist. May also fail if the user does not have
+        #     # write access to the project.
+        #     project = dxpy.DXProject(project_id)
+        #     project.new_folder(folder, parents=True)
 
         build_workflow = kwargs.get("force", False)
         workflow_id = None
@@ -295,24 +295,14 @@ class DxWdlExecutor(JavaExecutor):
             kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
         )
         folder = kwargs.get("data_folder") or kwargs.get("folder", "/")
-
-        if not folder:
-            folder = "/"
-        else:
-            # Check that the project exists and create the folder (any any missing
-            # parents) if it doesn't exist. May also fail if the user does not have
-            # write access to the project.
-            project = dxpy.DXProject(project_id)
-            project.new_folder(folder, parents=True)
-
-        prefix = f"{namespace}." if namespace else ""
+        prefix = f"{namespace}." if namespace else None
         data_file_serializer = partial(
             resolve_dx_data_file, project_id=project_id, folder=folder
         )
         formatted = {}
 
         for key, value in inputs_dict.items():
-            new_key = f"{prefix}{key}"
+            new_key = f"{prefix}{key}" if prefix else key
 
             # If the value is a dict (i.e. a WDL struct), we need to collect the links
             # and add a special <key>___dxfiles input
@@ -325,13 +315,15 @@ class DxWdlExecutor(JavaExecutor):
                     return link
 
                 formatted[new_key] = cls._make_serializable(
-                    value, link_saving_serializer
+                    value, data_file_serializer=link_saving_serializer
                 )
 
                 if data_file_links:
                     formatted[f"{new_key}___dxfiles"] = data_file_links
             else:
-                formatted[new_key] = cls._make_serializable(value, data_file_serializer)
+                formatted[new_key] = cls._make_serializable(
+                    value, data_file_serializer=data_file_serializer
+                )
 
         return formatted
 
@@ -461,6 +453,7 @@ def resolve_dx_data_file(df: DataFile, project_id: str, folder: str):
             name=file_name,
             project=project_id,
             folder=folder,
+            parents=True,
             wait_on_close=True
         ))
     elif len(existing_files) == 1:

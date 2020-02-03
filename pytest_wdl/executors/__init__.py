@@ -220,7 +220,8 @@ class Executor(metaclass=ABCMeta):
 
     @classmethod
     def _make_serializable(
-        cls: "Executor", value,
+        cls: "Executor",
+        value: Any,
         data_file_serializer: Callable[[DataFile], Any] = lambda df: df.path
     ):
         """
@@ -237,14 +238,29 @@ class Executor(metaclass=ABCMeta):
         """
         if isinstance(value, str):
             return value
+
         if isinstance(value, DataFile):
             return data_file_serializer(cast(DataFile, value))
+
         if isinstance(value, dict):
-            return dict((k, cls._make_serializable(v)) for k, v in value.items())
+            return dict(
+                (
+                    k, cls._make_serializable(
+                        v, data_file_serializer=data_file_serializer
+                    )
+                )
+                for k, v in value.items()
+            )
+
         if isinstance(value, Sequence):
-            return [cls._make_serializable(v) for v in value]
+            return [
+                cls._make_serializable(v, data_file_serializer=data_file_serializer)
+                for v in value
+            ]
+
         if hasattr(value, "as_dict"):
             return value.as_dict()
+
         return value
 
     @classmethod
