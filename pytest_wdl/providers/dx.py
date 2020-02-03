@@ -295,6 +295,16 @@ class DxWdlExecutor(JavaExecutor):
             kwargs.get("project_id", dxpy.PROJECT_CONTEXT_ID)
         )
         folder = kwargs.get("data_folder") or kwargs.get("folder", "/")
+
+        if not folder:
+            folder = "/"
+        else:
+            # Check that the project exists and create the folder (any any missing
+            # parents) if it doesn't exist. May also fail if the user does not have
+            # write access to the project.
+            project = dxpy.DXProject(project_id)
+            project.new_folder(folder, parents=True)
+
         prefix = f"{namespace}." if namespace else ""
         data_file_serializer = partial(
             resolve_dx_data_file, project_id=project_id, folder=folder
