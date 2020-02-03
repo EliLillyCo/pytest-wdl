@@ -375,7 +375,7 @@ class DxWdlExecutor(JavaExecutor):
                     log.append(msg_dict["msg"])
                     break
 
-        client = DXJobLogStreamClient(job_id, callback)
+        client = DXJobLogStreamClient(job_id, msg_callback=callback)
         client.connect()
 
         return tuple("\n".join(log) for log in logs)
