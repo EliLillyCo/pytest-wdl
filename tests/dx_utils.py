@@ -3,10 +3,7 @@ import random
 import string
 
 try:
-    # test whether dxpy is installed and the user is logged in
-    import dxpy
-    assert dxpy.SECURITY_CONTEXT
-    assert dxpy.whoami()
+    from pytest_wdl.providers.dx import dxpy
     NO_DX = False
 except:
     NO_DX = True
