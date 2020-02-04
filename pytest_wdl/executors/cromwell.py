@@ -21,7 +21,12 @@ from typing import List, Optional, Union, cast
 
 import subby
 
-from pytest_wdl.executors import ExecutionFailedError, JavaExecutor
+from pytest_wdl.executors import (
+    ExecutionFailedError,
+    JavaExecutor,
+    get_workflow_name,
+    read_write_inputs
+)
 from pytest_wdl.utils import LOG, ensure_path
 
 
@@ -96,6 +101,7 @@ class CromwellExecutor(JavaExecutor):
         cromwell_args: Default Cromwell arguments to use; can be overridden by
             passing `cromwell_args=...` to `run_workflow`.
     """
+
     def __init__(
         self,
         import_dirs: Optional[List[Path]] = None,
@@ -105,9 +111,11 @@ class CromwellExecutor(JavaExecutor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        super().__init__(import_dirs, java_bin, java_args)
+        super().__init__(java_bin, java_args)
 
-        self.cromwell_jar_file = JavaExecutor.resolve_jar_file(
+        self._import_dirs = import_dirs
+
+        self._cromwell_jar_file = self.resolve_jar_file(
             "cromwell*.jar", cromwell_jar_file, ENV_CROMWELL_JAR
         )
 
@@ -115,17 +123,18 @@ class CromwellExecutor(JavaExecutor):
             config_file = os.environ.get(ENV_CROMWELL_CONFIG)
             if config_file:
                 cromwell_config_file = ensure_path(config_file)
+
         if cromwell_config_file:
-            self.cromwell_config_file = ensure_path(
+            self._cromwell_config_file = ensure_path(
                 cromwell_config_file, is_file=True, exists=True
             )
         else:
-            self.cromwell_config_file = None
+            self._cromwell_config_file = None
 
-        if not self.java_args and self.cromwell_config_file:
-            self.java_args = f"-Dconfig.file={self.cromwell_config_file}"
+        if not self.java_args and self._cromwell_config_file:
+            self.java_args = f"-Dconfig.file={self._cromwell_config_file}"
 
-        self.cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
+        self._cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
 
     def run_workflow(
         self,
@@ -160,22 +169,21 @@ class CromwellExecutor(JavaExecutor):
             ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        workflow_name = self._get_workflow_name(wdl_path, kwargs)
+        workflow_name = get_workflow_name(wdl_path, **kwargs)
 
-        inputs_dict, inputs_file = self._get_workflow_inputs(
-            inputs, workflow_name, kwargs
+        inputs_dict, inputs_file = read_write_inputs(
+            inputs_dict=inputs, namespace=workflow_name
         )
 
         imports_file = self._get_workflow_imports(kwargs.get("imports_file"))
-
         inputs_arg = f"-i {inputs_file}" if inputs_file else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
         java_args = kwargs.get("java_args", self.java_args) or ""
-        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
+        cromwell_args = kwargs.get("cromwell_args", self._cromwell_args) or ""
         metadata_file = Path.cwd() / "metadata.json"
 
         cmd = (
-            f"{self.java_bin} {java_args} -jar {self.cromwell_jar_file} run "
+            f"{self.java_bin} {java_args} -jar {self._cromwell_jar_file} run "
             f"-m {metadata_file} {cromwell_args} {inputs_arg} {imports_zip_arg} "
             f"{wdl_path}"
         )
@@ -248,7 +256,7 @@ class CromwellExecutor(JavaExecutor):
         Returns:
             Path to the ZIP file.
         """
-        write_imports = bool(self.import_dirs)
+        write_imports = bool(self._import_dirs)
         imports_path = None
 
         if imports_file:
@@ -256,10 +264,10 @@ class CromwellExecutor(JavaExecutor):
             if imports_path.exists():
                 write_imports = False
 
-        if write_imports and self.import_dirs:
+        if write_imports and self._import_dirs:
             imports = [
                 wdl
-                for path in self.import_dirs
+                for path in self._import_dirs
                 for wdl in glob.glob(str(path / "*.wdl"))
             ]
             if imports:

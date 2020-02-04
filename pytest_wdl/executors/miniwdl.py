@@ -13,9 +13,11 @@
 #    limitations under the License.
 import logging
 from pathlib import Path
-from typing import Optional, cast
+from typing import List, Optional, cast
 
-from pytest_wdl.executors import Executor, ExecutionFailedError
+from pytest_wdl.executors import (
+    Executor, ExecutionFailedError, read_write_inputs
+)
 
 from WDL import CLI, Error, Tree, runtime, _util
 
@@ -24,6 +26,9 @@ class MiniwdlExecutor(Executor):
     """
     Manages the running of WDL workflows using Cromwell.
     """
+
+    def __init__(self, import_dirs: Optional[List[Path]] = None):
+        self._import_dirs = import_dirs
 
     def run_workflow(
         self,
@@ -57,21 +62,22 @@ class MiniwdlExecutor(Executor):
 
         doc = CLI.load(
             str(wdl_path),
-            path=[str(path) for path in self.import_dirs],
+            path=[str(path) for path in self._import_dirs],
             check_quant=kwargs.get("check_quant", True),
             read_source=CLI.read_source
         )
 
         task = kwargs.get("task_name")
         namespace = None
+
         if not task:
             if "workflow_name" in kwargs:
                 namespace = kwargs["workflow_name"]
             else:
                 namespace = doc.workflow.name
 
-        inputs_dict, inputs_file = self._get_workflow_inputs(
-            inputs, namespace, kwargs
+        inputs_dict, inputs_file = read_write_inputs(
+            inputs_dict=inputs, namespace=namespace,
         )
 
         target, input_env, input_json = CLI.runner_input(
@@ -96,9 +102,9 @@ class MiniwdlExecutor(Executor):
             rundir, output_env = entrypoint(
                 target,
                 input_env,
-                #run_dir=rundir,
-                #copy_input_files=copy_input_files,
-                #max_workers=max_workers,
+                # run_dir=rundir,
+                # copy_input_files=copy_input_files,
+                # max_workers=max_workers,
             )
         except Error.EvalError as err:  # TODO: test errors
             MiniwdlExecutor.log_source(logger, err)
