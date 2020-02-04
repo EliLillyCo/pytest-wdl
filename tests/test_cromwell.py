@@ -74,7 +74,7 @@ def test_cromwell_config(user_config):
     with tempdir() as d:
         assert CromwellExecutor(
             [d], cromwell_jar_file=cromwell_jar_file
-        ).cromwell_config_file is None
+        )._cromwell_config_file is None
         config = d / "config"
         with setenv({ENV_CROMWELL_CONFIG: str(config)}):
             with pytest.raises(FileNotFoundError):
@@ -83,7 +83,7 @@ def test_cromwell_config(user_config):
                 out.write("foo")
             assert CromwellExecutor(
                 [d], cromwell_jar_file=cromwell_jar_file
-            ).cromwell_config_file == config
+            )._cromwell_config_file == config
 
 
 def test_java_args(user_config):
@@ -123,29 +123,29 @@ def test_cromwell_jar():
 
         with setenv({ENV_CROMWELL_JAR: str(jar)}):
             with pytest.raises(FileNotFoundError):
-                CromwellExecutor([d]).cromwell_jar_file
+                CromwellExecutor([d])._cromwell_jar_file
             with open(jar, "wt") as out:
                 out.write("foo")
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: str(d)
         }):
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: str(jar)
         }):
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: None
         }):
             with pytest.raises(FileNotFoundError):
-                CromwellExecutor([d]).cromwell_jar_file
+                CromwellExecutor([d])._cromwell_jar_file
 
 
 def test_get_workflow_imports(user_config):
