@@ -169,7 +169,9 @@ class CromwellExecutor(JavaExecutor):
             ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        workflow_name = get_workflow_name(wdl_path, **kwargs)
+        workflow_name = get_workflow_name(
+            wdl_path, import_dirs=self._import_dirs, **kwargs
+        )
 
         inputs_dict, inputs_file = read_write_inputs(
             inputs_dict=inputs, namespace=workflow_name
