@@ -209,7 +209,9 @@ class DxWdlExecutor(JavaExecutor):
 
         try:
             with login():
-                workflow_name = get_workflow_name(wdl_path, **kwargs)
+                workflow_name = get_workflow_name(
+                    wdl_path, import_dirs=self._import_dirs, **kwargs
+                )
                 workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
                 analysis = workflow.run(inputs_dict)
 

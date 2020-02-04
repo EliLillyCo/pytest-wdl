@@ -54,9 +54,62 @@ By default, pytest-wdl tries to find the files it is expecting relative to one o
     * In the "simple" and "multi-module with single test directory" examples, `myproject` would be the test context directory
     * In the "multi-module with separate test directories" example, the test context directory would be `myproject` when executing `myproject/tests/test_main.py` and `module1` when executing `myproject/module1/tests/test_module1.py`.
 
+## Writing tests
+
+Let's say you have the following workflow defined in a file called `variant_caller.wdl`:
+
+```wdl
+version 1.0
+
+import "variant_caller.wdl"
+
+struct Index {
+  File fasta
+  String organism
+}
+
+workflow call_variants {
+  input {
+    File bam
+    File bai
+    Index index
+  }
+
+  call variant_caller.variant_caller {
+    input:
+      bam=bam,
+      bai=bai,
+      index=index
+  }
+  
+  output {
+    File vcf = variant_caller.vcf
+  }
+}
+```
+
+Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives by creating a `test_variant_caller.py` file containing the following test function:
+
+```python
+def test_variant_caller(workflow_data, workflow_runner):
+    inputs = workflow_data.get_dict("bam", "bai")
+    inputs["index"] = {
+        "fasta": workflow_data["index_fa"],
+        "organism": "human"
+    }
+    expected = workflow_data.get_dict("vcf")
+    workflow_runner(
+        "variant_caller.wdl",
+        inputs,
+        expected
+    )
+```
+
+This test will execute a workflow (such as the following one) with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. In the following sections are descriptions of these fixtures and details on how to configure your tests's inputs, exected outputs, and other paramters.
+
 ## Fixtures
 
-All functionality of pytest-wdl is provided via [fixtures](https://docs.pytest.org/en/latest/fixture.html). As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
+All functionality of pytest-wdl is provided via fixtures. As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
 
 The two most important fixtures are:
 

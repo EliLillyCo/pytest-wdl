@@ -327,7 +327,7 @@ def get_workflow_name(
 def read_write_inputs(
     inputs_file: Optional[Union[str, Path]] = None,
     inputs_dict: Optional[dict] = None,
-    inputs_formatter: Optional[InputsFormatter] = DefaultInputsFormatter.get_instance(),
+    inputs_formatter: Optional[InputsFormatter] = InputsFormatter.get_instance(),
     **kwargs
 ) -> Tuple[dict, Optional[Path]]:
     """
