@@ -443,22 +443,31 @@ class DxInputsFormatter(InputsFormatter):
         for key, value in inputs_dict.items():
             new_key = f"{prefix}{key}"
 
-            formatted[new_key] = super().format_value(value)
+            if isinstance(value, dict):
+                formatted_dict = self._format_dict(cast(dict, value))
+                formatted[new_key] = {DX_STRUCT_KEY: formatted_dict}
 
-            if self._data_file_links:
-                formatted[f"{new_key}{DX_FILES_SUFFIX}"] = list(self._data_file_links)
-                self._data_file_links.clear()
+                if self._data_file_links:
+                    formatted[f"{new_key}{DX_FILES_SUFFIX}"] = list(
+                        self._data_file_links
+                    )
+                    self._data_file_links.clear()
+            else:
+                formatted[new_key] = super().format_value(value)
 
         return formatted
 
-    def _format_dict(self, d: dict) -> dict:
-        struct = {"keys": [], "values": []}
-
-        for key, val in d.items():
-            struct["keys"].append(key)
-            struct["values"].append(self.format_value(val))
-
-        return {DX_STRUCT_KEY: struct}
+    # The following function implements dict -> Map mapping. Since we cannot determine
+    # a priori whether a dict should map to a Map or a Struct, we assume Struct and
+    # disallow Map-type inputs.
+    # def _format_dict(self, d: dict) -> dict:
+    #     struct = {"keys": [], "values": []}
+    #
+    #     for key, val in d.items():
+    #         struct["keys"].append(key)
+    #         struct["values"].append(self.format_value(val))
+    #
+    #     return {DX_STRUCT_KEY: struct}
 
     def _format_data_file(self, df: DataFile) -> dict:
         if isinstance(df.localizer, UrlLocalizer):

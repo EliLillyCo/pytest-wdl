@@ -242,7 +242,13 @@ The default type if one is not specified.
 
 ## Executors
 
-An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, [Cromwell](https://cromwell.readthedocs.io/) and [Miniwdl](https://github.com/chanzuckerberg/miniwdl) are supported, but aternative executors can be implemented as [plugins](#plugins).
+An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, the following executors are supported (but aternative executors can be implemented as [plugins](#plugins)):
+
+* [Cromwell](https://cromwell.readthedocs.io/)
+* [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
+* [dxWDL](https://github.com/dnanexus/dxWDL)
+    * **Note**: pytest-wdl currently does not support using dxWDL with workflows/tasks that have Map-type inputs
+    * Also note that dxWDL does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and some additional optional arguments:
 
