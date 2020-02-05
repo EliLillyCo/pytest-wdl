@@ -17,7 +17,9 @@ from typing import cast
 import pytest
 
 from pytest_wdl.core import DefaultDataFile, create_executor
-from pytest_wdl.executors import Executor, ExecutionFailedError
+from pytest_wdl.executors import (
+    Executor, ExecutionFailedError, InputsFormatter, read_write_inputs
+)
 from pytest_wdl.utils import tempdir
 
 from .dx_utils import NO_DX, DX_SKIP_MSG, random_project_folder
@@ -180,8 +182,8 @@ def test_dxwdl_workflow(workflow_data, workflow_runner):
 
 
 def test_get_workflow_inputs():
-    actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
-        {"bar": 1}, namespace="foo"
+    actual_inputs_dict, inputs_path = read_write_inputs(
+        inputs_dict={"bar": 1}, namespace="foo"
     )
     assert inputs_path.exists()
     with open(inputs_path, "rt") as inp:
@@ -192,8 +194,8 @@ def test_get_workflow_inputs():
 
     with tempdir() as d:
         inputs_file = d / "inputs.json"
-        actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
-            {"bar": 1}, "foo", {"inputs_file": inputs_file}
+        actual_inputs_dict, inputs_path = read_write_inputs(
+            inputs_dict={"bar": 1}, namespace="foo", inputs_file=inputs_file
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
@@ -208,8 +210,8 @@ def test_get_workflow_inputs():
         inputs_dict = {"foo.bar": 1}
         with open(inputs_file, "wt") as out:
             json.dump(inputs_dict, out)
-        actual_inputs_dict, inputs_path = Executor._get_workflow_inputs(
-            namespace="foo", kwargs={"inputs_file": inputs_file}
+        actual_inputs_dict, inputs_path = read_write_inputs(
+            namespace="foo", inputs_file=inputs_file
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
@@ -218,19 +220,21 @@ def test_get_workflow_inputs():
         assert actual_inputs_dict == inputs_dict
 
 
-def test_make_serializable():
-    assert Executor._make_serializable(1) == 1
-    assert Executor._make_serializable("foo") == "foo"
-    assert Executor._make_serializable((1.1, 2.2)) == [1.1, 2.2]
+def test_inputs_formatter():
+    formatter = InputsFormatter.get_instance()
+
+    assert formatter.format_value(1) == 1
+    assert formatter.format_value("foo") == "foo"
+    assert formatter.format_value((1.1, 2.2)) == [1.1, 2.2]
 
     with tempdir() as d:
         foo = d / "foo"
         with open(foo, "wt") as out:
             out.write("foo")
         df = DefaultDataFile(foo)
-        assert Executor._make_serializable(df) == foo
-        assert Executor._make_serializable([df]) == [foo]
-        assert Executor._make_serializable({"a": df}) == {"a": foo}
+        assert formatter.format_value(df) == foo
+        assert formatter.format_value([df]) == [foo]
+        assert formatter.format_value({"a": df}) == {"a": foo}
 
     class Obj:
         def __init__(self, a: str, b: int):
@@ -243,7 +247,7 @@ def test_make_serializable():
                 "b": self.b
             }
 
-    assert Executor._make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}
+    assert formatter.format_value(Obj("hi", 1)) == {"a": "hi", "b": 1}
 
 
 def test_create_executor():

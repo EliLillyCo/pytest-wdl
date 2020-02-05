@@ -253,7 +253,7 @@ class JavaExecutor(Executor, metaclass=ABCMeta):
 
 class InputsFormatter:
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> "InputsFormatter":
         if not hasattr(cls, "__instance"):
             setattr(cls, "__instance", object.__new__(cls))
 
@@ -264,11 +264,11 @@ class InputsFormatter:
     ) -> dict:
         prefix = f"{namespace}." if namespace else ""
         return dict(
-            (f"{prefix}{key}", self._format_value(value))
+            (f"{prefix}{key}", self.format_value(value))
             for key, value in inputs_dict.items()
         )
 
-    def _format_value(self, value: Any) -> Any:
+    def format_value(self, value: Any) -> Any:
         """
         Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
         Currently, arbitrary objects can be serialized by implementing an `as_dict()`
@@ -295,10 +295,10 @@ class InputsFormatter:
         return value
 
     def _format_sequence(self, s: Sequence) -> list:
-        return [self._format_value(v) for v in s]
+        return [self.format_value(v) for v in s]
 
     def _format_dict(self, d: dict) -> dict:
-        return dict((k, self._format_value(v)) for k, v in d.items())
+        return dict((k, self.format_value(v)) for k, v in d.items())
 
     def _format_data_file(self, df: DataFile) -> Union[str, dict]:
         return df.path
