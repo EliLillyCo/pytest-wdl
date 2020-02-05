@@ -443,7 +443,7 @@ class DxInputsFormatter(InputsFormatter):
         for key, value in inputs_dict.items():
             new_key = f"{prefix}{key}"
 
-            formatted[new_key] = super()._format_value(value)
+            formatted[new_key] = super().format_value(value)
 
             if self._data_file_links:
                 formatted[f"{new_key}{DX_FILES_SUFFIX}"] = list(self._data_file_links)
@@ -456,7 +456,7 @@ class DxInputsFormatter(InputsFormatter):
 
         for key, val in d.items():
             struct["keys"].append(key)
-            struct["values"].append(self._format_value(val))
+            struct["values"].append(self.format_value(val))
 
         return {DX_STRUCT_KEY: struct}
 
