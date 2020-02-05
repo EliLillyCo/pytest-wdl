@@ -9,23 +9,9 @@ from pytest_wdl.url_schemes import Response, BaseResponse, UrlHandler, Method
 from pytest_wdl.localizers import download_file
 from pytest_wdl.utils import tempdir
 
+from .dx_utils import NO_DX, DX_FILE_ID, DX_PROJECT_ID, DX_SKIP_MSG
+
 LOG = logging.getLogger(__name__)
-
-try:
-    # test whether dxpy is installed and the user is logged in
-    import dxpy
-    assert dxpy.SECURITY_CONTEXT
-    assert dxpy.whoami()
-    no_dx = False
-except:
-    no_dx = True
-
-
-DX_SKIP_MSG = \
-    "dxpy is not installed or user is not logged into a DNAnexus account; " \
-    "DNAnexus URL handler will not be tested"
-DX_FILE_ID = "file-BgY4VzQ0bvyg22pfZQpXfzgK"
-DX_PROJECT_ID = "project-BQbJpBj0bvygyQxgQ1800Jkk"
 
 
 class MockResponse(BaseResponse):
@@ -90,8 +76,8 @@ def test_url_schemes():
         urllib.request._opener = opener
 
 
-@pytest.mark.skipif(no_dx, reason=DX_SKIP_MSG)
-def test_dx():
+@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
+def test_dx_scheme():
     rsp = urlopen(f"dx://{DX_FILE_ID}")
     assert isinstance(rsp, Response)
     import pytest_wdl.providers.dx
@@ -108,12 +94,12 @@ def test_dx():
         )
 
 
-@pytest.mark.skipif(no_dx, reason=DX_SKIP_MSG)
-def test_dx_with_project():
+@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
+def test_dx_scheme_with_project():
     rsp = urlopen(f"dx://{DX_PROJECT_ID}:{DX_FILE_ID}")
     assert isinstance(rsp, Response)
-    import pytest_wdl.url_schemes.dx
-    assert isinstance(rsp, pytest_wdl.url_schemes.dx.DxResponse)
+    import pytest_wdl.providers.dx
+    assert isinstance(rsp, pytest_wdl.providers.dx.DxResponse)
     with tempdir() as d:
         outfile = d / "readme.txt"
         cast(Response, rsp).download_file(outfile, False)

@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 import tempfile
 import textwrap
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 from pytest_wdl.data_types import DataFile
 from pytest_wdl.utils import (
@@ -32,7 +32,13 @@ ENV_JAVA_ARGS = "JAVA_ARGS"
 INDENT = " " * 16
 
 
-class ExecutionFailedError(Exception):
+class ExecutorError(Exception):
+    def __init__(self, executor: str, msg: Optional[str] = None):
+        super().__init__(msg)
+        self.executor = executor
+
+
+class ExecutionFailedError(ExecutorError):
     def __init__(
         self,
         executor: str,
@@ -53,8 +59,7 @@ class ExecutionFailedError(Exception):
                       f"{failed_task} of {target}"
             else:
                 msg = f"{executor} failed with status {status} while running {target}"
-        super().__init__(msg)
-        self.executor = executor
+        super().__init__(executor, msg)
         self.target = target
         self.status = status
         self.inputs = inputs
@@ -94,13 +99,7 @@ class ExecutionFailedError(Exception):
 class Executor(metaclass=ABCMeta):
     """
     Base class for WDL workflow executors.
-
-    Args:
-        import_dirs: Relative or absolute paths to directories containing WDL
-            scripts that should be available as imports.
     """
-    def __init__(self, import_dirs: Optional[List[Path]] = None):
-        self.import_dirs = import_dirs or []
 
     @abstractmethod
     def run_workflow(
@@ -129,114 +128,6 @@ class Executor(metaclass=ABCMeta):
             ExecutionFailedError: if there was an error executing the workflow
             AssertionError: if the actual outputs don't match the expected outputs
         """
-
-    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
-        if "workflow_name" in kwargs:
-            return kwargs["workflow_name"]
-        elif Tree:
-            if "check_quant" not in kwargs:
-                kwargs["check_quant"] = False
-            doc = Tree.load(
-                str(wdl_path),
-                path=[str(path) for path in self.import_dirs],
-                **kwargs
-            )
-            return doc.workflow.name
-        else:  # TODO: test this
-            return safe_string(wdl_path.stem)
-
-    @classmethod
-    def _get_workflow_inputs(
-        cls: "Executor",
-        inputs_dict: Optional[dict] = None,
-        inputs_file: Optional[Path] = None,
-        namespace: Optional[str] = None,
-        resolve_data_files: bool = True
-    ) -> Tuple[dict, Path]:
-        """
-        Persist workflow inputs to a file, or load workflow inputs from a file.
-
-        Args:
-            inputs_dict: Dict of input names/values.
-            inputs_file: JSON file with workflow inputs.
-            namespace: Name of the workflow; used to prefix the input parameters when
-                creating the inputs file from the inputs dict.
-            resolve_data_files: Whether to localize data files and convert them to Paths.
-
-        Returns:
-            A tuple (inputs_dict, inputs_file)
-        """
-        if inputs_file:
-            inputs_dict_from_file, inputs_file = cls._read_inputs(inputs_file)
-            if inputs_dict_from_file:
-                return inputs_dict_from_file, inputs_file
-
-        if inputs_dict:
-            inputs_dict = cls._format_inputs(inputs_dict, namespace, resolve_data_files)
-            inputs_file = cls._write_inputs(inputs_dict, inputs_file)
-
-        return inputs_dict, inputs_file
-
-    @classmethod
-    def _read_inputs(cls, inputs_file: Path) -> Tuple[Optional[dict], Path]:
-        inputs_file = ensure_path(inputs_file)
-        inputs_dict = None
-        if inputs_file.exists():
-            with open(inputs_file, "rt") as inp:
-                inputs_dict = json.load(inp)
-        return inputs_dict, inputs_file
-
-    @classmethod
-    def _format_inputs(
-        cls, inputs_dict: dict, namespace: Optional[str],
-        resolve_data_files: bool = True
-    ) -> dict:
-        prefix = f"{namespace}." if namespace else ""
-        return dict(
-            (f"{prefix}{key}", cls._make_serializable(value, resolve_data_files))
-            for key, value in inputs_dict.items()
-        )
-
-    @classmethod
-    def _write_inputs(cls, inputs_dict: dict, inputs_file: Path) -> Path:
-        if inputs_file:
-            inputs_file = ensure_path(inputs_file, is_file=True, create=True)
-        else:
-            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out, default=str)
-
-        return inputs_file
-
-    @classmethod
-    def _make_serializable(cls: "Executor", value, resolve_data_files: bool = True):
-        """
-        Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
-        Currently, arbitrary objects can be serialized by implementing an `as_dict()`
-        method, otherwise they are converted to strings.
-
-        Args:
-            value: The value to make serializable.
-            resolve_data_files: Whether to localize data files and resolve them to paths.
-
-        Returns:
-            The serializable value.
-        """
-        if isinstance(value, str):
-            return value
-        if isinstance(value, DataFile):
-            if resolve_data_files:
-                return value.path
-            else:
-                return value
-        if isinstance(value, dict):
-            return dict((k, cls._make_serializable(v)) for k, v in value.items())
-        if isinstance(value, Sequence):
-            return [cls._make_serializable(v) for v in value]
-        if hasattr(value, "as_dict"):
-            return value.as_dict()
-        return value
 
     @classmethod
     def _validate_outputs(
@@ -311,10 +202,9 @@ class Executor(metaclass=ABCMeta):
 
 class JavaExecutor(Executor, metaclass=ABCMeta):
     """
-    Manages the running of WDL workflows using Cromwell.
+    Manages the running of WDL workflows using a Java-based executor.
 
     Args:
-        import_dirs:
         java_bin: Path to the java executable.
         java_args: Default Java arguments to use; can be overidden by passing
             `java_args=...` to `run_workflow`.
@@ -322,12 +212,9 @@ class JavaExecutor(Executor, metaclass=ABCMeta):
 
     def __init__(
         self,
-        import_dirs: Optional[List[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None
     ):
-        super().__init__(import_dirs)
-
         if not java_bin:
             java_home = os.environ.get(ENV_JAVA_HOME)
             if java_home:
@@ -362,3 +249,119 @@ class JavaExecutor(Executor, metaclass=ABCMeta):
             raise FileNotFoundError(f"Could not find JAR file {file_name_pattern}")
 
         return ensure_path(jar_path, is_file=True, exists=True)
+
+
+class InputsFormatter:
+    @classmethod
+    def get_instance(cls) -> "InputsFormatter":
+        if not hasattr(cls, "__instance"):
+            setattr(cls, "__instance", object.__new__(cls))
+
+        return getattr(cls, "__instance")
+
+    def format_inputs(
+        self, inputs_dict: dict, namespace: Optional[str] = None
+    ) -> dict:
+        prefix = f"{namespace}." if namespace else ""
+        return dict(
+            (f"{prefix}{key}", self.format_value(value))
+            for key, value in inputs_dict.items()
+        )
+
+    def format_value(self, value: Any) -> Any:
+        """
+        Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+        Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+        method, otherwise they are converted to strings.
+
+        Args:
+            value: The value to format.
+
+        Returns:
+            The serializable value.
+        """
+        if hasattr(value, "as_dict"):
+            return value.as_dict()
+
+        if isinstance(value, DataFile):
+            return self._format_data_file(cast(DataFile, value))
+
+        if isinstance(value, dict):
+            return self._format_dict(cast(dict, value))
+
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return self._format_sequence(cast(Sequence, value))
+
+        return value
+
+    def _format_sequence(self, s: Sequence) -> list:
+        return [self.format_value(v) for v in s]
+
+    def _format_dict(self, d: dict) -> dict:
+        return dict((k, self.format_value(v)) for k, v in d.items())
+
+    def _format_data_file(self, df: DataFile) -> Union[str, dict]:
+        return df.path
+
+
+def get_workflow_name(
+    wdl_path: Path,
+    workflow_name: Optional[str] = None,
+    import_dirs: Sequence[Union[str, Path]] = (),
+    **kwargs
+) -> str:
+    if workflow_name:
+        return workflow_name
+
+    if Tree:
+        doc = Tree.load(
+            str(wdl_path),
+            path=[str(path) for path in import_dirs],
+            check_quant=kwargs.get("check_quant", False)
+        )
+        return doc.workflow.name
+
+    return safe_string(wdl_path.stem)
+
+
+def read_write_inputs(
+    inputs_file: Optional[Union[str, Path]] = None,
+    inputs_dict: Optional[dict] = None,
+    inputs_formatter: Optional[InputsFormatter] = InputsFormatter.get_instance(),
+    **kwargs
+) -> Tuple[dict, Optional[Path]]:
+    """
+    If `inputs_file` is specified and it exists, read its contents. Otherwise, if
+    `inputs_dict` is specified, format it using `inputs_formatter` (if specified) and
+    write it to `inputs_file` or a temporary file.
+
+    Args:
+        inputs_file:
+        inputs_dict:
+        inputs_formatter:
+        kwargs:
+
+    Returns:
+        The (formatted) inputs dict and the resolved inputs file. If both `inputs_dict`
+        and `inputs_file` are None, returns `({}, None)`.
+    """
+    if inputs_file:
+        inputs_file = ensure_path(inputs_file, is_file=True, create=True)
+
+        if inputs_file.exists():
+            with open(inputs_file, "rt") as inp:
+                inputs_dict_from_file = json.load(inp)
+                return inputs_dict_from_file, inputs_file
+
+    if inputs_dict:
+        if not inputs_file:
+            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
+
+        inputs_dict = inputs_formatter.format_inputs(inputs_dict, **kwargs)
+
+        with open(inputs_file, "wt") as out:
+            json.dump(inputs_dict, out, default=str)
+
+        return inputs_dict, inputs_file
+
+    return {}, None

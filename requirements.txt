@@ -1,7 +1,7 @@
 coverage
 cython>=0.29.13
-miniwdl>=0.5.0
-pysam
+miniwdl>=0.6.3
+pysam>=0.15.4
 pytest>=5.1
 pytest-subtests
 subby>=0.1.6

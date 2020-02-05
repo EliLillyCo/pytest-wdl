@@ -1,0 +1,6 @@
+{
+  "test_file": {
+    "url": "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/README.md",
+    "path": "pytest_wdl_readme.md"
+  }
+}

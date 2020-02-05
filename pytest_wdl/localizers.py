@@ -38,7 +38,6 @@ class Localizer(metaclass=ABCMeta):  # pragma: no-cover
         Args:
             destination: Path to file where the non-local resource is to be localized.
         """
-        pass
 
     def verify(self, path: Path) -> bool:
         """Verify that `path` exists and is valid.
