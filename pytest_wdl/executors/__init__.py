@@ -24,7 +24,7 @@ from pytest_wdl.utils import (
     ensure_path, safe_string, find_executable_path, find_in_classpath
 )
 
-from WDL import Tree
+from WDL import Document, Tree
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
@@ -295,33 +295,84 @@ class InputsFormatter:
         return value
 
     def _format_sequence(self, s: Sequence) -> list:
-        return [self.format_value(v) for v in s]
+        return [self.format_value(val) for val in s]
 
     def _format_dict(self, d: dict) -> dict:
-        return dict((k, self.format_value(v)) for k, v in d.items())
+        return dict((key, self.format_value(val)) for key, val in d.items())
 
     def _format_data_file(self, df: DataFile) -> Union[str, dict]:
         return df.path
 
 
-def get_workflow_name(
+def parse_wdl(
     wdl_path: Path,
+    import_dirs: Optional[Sequence[Path]] = (),
+    check_quant: bool = False,
+    **_
+) -> Document:
+    return Tree.load(
+        str(wdl_path),
+        path=[str(path) for path in import_dirs],
+        check_quant=check_quant
+    )
+
+
+def get_target_name(
+    wdl_path: Optional[Path] = None,
+    wdl_doc: Optional[Document] = None,
+    task_name: Optional[str] = None,
     workflow_name: Optional[str] = None,
-    import_dirs: Sequence[Union[str, Path]] = (),
     **kwargs
-) -> str:
+) -> Tuple[str, bool]:
+    """
+    Get the execution target. The order of priority is:
+
+    - task_name
+    - workflow_name
+    - wdl_doc.workflow.name
+    - wdl_doc.task[0].name
+    - wdl_file.stem
+
+    Args:
+        wdl_path: Path to a WDL file
+        wdl_doc: A miniwdl-parsed WDL document
+        task_name: The task name
+        workflow_name: The workflow name
+        **kwargs: Additional keyword arguments to pass to `parse_wdl`
+
+    Returns:
+        A tuple (target, is_task), where `is_task` is a boolean indicating whether
+        the target is a task (True) or a workflow (False).
+
+    Raises:
+        ValueError if 1) neither `task_name` nor `workflow_name` is specified and the
+        WDL document contains no workflow and multiple tasks; or 2) all of the
+        parameters are None.
+    """
+    if task_name:
+        return task_name, True
+
     if workflow_name:
-        return workflow_name
+        return workflow_name, False
 
-    if Tree:
-        doc = Tree.load(
-            str(wdl_path),
-            path=[str(path) for path in import_dirs],
-            check_quant=kwargs.get("check_quant", False)
-        )
-        return doc.workflow.name
+    if not wdl_doc and Tree:
+        wdl_doc = parse_wdl(wdl_path, **kwargs)
 
-    return safe_string(wdl_path.stem)
+    if wdl_doc:
+        if wdl_doc.workflow:
+            return wdl_doc.workflow.name, False
+        elif wdl_doc.tasks and len(wdl_doc.tasks) == 1:
+            return wdl_doc.tasks[0].name, True
+        else:
+            raise ValueError(
+                "WDL document has no workflow and multiple tasks, and 'task_name' "
+                "is not specified"
+            )
+
+    if wdl_path:
+        return safe_string(wdl_path.stem), False
+
+    raise ValueError("At least one parameter must not be None")
 
 
 def read_write_inputs(

@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union, cast
 from unittest.mock import patch
 
 from pytest_wdl import config
@@ -26,9 +26,8 @@ from pytest_wdl.data_types import DataFile
 from pytest_wdl.executors import (
     ExecutorError,
     ExecutionFailedError,
-    InputsFormatter,
     JavaExecutor,
-    get_workflow_name,
+    parse_wdl,
 )
 from pytest_wdl.localizers import UrlLocalizer
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
@@ -50,6 +49,7 @@ except:
 from dxpy.scripts import dx
 from dxpy.utils.job_log_client import DXJobLogStreamClient
 import subby
+from WDL import Document, Type
 
 
 ENV_JAVA_HOME = "JAVA_HOME"
@@ -57,7 +57,7 @@ ENV_DXWDL_JAR = "DXWDL_JAR"
 ENV_DX_USERNAME = "DX_USERNAME"
 OUTPUT_STAGE = "stage-outputs"
 DX_LINK_KEY = "$dnanexus_link"
-DX_STRUCT_KEY = "___"
+DX_DICT_KEY = "___"
 DX_FILES_SUFFIX = "___dxfiles"
 STDOUT_LOG = "STDOUT"
 STDERR_LOG = "STDERR"
@@ -165,7 +165,7 @@ class DxWdlExecutor(JavaExecutor):
 
     def __init__(
         self,
-        import_dirs: Optional[List[Path]] = None,
+        import_dirs: Optional[Sequence[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None,
         dxwdl_jar_file: Optional[Union[str, Path]] = None,
@@ -173,7 +173,6 @@ class DxWdlExecutor(JavaExecutor):
     ):
         super().__init__(java_bin, java_args)
         self._import_dirs = import_dirs
-        self._inputs_formatter = DxInputsFormatter()
         self._dxwdl_jar_file = self.resolve_jar_file(
             "dxWDL*.jar", dxwdl_jar_file, ENV_DXWDL_JAR
         )
@@ -192,6 +191,25 @@ class DxWdlExecutor(JavaExecutor):
         **kwargs
     ) -> dict:
         # TODO: handle "task_name" kwarg - run app instead of workflow
+        wdl_doc = parse_wdl(wdl_path, self._import_dirs, **kwargs)
+
+        if not wdl_doc.workflow:
+            raise ValueError(
+                "Currently, the dxWDL executor only supports executing "
+                "workflows, not individual tasks"
+            )
+
+        workflow_name = wdl_doc.workflow.name
+
+        if (
+            "workflow_name" in kwargs
+            and workflow_name != kwargs["workflow-name"]
+        ):
+            raise ValueError(
+                f"The workflow name '{workflow_name}' does not match the value "
+                f"of the 'workflow_name' parameter '{kwargs['workflow-name']}'"
+            )
+
         namespace = kwargs.get("stage_id", "stage-common")
         inputs_dict = None
 
@@ -203,15 +221,11 @@ class DxWdlExecutor(JavaExecutor):
                     inputs_dict = json.load(inp)
 
         if not inputs_dict:
-            inputs_dict = self._inputs_formatter.format_inputs(
-                inputs, namespace, **kwargs
-            )
+            dx_inputs_formatter = DxInputsFormatter(wdl_doc, **kwargs)
+            inputs_dict = dx_inputs_formatter.format_inputs(inputs, namespace)
 
         try:
             with login():
-                workflow_name = get_workflow_name(
-                    wdl_path, import_dirs=self._import_dirs, **kwargs
-                )
                 workflow = self._resolve_workflow(wdl_path, workflow_name, kwargs)
                 analysis = workflow.run(inputs_dict)
 
@@ -421,9 +435,10 @@ class DxWdlExecutor(JavaExecutor):
             return value
 
 
-class DxInputsFormatter(InputsFormatter):
+class DxInputsFormatter:
     def __init__(
         self,
+        wdl_doc: Document,
         project_id: str = dxpy.PROJECT_CONTEXT_ID,
         data_project_id: Optional[str] = None,
         folder: str = "/",
@@ -433,9 +448,11 @@ class DxInputsFormatter(InputsFormatter):
         self._project_id = data_project_id or project_id
         self._folder = data_folder or folder
         self._data_file_links = set()
+        self._wdl_doc = wdl_doc
+        self._wdl_decls = dict((d.name, d.type) for d in wdl_doc.workflow.inputs)
 
     def format_inputs(
-        self, inputs_dict: dict, namespace: Optional[str] = None, **kwargs
+        self, inputs_dict: dict, namespace: Optional[str] = None
     ) -> dict:
         prefix = f"{namespace}." if namespace else ""
         formatted = {}
@@ -443,31 +460,89 @@ class DxInputsFormatter(InputsFormatter):
         for key, value in inputs_dict.items():
             new_key = f"{prefix}{key}"
 
-            if isinstance(value, dict):
-                formatted_dict = self._format_dict(cast(dict, value))
-                formatted[new_key] = {DX_STRUCT_KEY: formatted_dict}
+            formatted[new_key] = self.format_value(value, (key,))
 
-                if self._data_file_links:
-                    formatted[f"{new_key}{DX_FILES_SUFFIX}"] = list(
-                        self._data_file_links
-                    )
-                    self._data_file_links.clear()
-            else:
-                formatted[new_key] = super().format_value(value)
+            if self._data_file_links:
+                formatted[f"{new_key}{DX_FILES_SUFFIX}"] = list(self._data_file_links)
+                self._data_file_links.clear()
 
         return formatted
 
-    # The following function implements dict -> Map mapping. Since we cannot determine
-    # a priori whether a dict should map to a Map or a Struct, we assume Struct and
-    # disallow Map-type inputs.
-    # def _format_dict(self, d: dict) -> dict:
-    #     struct = {"keys": [], "values": []}
-    #
-    #     for key, val in d.items():
-    #         struct["keys"].append(key)
-    #         struct["values"].append(self.format_value(val))
-    #
-    #     return {DX_STRUCT_KEY: struct}
+    def format_value(self, value: Any, path: Tuple[str, ...]) -> Any:
+        """
+        Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+        Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+        method, otherwise they are converted to strings.
+
+        Args:
+            value: The value to format.
+            path: The path to the current value.
+
+        Returns:
+            The serializable value.
+        """
+        if hasattr(value, "as_dict"):
+            return value.as_dict()
+
+        if isinstance(value, DataFile):
+            return self._format_data_file(cast(DataFile, value))
+
+        if isinstance(value, dict):
+            return self._format_dict(cast(dict, value), path)
+
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return self._format_sequence(cast(Sequence, value), path)
+
+        return value
+
+    def _format_sequence(self, s: Sequence, path: Tuple[str, ...]) -> list:
+        return [self.format_value(val, path) for val in s]
+
+    def _format_dict(self, d: dict, path: Tuple[str, ...]) -> dict:
+        if self._is_wdl_map(path):
+            formatted_dict = {"keys": [], "values": []}
+
+            for key, val in d.items():
+                formatted_dict["keys"].append(key)
+                formatted_dict["values"].append(self.format_value(val, path + (key,)))
+        else:
+            # struct
+            formatted_dict = dict(
+                (key, self.format_value(val, path + (key,))) for key, val in d.items()
+            )
+
+        return {DX_DICT_KEY: formatted_dict}
+
+    def _is_wdl_map(self, path: Tuple[str, ...]) -> bool:
+        wdl_decls = self._wdl_decls
+        path_len = len(path)
+
+        for i, key in enumerate(path, 1):
+            is_last = i == path_len
+
+            for name, type_ in wdl_decls.items():
+                if name in {None, key}:
+                    is_map = isinstance(type_, Type.Map)
+
+                    if is_last:
+                        return is_map
+
+                    if isinstance(type_, Type.Array):
+                        type_ = cast(Type.Array, type_).item_type
+
+                    if is_map:
+                        type_ = cast(Type.Map, type_).item_type[1]
+                        # None matches any key
+                        wdl_decls: Dict = {None: type_}
+                    elif isinstance(type_, Type.StructInstance):
+                        wdl_decls = \
+                            self._wdl_doc.struct_typedefs[type_.type_name].members
+
+                    break
+            else:
+                raise ValueError(
+                    f"No input matching key {key} at {path[:i]}"
+                )
 
     def _format_data_file(self, df: DataFile) -> dict:
         if isinstance(df.localizer, UrlLocalizer):

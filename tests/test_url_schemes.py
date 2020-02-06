@@ -1,15 +1,12 @@
 import logging
-from typing import Sequence, Optional, cast
+from typing import Sequence, Optional
 import urllib.request
-from urllib.request import Request, urlopen
-
-import pytest
+from urllib.request import Request
 
 from pytest_wdl.url_schemes import Response, BaseResponse, UrlHandler, Method
 from pytest_wdl.localizers import download_file
 from pytest_wdl.utils import tempdir
 
-from .dx_utils import NO_DX, DX_FILE_ID, DX_PROJECT_ID, DX_SKIP_MSG
 
 LOG = logging.getLogger(__name__)
 
@@ -74,39 +71,3 @@ def test_url_schemes():
         assert handler.response_called is True
     finally:
         urllib.request._opener = opener
-
-
-@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
-def test_dx_scheme():
-    rsp = urlopen(f"dx://{DX_FILE_ID}")
-    assert isinstance(rsp, Response)
-    import pytest_wdl.providers.dx
-    assert isinstance(rsp, pytest_wdl.providers.dx.DxResponse)
-    with tempdir() as d:
-        outfile = d / "readme.txt"
-        cast(Response, rsp).download_file(outfile, False)
-        assert outfile.exists()
-        with open(outfile, "rt") as inp:
-            txt = inp.read()
-        assert txt.startswith("README.1st.txt")
-        assert txt.rstrip().endswith(
-            "SRR100022: Full exome to use as input to your analyses."
-        )
-
-
-@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
-def test_dx_scheme_with_project():
-    rsp = urlopen(f"dx://{DX_PROJECT_ID}:{DX_FILE_ID}")
-    assert isinstance(rsp, Response)
-    import pytest_wdl.providers.dx
-    assert isinstance(rsp, pytest_wdl.providers.dx.DxResponse)
-    with tempdir() as d:
-        outfile = d / "readme.txt"
-        cast(Response, rsp).download_file(outfile, False)
-        assert outfile.exists()
-        with open(outfile, "rt") as inp:
-            txt = inp.read()
-        assert txt.startswith("README.1st.txt")
-        assert txt.rstrip().endswith(
-            "SRR100022: Full exome to use as input to your analyses."
-        )
