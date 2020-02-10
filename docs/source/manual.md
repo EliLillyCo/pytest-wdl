@@ -323,7 +323,7 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/pytest_wdl_config.json).
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
 
 The available configuration options are listed in the following table:
 
