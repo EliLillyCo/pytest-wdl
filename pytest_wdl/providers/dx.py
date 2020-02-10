@@ -32,20 +32,19 @@ from pytest_wdl.executors import (
 )
 from pytest_wdl.localizers import UrlLocalizer
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
-from pytest_wdl.utils import LOG, ensure_path, verify_digests
+from pytest_wdl.utils import LOG, PluginError, ensure_path, verify_digests
 
 try:
     # test whether dxpy is installed and the user is logged in
     import dxpy
     assert dxpy.SECURITY_CONTEXT
     assert dxpy.whoami()
-except:
-    LOG.exception(
+except Exception as err:
+    raise PluginError(
         "DNAnexus (dx) extensions require that a) you install 'dxpy' "
         "(try 'pip install dxpy') and b) you log into your DNAnexus account via the "
         "command line (try 'dx login')."
-    )
-    raise
+    ) from err
 
 from dxpy.scripts import dx
 from dxpy.utils.job_log_client import DXJobLogStreamClient
