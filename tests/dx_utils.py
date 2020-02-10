@@ -4,6 +4,7 @@ import string
 
 try:
     from pytest_wdl.providers.dx import dxpy
+    assert dxpy
     NO_DX = False
 except:
     NO_DX = True
