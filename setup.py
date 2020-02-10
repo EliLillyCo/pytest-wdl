@@ -6,7 +6,8 @@ from setuptools import setup, find_packages
 extras_require = {
     "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
-    "progress": ["tqdm"]
+    "progress": ["tqdm"],
+    "miniwdl": ["docker>=3.4.0"],
 }
 extras_require["all"] = list(set(
     lib
@@ -48,7 +49,7 @@ setup(
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
-            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor[miniwdl]",
             "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": [
@@ -60,7 +61,7 @@ setup(
     install_requires=[
         "pytest>=5.1",
         "subby>=0.1.6",
-        "miniwdl>=0.5.2",
+        "miniwdl>=0.6.4",
         "pytest-subtests",
         "xphyle>=4.1.3"
     ],

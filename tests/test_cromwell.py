@@ -13,13 +13,13 @@
 #    limitations under the License.
 
 import json
+import os
 from pathlib import Path
 import zipfile
 
 from pytest_wdl.utils import tempdir
 import pytest
 
-from pytest_wdl import config as CONFIG
 from pytest_wdl.utils import ENV_PATH, ENV_CLASSPATH
 from pytest_wdl.executors import ENV_JAVA_HOME
 from pytest_wdl.executors.cromwell import (
@@ -29,9 +29,9 @@ from . import setenv, make_executable
 
 
 def test_java_bin(user_config):
-    cromwell_jar_file = user_config.get_executor_defaults("cromwell")[
-        "cromwell_jar_file"
-    ]
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
 
     with tempdir() as d:
         java = d / "bin" / "java"
@@ -68,9 +68,10 @@ def test_java_bin(user_config):
 
 
 def test_cromwell_config(user_config):
-    cromwell_jar_file = user_config.get_executor_defaults("cromwell")[
-        "cromwell_jar_file"
-    ]
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
+
     with tempdir() as d:
         assert CromwellExecutor(
             [d], cromwell_jar_file=cromwell_jar_file
@@ -87,9 +88,9 @@ def test_cromwell_config(user_config):
 
 
 def test_java_args(user_config):
-    cromwell_jar_file = user_config.get_executor_defaults("cromwell")[
-        "cromwell_jar_file"
-    ]
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
 
     with tempdir() as d:
         assert CromwellExecutor(

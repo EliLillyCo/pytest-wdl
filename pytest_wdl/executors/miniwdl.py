@@ -11,6 +11,7 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+import json
 import logging
 from pathlib import Path
 from typing import List, Optional, cast
@@ -19,6 +20,7 @@ from pytest_wdl.executors import (
     Executor, ExecutionFailedError, read_write_inputs
 )
 
+import docker
 from WDL import CLI, Error, Tree, runtime, _util
 
 
@@ -92,7 +94,13 @@ class MiniwdlExecutor(Executor):
         logger.setLevel(CLI.NOTICE_LEVEL)
         CLI.install_coloredlogs(logger)
 
-        _util.ensure_swarm(logger)
+        # initialize Docker
+        client = docker.from_env()
+        try:
+            logger.debug("dockerd :: " + json.dumps(client.version())[1:-1])
+            _util.initialize_local_docker(logger, client)
+        finally:
+            client.close()
 
         try:
             if isinstance(target, Tree.Task):
