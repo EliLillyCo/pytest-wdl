@@ -63,7 +63,6 @@ pysam==0.15.4
 pytest==5.3.0
 pytest-datadir-ng==1.1.0
 pytest-subtests==0.2.1
-pytest-wdl==1.2.2.dev23+g4d88a8d.d20200206
 python-dateutil==2.8.1
 python-magic==0.4.6
 pytz==2019.3
