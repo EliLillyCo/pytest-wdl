@@ -20,9 +20,8 @@
   "executors": {
     "cromwell": {
       "java_bin": "/usr/local/bin/java",
-      "java_args": "-Xmx8g",
-      "cromwell_jar": "/usr/local/opt/cromwell/Cromwell-44.jar",
-      "cromwell_args": "-Ddocker.hash-lookup.enabled=false"
+      "java_args": "-Xmx8g -Ddocker.hash-lookup.enabled=false",
+      "cromwell_jar_file": "/usr/local/opt/cromwell/Cromwell-44.jar"
     }
   }
 }

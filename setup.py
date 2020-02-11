@@ -4,15 +4,16 @@ from setuptools import setup, find_packages
 
 
 extras_require = {
-    "bam": ["pysam"],
+    "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
-    "progress": ["tqdm"]
+    "progress": ["tqdm"],
+    "miniwdl": ["docker>=3.4.0"],
 }
-extras_require["all"] = [
+extras_require["all"] = list(set(
     lib
     for lib_array in extras_require.values()
     for lib in lib_array
-]
+))
 
 
 setup(
@@ -42,16 +43,17 @@ setup(
             "pytest_wdl = pytest_wdl"
         ],
         "pytest_wdl.data_types": [
-            "bam = pytest_wdl.data_types.bam:BamDataFile",
+            "bam = pytest_wdl.data_types.bam:BamDataFile[bam]",
             "vcf = pytest_wdl.data_types.vcf:VcfDataFile",
-            "json = pytest_wdl.data_types.json:JsonDataFile"
+            "json = pytest_wdl.data_types.json:JsonDataFile",
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
-            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor"
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor[miniwdl]",
+            "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": [
-            "dx = pytest_wdl.url_schemes.dx:DxUrlHandler"
+            "dx = pytest_wdl.providers.dx:DxUrlHandler[dx]",
         ]
     },
     py_modules=["pytest_wdl"],
@@ -59,7 +61,7 @@ setup(
     install_requires=[
         "pytest>=5.1",
         "subby>=0.1.6",
-        "miniwdl>=0.5.2",
+        "miniwdl>=0.6.4",
         "pytest-subtests",
         "xphyle>=4.1.3"
     ],

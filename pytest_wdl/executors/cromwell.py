@@ -22,14 +22,14 @@ from typing import List, Optional, Union, cast
 import subby
 
 from pytest_wdl.executors import (
-    ExecutionFailedError, Executor, get_workflow_inputs, validate_outputs
+    ExecutionFailedError,
+    JavaExecutor,
+    get_workflow_name,
+    read_write_inputs
 )
-from pytest_wdl.utils import (
-    LOG, ensure_path, find_executable_path, find_in_classpath
-)
+from pytest_wdl.utils import LOG, ensure_path
 
 
-ENV_JAVA_HOME = "JAVA_HOME"
 ENV_CROMWELL_JAR = "CROMWELL_JAR"
 ENV_CROMWELL_CONFIG = "CROMWELL_CONFIG"
 ENV_CROMWELL_ARGS = "CROMWELL_ARGS"
@@ -87,7 +87,7 @@ class Failures:
                     return inp.read()
 
 
-class CromwellExecutor(Executor):
+class CromwellExecutor(JavaExecutor):
     """
     Manages the running of WDL workflows using Cromwell.
 
@@ -101,6 +101,7 @@ class CromwellExecutor(Executor):
         cromwell_args: Default Cromwell arguments to use; can be overridden by
             passing `cromwell_args=...` to `run_workflow`.
     """
+
     def __init__(
         self,
         import_dirs: Optional[List[Path]] = None,
@@ -110,56 +111,34 @@ class CromwellExecutor(Executor):
         cromwell_config_file: Optional[Union[str, Path]] = None,
         cromwell_args: Optional[str] = None
     ):
-        super().__init__(import_dirs)
+        super().__init__(java_bin, java_args)
 
-        if not java_bin:
-            java_home = os.environ.get(ENV_JAVA_HOME)
-            if java_home:
-                java_bin = Path(java_home) / "bin" / "java"
-            else:
-                java_bin = find_executable_path("java")
+        self._import_dirs = import_dirs
 
-        if not java_bin:
-            raise FileNotFoundError("Could not find java executable")
-
-        self.java_bin = ensure_path(
-            java_bin, exists=True, is_file=True, executable=True
-        )
-
-        if not cromwell_jar_file:
-            cromwell_jar = os.environ.get(ENV_CROMWELL_JAR)
-            if cromwell_jar:
-                cromwell_jar_file = ensure_path(cromwell_jar)
-            else:
-                cromwell_jar_file = find_in_classpath("cromwell*.jar")
-
-        if not cromwell_jar_file:
-            raise FileNotFoundError("Could not find Cromwell JAR file")
-
-        self.cromwell_jar_file = ensure_path(
-            cromwell_jar_file, is_file=True, exists=True
+        self._cromwell_jar_file = self.resolve_jar_file(
+            "cromwell*.jar", cromwell_jar_file, ENV_CROMWELL_JAR
         )
 
         if not cromwell_config_file:
             config_file = os.environ.get(ENV_CROMWELL_CONFIG)
             if config_file:
                 cromwell_config_file = ensure_path(config_file)
+
         if cromwell_config_file:
-            self.cromwell_config_file = ensure_path(
+            self._cromwell_config_file = ensure_path(
                 cromwell_config_file, is_file=True, exists=True
             )
         else:
-            self.cromwell_config_file = None
+            self._cromwell_config_file = None
 
-        if not java_args and self.cromwell_config_file:
-            java_args = f"-Dconfig.file={self.cromwell_config_file}"
-        self.java_args = java_args
+        if not self.java_args and self._cromwell_config_file:
+            self.java_args = f"-Dconfig.file={self._cromwell_config_file}"
 
-        self.cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
+        self._cromwell_args = cromwell_args or os.environ.get(ENV_CROMWELL_ARGS)
 
     def run_workflow(
         self,
-        wdl_path: Union[str, Path],
+        wdl_path: Path,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         **kwargs
@@ -190,22 +169,23 @@ class CromwellExecutor(Executor):
             ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        workflow_name = self._get_workflow_name(wdl_path, kwargs)
-
-        inputs_dict, inputs_file = get_workflow_inputs(
-            inputs, kwargs.get("inputs_file"), workflow_name
+        workflow_name = get_workflow_name(
+            wdl_path, import_dirs=self._import_dirs, **kwargs
         )
 
-        imports_file = self.get_workflow_imports(kwargs.get("imports_file"))
+        inputs_dict, inputs_file = read_write_inputs(
+            inputs_dict=inputs, namespace=workflow_name
+        )
 
-        inputs_arg = f"-i {inputs_file}" if inputs_dict else ""
+        imports_file = self._get_workflow_imports(kwargs.get("imports_file"))
+        inputs_arg = f"-i {inputs_file}" if inputs_file else ""
         imports_zip_arg = f"-p {imports_file}" if imports_file else ""
         java_args = kwargs.get("java_args", self.java_args) or ""
-        cromwell_args = kwargs.get("cromwell_args", self.cromwell_args) or ""
+        cromwell_args = kwargs.get("cromwell_args", self._cromwell_args) or ""
         metadata_file = Path.cwd() / "metadata.json"
 
         cmd = (
-            f"{self.java_bin} {java_args} -jar {self.cromwell_jar_file} run "
+            f"{self.java_bin} {java_args} -jar {self._cromwell_jar_file} run "
             f"-m {metadata_file} {cromwell_args} {inputs_arg} {imports_zip_arg} "
             f"{wdl_path}"
         )
@@ -230,7 +210,7 @@ class CromwellExecutor(Executor):
                     f"Cromwell command completed successfully but did not generate "
                     f"a metadata file at {metadata_file}"
                 )
-                outputs = CromwellExecutor.get_cromwell_outputs(exe.output)
+                outputs = self._get_cromwell_outputs(exe.output)
         else:
             error_kwargs = {
                 "executor": "cromwell",
@@ -241,7 +221,7 @@ class CromwellExecutor(Executor):
                 "executor_stderr": exe.error,
             }
             if metadata:
-                failures = CromwellExecutor.get_failures(metadata)
+                failures = self._get_failures(metadata)
                 if failures:
                     error_kwargs.update({
                         "failed_task": failures.failed_task,
@@ -264,11 +244,11 @@ class CromwellExecutor(Executor):
             raise ExecutionFailedError(**error_kwargs)
 
         if expected:
-            validate_outputs(outputs, expected, workflow_name)
+            self._validate_outputs(outputs, expected, workflow_name)
 
         return outputs
 
-    def get_workflow_imports(self, imports_file: Optional[Path] = None) -> Path:
+    def _get_workflow_imports(self, imports_file: Optional[Path] = None) -> Path:
         """
         Creates a ZIP file with all WDL files to be imported.
 
@@ -278,7 +258,7 @@ class CromwellExecutor(Executor):
         Returns:
             Path to the ZIP file.
         """
-        write_imports = bool(self.import_dirs)
+        write_imports = bool(self._import_dirs)
         imports_path = None
 
         if imports_file:
@@ -286,10 +266,10 @@ class CromwellExecutor(Executor):
             if imports_path.exists():
                 write_imports = False
 
-        if write_imports and self.import_dirs:
+        if write_imports and self._import_dirs:
             imports = [
                 wdl
-                for path in self.import_dirs
+                for path in self._import_dirs
                 for wdl in glob.glob(str(path / "*.wdl"))
             ]
             if imports:
@@ -315,8 +295,8 @@ class CromwellExecutor(Executor):
 
         return imports_path
 
-    @staticmethod
-    def get_cromwell_outputs(output) -> dict:
+    @classmethod
+    def _get_cromwell_outputs(cls, output) -> dict:
         lines = output.splitlines(keepends=False)
         if len(lines) < 2:
             raise Exception(f"Invalid Cromwell output: {output}")
@@ -336,8 +316,8 @@ class CromwellExecutor(Executor):
             raise AssertionError("No outputs JSON found in Cromwell stdout")
         return json.loads("\n".join(lines[start:(end + 1)]))["outputs"]
 
-    @staticmethod
-    def get_failures(metadata: dict) -> Optional[Failures]:
+    @classmethod
+    def _get_failures(cls, metadata: dict) -> Optional[Failures]:
         for call_name, call_metadatas in metadata["calls"].items():
             failed = list(filter(
                 lambda md: md["executionStatus"] == "Failed", call_metadatas
@@ -345,7 +325,7 @@ class CromwellExecutor(Executor):
             if failed:
                 failed_call = failed[0]
                 if "subWorkflowMetadata" in failed_call:
-                    return CromwellExecutor.get_failures(
+                    return cls._get_failures(
                         failed_call["subWorkflowMetadata"]
                     )
                 else:

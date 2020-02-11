@@ -13,6 +13,7 @@
 #    limitations under the License.
 
 import json
+import os
 from pathlib import Path
 import zipfile
 
@@ -20,13 +21,18 @@ from pytest_wdl.utils import tempdir
 import pytest
 
 from pytest_wdl.utils import ENV_PATH, ENV_CLASSPATH
+from pytest_wdl.executors import ENV_JAVA_HOME
 from pytest_wdl.executors.cromwell import (
-    ENV_CROMWELL_CONFIG, ENV_JAVA_HOME, ENV_CROMWELL_JAR, CromwellExecutor, Failures
+    ENV_CROMWELL_CONFIG, ENV_CROMWELL_JAR, CromwellExecutor
 )
 from . import setenv, make_executable
 
 
-def test_java_bin():
+def test_java_bin(user_config):
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
+
     with tempdir() as d:
         java = d / "bin" / "java"
         java.parent.mkdir(parents=True)
@@ -35,52 +41,80 @@ def test_java_bin():
         make_executable(java)
 
         with setenv({ENV_JAVA_HOME: str(d)}):
-            assert CromwellExecutor([d]).java_bin == java
+            assert CromwellExecutor(
+                [d], cromwell_jar_file=cromwell_jar_file
+            ).java_bin == java
 
         with setenv({
             ENV_PATH: str(d / "bin"),
             ENV_JAVA_HOME: None
         }):
-            assert CromwellExecutor([d]).java_bin == java
+            assert CromwellExecutor(
+                [d], cromwell_jar_file=cromwell_jar_file
+            ).java_bin == java
 
         with setenv({
             ENV_PATH: None,
             ENV_JAVA_HOME: None
         }):
             with pytest.raises(FileNotFoundError):
-                assert CromwellExecutor([d]).java_bin
+                assert CromwellExecutor(
+                    [d], cromwell_jar_file=cromwell_jar_file
+                ).java_bin
 
     with setenv({ENV_JAVA_HOME: "foo"}):
         with pytest.raises(FileNotFoundError):
             assert CromwellExecutor([d]).java_bin
 
 
-def test_cromwell_config():
+def test_cromwell_config(user_config):
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
+
     with tempdir() as d:
-        assert CromwellExecutor([d]).cromwell_config_file is None
+        assert CromwellExecutor(
+            [d], cromwell_jar_file=cromwell_jar_file
+        )._cromwell_config_file is None
         config = d / "config"
         with setenv({ENV_CROMWELL_CONFIG: str(config)}):
             with pytest.raises(FileNotFoundError):
-                CromwellExecutor([d])
+                CromwellExecutor([d], cromwell_jar_file=cromwell_jar_file)
             with open(config, "wt") as out:
                 out.write("foo")
-            assert CromwellExecutor([d]).cromwell_config_file == config
+            assert CromwellExecutor(
+                [d], cromwell_jar_file=cromwell_jar_file
+            )._cromwell_config_file == config
 
 
-def test_java_args():
+def test_java_args(user_config):
+    cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
+        "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
+    )
+
     with tempdir() as d:
-        assert CromwellExecutor([d]).java_args is None
+        assert CromwellExecutor(
+            [d], cromwell_jar_file=cromwell_jar_file
+        ).java_args is None
 
         with pytest.raises(FileNotFoundError):
-            CromwellExecutor([d], cromwell_config_file=Path("foo")).java_args
+            CromwellExecutor(
+                [d],
+                cromwell_config_file=Path("foo"),
+                cromwell_jar_file=cromwell_jar_file
+            ).java_args
 
         config = d / "config"
         with pytest.raises(FileNotFoundError):
-            CromwellExecutor([d], cromwell_config_file=Path("foo")).java_args
+            CromwellExecutor(
+                [d],
+                cromwell_config_file=Path("foo"),
+                cromwell_jar_file=cromwell_jar_file,
+            ).java_args
         with open(config, "wt") as out:
             out.write("foo")
         assert CromwellExecutor(
-            [d], cromwell_config_file=config
+            [d], cromwell_config_file=config, cromwell_jar_file=cromwell_jar_file
         ).java_args == f"-Dconfig.file={config}"
 
 
@@ -90,40 +124,42 @@ def test_cromwell_jar():
 
         with setenv({ENV_CROMWELL_JAR: str(jar)}):
             with pytest.raises(FileNotFoundError):
-                CromwellExecutor([d]).cromwell_jar_file
+                CromwellExecutor([d])._cromwell_jar_file
             with open(jar, "wt") as out:
                 out.write("foo")
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: str(d)
         }):
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: str(jar)
         }):
-            assert CromwellExecutor([d]).cromwell_jar_file == jar
+            assert CromwellExecutor([d])._cromwell_jar_file == jar
 
         with setenv({
             ENV_CROMWELL_JAR: None,
             ENV_CLASSPATH: None
         }):
             with pytest.raises(FileNotFoundError):
-                CromwellExecutor([d]).cromwell_jar_file
+                CromwellExecutor([d])._cromwell_jar_file
 
 
-def test_get_workflow_imports():
+def test_get_workflow_imports(user_config):
+    cromwell_config = user_config.get_executor_defaults("cromwell")
+
     with tempdir() as d:
         wdl_dir = d / "foo"
         wdl = wdl_dir / "bar.wdl"
         wdl_dir.mkdir()
         with open(wdl, "wt") as out:
             out.write("foo")
-        executor = CromwellExecutor([wdl_dir])
-        zip_path = executor.get_workflow_imports()
+        executor = CromwellExecutor([wdl_dir],  **cromwell_config)
+        zip_path = executor._get_workflow_imports()
         assert zip_path.exists()
         with zipfile.ZipFile(zip_path, "r") as import_zip:
             names = import_zip.namelist()
@@ -139,8 +175,8 @@ def test_get_workflow_imports():
         with open(wdl, "wt") as out:
             out.write("foo")
         imports_file = d / "imports.zip"
-        executor = CromwellExecutor([wdl_dir])
-        zip_path = executor.get_workflow_imports(imports_file)
+        executor = CromwellExecutor([wdl_dir], **cromwell_config)
+        zip_path = executor._get_workflow_imports(imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
         with zipfile.ZipFile(zip_path, "r") as import_zip:
@@ -159,8 +195,8 @@ def test_get_workflow_imports():
         imports_file = d / "imports.zip"
         with open(imports_file, "wt") as out:
             out.write("foo")
-        executor = CromwellExecutor()
-        zip_path = executor.get_workflow_imports(imports_file=imports_file)
+        executor = CromwellExecutor(**cromwell_config)
+        zip_path = executor._get_workflow_imports(imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
 
@@ -169,7 +205,7 @@ def test_failure_metadata(workflow_data):
     m44 = workflow_data["metadata44.json"]
     with open(m44.path, "rt") as inp:
         m44_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m44_dict)
+    failures = CromwellExecutor._get_failures(m44_dict)
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
@@ -181,7 +217,7 @@ def test_failure_metadata(workflow_data):
     m47 = workflow_data["metadata47.json"]
     with open(m47.path, "rt") as inp:
         m47_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m47_dict)
+    failures = CromwellExecutor._get_failures(m47_dict)
     assert failures.num_failed == 10
     assert failures.failed_task == "contam_testing_set_org_by_volume.org_blast"
     assert failures.failed_task_exit_status == "Unknown"
@@ -195,7 +231,7 @@ def test_call_failure_metadata(workflow_data):
     m = workflow_data["metadata_call_failed.json"]
     with open(m.path, "rt") as inp:
         m_dict = json.load(inp)
-    failures = CromwellExecutor.get_failures(m_dict)
+    failures = CromwellExecutor._get_failures(m_dict)
     assert failures.num_failed == 1
     assert failures.failed_task == "ScatterAt27_14"
     assert failures.failed_task_exit_status == "Unknown"

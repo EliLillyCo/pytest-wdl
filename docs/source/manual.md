@@ -54,9 +54,62 @@ By default, pytest-wdl tries to find the files it is expecting relative to one o
     * In the "simple" and "multi-module with single test directory" examples, `myproject` would be the test context directory
     * In the "multi-module with separate test directories" example, the test context directory would be `myproject` when executing `myproject/tests/test_main.py` and `module1` when executing `myproject/module1/tests/test_module1.py`.
 
+## Writing tests
+
+Let's say you have the following workflow defined in a file called `variant_caller.wdl`:
+
+```wdl
+version 1.0
+
+import "variant_caller.wdl"
+
+struct Index {
+  File fasta
+  String organism
+}
+
+workflow call_variants {
+  input {
+    File bam
+    File bai
+    Index index
+  }
+
+  call variant_caller.variant_caller {
+    input:
+      bam=bam,
+      bai=bai,
+      index=index
+  }
+  
+  output {
+    File vcf = variant_caller.vcf
+  }
+}
+```
+
+Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives by creating a `test_variant_caller.py` file containing the following test function:
+
+```python
+def test_variant_caller(workflow_data, workflow_runner):
+    inputs = workflow_data.get_dict("bam", "bai")
+    inputs["index"] = {
+        "fasta": workflow_data["index_fa"],
+        "organism": "human"
+    }
+    expected = workflow_data.get_dict("vcf")
+    workflow_runner(
+        "variant_caller.wdl",
+        inputs,
+        expected
+    )
+```
+
+This test will execute a workflow (such as the following one) with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. In the following sections are descriptions of these fixtures and details on how to configure your tests's inputs, exected outputs, and other paramters.
+
 ## Fixtures
 
-All functionality of pytest-wdl is provided via [fixtures](https://docs.pytest.org/en/latest/fixture.html). As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
+All functionality of pytest-wdl is provided via fixtures. As long as pytest-wdl is in your `PYTHONPATH`, its fixtures will be discovered and made available when you run pytest.
 
 The two most important fixtures are:
 
@@ -189,7 +242,13 @@ The default type if one is not specified.
 
 ## Executors
 
-An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, [Cromwell](https://cromwell.readthedocs.io/) and [Miniwdl](https://github.com/chanzuckerberg/miniwdl) are supported, but aternative executors can be implemented as [plugins](#plugins).
+An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, the following executors are supported (but aternative executors can be implemented as [plugins](#plugins)):
+
+* [Cromwell](https://cromwell.readthedocs.io/)
+* [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
+* [dxWDL](https://github.com/dnanexus/dxWDL)
+    * **Note**: pytest-wdl currently does not support using dxWDL with workflows/tasks that have Map-type inputs
+    * Also note that dxWDL does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor. It takes one required arguments and some additional optional arguments:
 
@@ -197,6 +256,8 @@ The `workflow_runner` fixture is a callable that runs the workflow using the exe
 * `inputs`: Dict that will be serialized to JSON and provided to the executor as the workflow inputs. If not specified, the workflow must not have any required inputs.
 * `expected`: Dict mapping output parameter names to expected values. Any workflow outputs that are not specified are ignored. This is an optional parameter and can be omitted if, for example, you only want to test that the workflow completes successfully.
 * `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, the name of the workflow is extracted from the WDL file.
+* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+* `imports_file`: Specify the imports file to use. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
 
 You can also pass executor-specific keyword arguments. 
 
@@ -204,15 +265,25 @@ You can also pass executor-specific keyword arguments.
 
 #### Cromwell
 
-* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
-* `imports_file`: Specify the imports file to use, or the path to the imports zip file to write, instead of a temp file. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
+* `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
 
 #### Miniwdl
 
 * `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.
-* `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
+
+#### dxWDL
+
+Requires the `dxpy` package to be installed.
+
+<!--* `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.-->
+* `project_id`: ID of the project where the workflow will be built. Defaults to the currently selected project. You can also specify different projects for workflows and data using `workflow_project_id` and `data_project_id` varaibles.
+* `folder`: The folder within the project where the workflow will be built. Defaults to '/'. You can also specify different folders for workflows and data using `workflow_folder_id` and `data_folder_id` varaibles.
+* `stage_id`: Stage ID to use when inputs don't come prefixed with the stage. Defaults to "stage-common".
+* `force`: Boolean; whether to force the workflow to be built even if the WDL file has not changed since the last build.
+* `archive`: Boolean; whether to archive existing applets/workflows (True) or overwrite them (False). Defaults to True.
+* `extras`: Extras file to use when building the workflow.
 
 ## Configuration
 
@@ -252,7 +323,7 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/pytest_wdl_config.json).
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
 
 The available configuration options are listed in the following table:
 
@@ -265,6 +336,7 @@ The available configuration options are listed in the following table:
 | `show_progress` | N/A | Whether to show progress bars when downloading files | False | |
 | `default_executors` | PYTEST_WDL_EXECUTORS | Comma-delimited list of executor names to run by default | \["cromwell"\] | |
 | `executors` | Executor-dependent | Configuration options specific to each executor; see below | None | |
+| `providers` | Provider-dependent | Configuration options specific to each provider; see below | None | |
 | N/A | `LOGLEVEL` | Level of detail to log; can set to 'DEBUG', 'INFO', 'WARNING', or 'ERROR' | 'WARNING' | Use 'DEBUG' when developing plugins/fixtures/etc., otherwise 'WARNING' |
 
 ##### Proxies
@@ -309,16 +381,44 @@ In the http_headers section of the configuration file, you can define a list of 
 
 ##### Executor-specific configuration
 
-###### Cromwell
+###### Java-based Executors
+
+These options apply to all Java-based executors (currently Cromwell and dxWDL):
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `java_bin` | `JAVA_HOME` | Path to java executable; If not specified, then Java executable is expected to be in $JAVA_HOME/bin/java | None |
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (if `cromwell_config_file` is specified |
-| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
+
+####### Cromwell
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
 | `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; recommended to use `-Ddocker.hash-lookup.enabled=false` to disable Docker lookup by hash |
+
+####### dxWDL
+
+The dxWDL executor (as well as URLs using the dx:// scheme) require you to be logged into DNAnexus. If you are not already logged in when you run the tests, you will be logged in the first time you do anything that makes an API call to DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically, otherwise you will be asked to log in interactively.
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
+| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+
+##### Provider-specific configuration
+
+A "provider" is a remote (generally cloud-based) service that provides both an execution engine and data storage.
+
+###### DNAnexus
+
+| configuration file key | environment variable | description | default |
+| -------------| ------------- | ----------- | ----------- |
+| `dx_username` | None | Username to use for logging into DNAnexus if the user is not already logged in | None |
+| `dx_password` | None | Password to use for logging into DNAnexus if the user is not already logged in | None |
+| `dx_token` | None | Token to use for logging into DNAnexus if the user is not already logged in (mutually exclusive with username/password | None |
 
 ##### Fixtures
 

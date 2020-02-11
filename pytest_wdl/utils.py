@@ -46,6 +46,10 @@ UNSAFE_RE = re.compile(r"[^\w.-]")
 T = TypeVar("T")
 
 
+class PluginError(Exception):
+    pass
+
+
 class PluginFactory(Generic[T]):
     """
     Lazily loads a plugin class associated with a data type.
@@ -57,15 +61,20 @@ class PluginFactory(Generic[T]):
 
     def __call__(self, *args, **kwargs) -> T:
         if self.factory is None:
-            module = __import__(
-                self.entry_point.module_name, fromlist=['__name__'], level=0
-            )
-            self.factory = getattr(module, self.entry_point.attrs[0])
+            try:
+                self.factory = self.entry_point.resolve()
+            except ImportError as err:
+                raise PluginError(
+                    f"Could not load plugin {self.entry_point.name}"
+                ) from err
+
         plugin = self.factory(*args, **kwargs)
+
         if not isinstance(plugin, self.return_type):  # TODO: test this
             raise RuntimeError(
                 f"Expected plugin {plugin} to be an instance of {self.return_type}"
             )
+
         return cast(self.return_type, plugin)
 
 
@@ -90,10 +99,12 @@ def plugin_factory_map(
         entry_points = iter_entry_points(group=group)
 
     entry_point_map = defaultdict(list)
+
     for entry_point in entry_points:
         entry_point_map[entry_point.name].append(entry_point)
 
     factory_map = {}
+
     for name, points in entry_point_map.items():
         if len(points) > 1:
             # Filter out built-ins
@@ -106,7 +117,23 @@ def plugin_factory_map(
                     f"same name: {name}"
                 )
 
-        factory_map[name] = PluginFactory(points[0], return_type)
+        ep = points[0]
+
+        try:
+            ep.require()
+        except ResourceWarning as rerr:
+            LOG.warning(
+                "Plugin %s is not available because it is missing an extra "
+                "dependency: %s", name, str(rerr)
+            )
+            continue
+        except PluginError as perr:
+            LOG.warning(
+                "Error while loading plugin %s: %s", name, str(perr)
+            )
+            continue
+
+        factory_map[name] = PluginFactory(ep, return_type)
 
     return factory_map
 

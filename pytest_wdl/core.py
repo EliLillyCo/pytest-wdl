@@ -252,6 +252,6 @@ def create_executor(
     if not executor_class:
         raise RuntimeError(f"{executor_name} executor plugin is not installed")
     return executor_class(
-        import_dirs=import_dirs,
+        import_dirs,
         **user_config.get_executor_defaults(executor_name)
     )
