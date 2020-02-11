@@ -21,7 +21,7 @@ try:
 except PluginError as err:
     dxpy = None
 
-pytestmark = pytest.mark.skipif(dxpy is None, SKIP_REASON)
+pytestmark = pytest.mark.skipif(dxpy is None, reason=SKIP_REASON)
 
 
 DX_FILE_ID = "file-BgY4VzQ0bvyg22pfZQpXfzgK"
