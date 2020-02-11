@@ -36,6 +36,7 @@ reformat:
 
 clean:
 	rm -f .coverage
+	rm -f coverage.xml
 	rm -Rf .eggs
 	rm -Rf .pytest_cache
 	rm -Rf __pycache__
