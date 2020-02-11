@@ -220,7 +220,9 @@ class DxWdlExecutor(JavaExecutor):
                     inputs_dict = json.load(inp)
 
         if not inputs_dict:
-            if wdl_doc.workflow.inputs:
+            workflow_inputs = wdl_doc.workflow.available_inputs
+
+            if workflow_inputs:
                 dx_inputs_formatter = DxInputsFormatter(wdl_doc, **kwargs)
                 inputs_dict = dx_inputs_formatter.format_inputs(inputs, namespace)
             else:
@@ -330,7 +332,15 @@ class DxWdlExecutor(JavaExecutor):
             )
 
             LOG.info(f"Building workflow with command '{cmd}'")
-            workflow_id = subby.sub(cmd).splitlines(False)[-1]
+
+            try:
+                workflow_id = subby.sub(cmd).splitlines(False)[-1]
+            except subby.core.CalledProcessError as perr:
+                raise ExecutorError(
+                    "dxwdl",
+                    f"Error building DNAnexus workflow with dxWDL; "
+                    f"stdout={perr.stdout}; stderr={perr.stderr}"
+                ) from perr
 
         workflow = dxpy.DXWorkflow(workflow_id)
         DxWdlExecutor._workflow_cache[wdl_path] = workflow
