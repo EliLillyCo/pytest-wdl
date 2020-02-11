@@ -19,6 +19,9 @@ from pathlib import Path
 import stat
 from unittest.mock import Mock
 
+from pytest_wdl.utils import PluginError
+
+import pytest
 
 # Change URLs once foo.txt is pushed to master
 #GOOD_URL = "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/tests/remote_data/foo.txt"

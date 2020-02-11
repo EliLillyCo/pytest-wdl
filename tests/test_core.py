@@ -138,38 +138,38 @@ def test_data_file_json_contents():
 def test_data_dirs():
     with tempdir() as d:
         mod = Mock()
-        mod.__name__ = "foo.bar"
+        mod.__name__ = "tests.bar"
         cls = Mock()
         cls.__name__ = "baz"
         fun = Mock()
         fun.__name__ = "blorf"
-        mod_cls_fun = d / "foo" / "bar" / "baz" / "blorf"
+        mod_cls_fun = d / "tests" / "bar" / "baz" / "blorf"
         mod_cls_fun.mkdir(parents=True)
-        data_mod_cls_fun = d / "data" / "foo" / "bar" / "baz" / "blorf"
+        data_mod_cls_fun = d / "tests" / "data" / "bar" / "baz" / "blorf"
         data_mod_cls_fun.mkdir(parents=True)
-        with pytest.raises(RuntimeError):
-            DataDirs(d, mod, fun, cls)
-        dd = DataDirs(d / "foo", mod, fun, cls)
+
+        dd = DataDirs(d / "tests", mod, fun, cls)
         assert dd.paths == [
             mod_cls_fun,
-            d / "foo" / "bar" / "baz",
-            d / "foo" / "bar",
+            d / "tests" / "bar" / "baz",
+            d / "tests" / "bar",
             data_mod_cls_fun,
-            d / "data" / "foo" / "bar" / "baz",
-            d / "data" / "foo" / "bar",
-            d / "data"
+            d / "tests" / "data" / "bar" / "baz",
+            d / "tests" / "data" / "bar",
+            d / "tests" / "data"
         ]
-        mod_cls_fun = d / "foo" / "bar" / "blorf"
+
+        mod_cls_fun = d / "tests" / "bar" / "blorf"
         mod_cls_fun.mkdir(parents=True)
-        data_mod_cls_fun = d / "data" / "foo" / "bar" / "blorf"
+        data_mod_cls_fun = d / "tests" / "data" / "bar" / "blorf"
         data_mod_cls_fun.mkdir(parents=True)
-        dd = DataDirs(d / "foo", mod, fun)
+        dd = DataDirs(d / "tests", mod, fun)
         assert dd.paths == [
             mod_cls_fun,
-            d / "foo" / "bar",
+            d / "tests" / "bar",
             data_mod_cls_fun,
-            d / "data" / "foo" / "bar",
-            d / "data"
+            d / "tests" / "data" / "bar",
+            d / "tests" / "data"
         ]
 
 
