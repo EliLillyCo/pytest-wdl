@@ -46,6 +46,7 @@ clean:
 	rm -Rf **/*.pyc
 	rm -Rf dist/
 	rm -Rf build/
+	rm -Rf docs/build
 	rm -Rf $(package).egg-info
 	rm -Rf cromwell-workflow-logs
 
