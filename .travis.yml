@@ -17,9 +17,8 @@ python:
 - '3.8'
 install:
 - pip install --upgrade pip wheel
-- pip install -r requirements.txt
+- make install_development_requirements
 - make install
-- make install_extras
 before_script:
 - wget https://github.com/broadinstitute/cromwell/releases/download/45/cromwell-45.jar -O /tmp/cromwell-45.jar
 - export CROMWELL_JAR=/tmp/cromwell-45.jar
