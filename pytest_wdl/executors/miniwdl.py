@@ -14,10 +14,10 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import Optional, Sequence, cast
 
 from pytest_wdl.executors import (
-    Executor, ExecutionFailedError, read_write_inputs
+    Executor, ExecutionFailedError, get_target_name, read_write_inputs
 )
 
 import docker
@@ -29,7 +29,7 @@ class MiniwdlExecutor(Executor):
     Manages the running of WDL workflows using Cromwell.
     """
 
-    def __init__(self, import_dirs: Optional[List[Path]] = None):
+    def __init__(self, import_dirs: Optional[Sequence[Path]] = None):
         self._import_dirs = import_dirs
 
     def run_workflow(
@@ -62,32 +62,25 @@ class MiniwdlExecutor(Executor):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
-        doc = CLI.load(
+        wdl_doc = CLI.load(
             str(wdl_path),
             path=[str(path) for path in self._import_dirs],
             check_quant=kwargs.get("check_quant", True),
             read_source=CLI.read_source
         )
 
-        task = kwargs.get("task_name")
-        namespace = None
-
-        if not task:
-            if "workflow_name" in kwargs:
-                namespace = kwargs["workflow_name"]
-            else:
-                namespace = doc.workflow.name
+        namespace, is_task = get_target_name(wdl_doc=wdl_doc, **kwargs)
 
         inputs_dict, inputs_file = read_write_inputs(
-            inputs_dict=inputs, namespace=namespace,
+            inputs_dict=inputs, namespace=namespace if not is_task else None,
         )
 
         target, input_env, input_json = CLI.runner_input(
-            doc=doc,
+            doc=wdl_doc,
             inputs=[],
             input_file=str(inputs_file),
             empty=[],
-            task=task
+            task=namespace if is_task else None
         )
 
         logger = logging.getLogger("miniwdl-run")
@@ -142,7 +135,7 @@ class MiniwdlExecutor(Executor):
 
                 raise ExecutionFailedError(
                     "miniwdl",
-                    namespace or task,
+                    namespace,
                     status="Failed",
                     inputs=task_err.exe.inputs,
                     failed_task=task_err.exe.name,

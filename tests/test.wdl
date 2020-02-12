@@ -1,10 +1,14 @@
+version 1.0
+
 import "submodule.wdl"
 
 task cat {
-  File in_txt
+  input {
+    File in_txt
+  }
 
   command <<<
-    cat ${in_txt} > out.txt
+    cat ~{in_txt} > out.txt
   >>>
 
   runtime {
@@ -17,9 +21,11 @@ task cat {
 }
 
 workflow cat_file {
-  File in_txt
-  Int in_int
-  Boolean? fail
+  input {
+    File in_txt
+    Int in_int
+    Boolean? fail
+  }
 
   Boolean default_fail = select_first([fail, false])
 

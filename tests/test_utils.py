@@ -20,9 +20,16 @@ from unittest.mock import Mock
 import pytest
 
 from pytest_wdl.utils import (
-    tempdir, chdir, context_dir, ensure_path, resolve_file,
-    find_executable_path, find_project_path, env_map, plugin_factory_map,
-    safe_string
+    tempdir,
+    chdir,
+    context_dir,
+    ensure_path,
+    resolve_file,
+    find_executable_path,
+    find_project_path,
+    env_map,
+    plugin_factory_map,
+    safe_string,
 )
 from . import setenv, make_executable
 
@@ -118,6 +125,7 @@ def test_ensure_path():
         with pytest.raises(IsADirectoryError):
             ensure_path(baz, exists=True, is_file=True)
 
+
 def test_resolve_file():
     with tempdir() as d:
         assert resolve_file(d, project_root=None) == d
@@ -173,13 +181,10 @@ def test_find_executable_path_system():
 
 
 def test_env_map():
-    with setenv({
-        "FOOVAR1": "http://foo.com",
-    }):
-        assert env_map({
-            "http": "FOOVAR1",
-            "https": "FOOVAR2"
-        }) == {
+    with setenv(
+        {"FOOVAR1": "http://foo.com",}
+    ):
+        assert env_map({"http": "FOOVAR1", "https": "FOOVAR2"}) == {
             "http": "http://foo.com"
         }
 

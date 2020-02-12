@@ -22,8 +22,6 @@ from pytest_wdl.executors import (
 )
 from pytest_wdl.utils import tempdir
 
-from .dx_utils import NO_DX, DX_SKIP_MSG, random_project_folder
-
 
 WORKFLOW_EXECUTORS = ["cromwell", "miniwdl"]
 TASK_EXECUTORS = ["miniwdl"]
@@ -135,50 +133,6 @@ def test_execution_failure(workflow_data, workflow_runner, executor):
     err = cast(ExecutionFailedError, exc_info.value)
     assert "foo_fail" in err.failed_task
     assert err.failed_task_exit_status == 1
-
-
-# Test dxWDL separately
-@pytest.mark.integration
-@pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
-def test_dxwdl_workflow(workflow_data, workflow_runner):
-    with random_project_folder() as workflow_folder:
-        inputs = {
-            "in_txt": workflow_data["in_txt"],
-            "in_int": 1
-        }
-        outputs = {
-            "out_txt": workflow_data["out_txt"],
-            "out_int": 1
-        }
-        workflow_runner(
-            "test.wdl",
-            inputs,
-            outputs,
-            executors=["dxwdl"],
-            workflow_folder=workflow_folder
-        )
-
-
-# TODO: implement task support for dxWDL executor
-# @pytest.mark.skipif(NO_DX, reason=DX_SKIP_MSG)
-# def test_dxwdl_task(workflow_data, workflow_runner):
-#     with random_project_folder() as workflow_folder:
-#         inputs = {
-#             "in_txt": workflow_data["in_txt"],
-#             "in_int": 1
-#         }
-#         outputs = {
-#             "out_txt": workflow_data["out_txt"],
-#             "out_int": 1
-#         }
-#         workflow_runner(
-#             "test.wdl",
-#             inputs,
-#             outputs,
-#             executors=["dxwdl"],
-#             task_name="cat",
-#             workflow_folder=workflow_folder
-#         )
 
 
 def test_get_workflow_inputs():

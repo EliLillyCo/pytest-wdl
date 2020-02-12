@@ -17,15 +17,15 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import List, Optional, Union, cast
+from typing import Optional, Sequence, Union, cast
 
 import subby
 
 from pytest_wdl.executors import (
     ExecutionFailedError,
     JavaExecutor,
-    get_workflow_name,
-    read_write_inputs
+    get_target_name,
+    read_write_inputs,
 )
 from pytest_wdl.utils import LOG, ensure_path
 
@@ -104,7 +104,7 @@ class CromwellExecutor(JavaExecutor):
 
     def __init__(
         self,
-        import_dirs: Optional[List[Path]] = None,
+        import_dirs: Optional[Sequence[Path]] = None,
         java_bin: Optional[Union[str, Path]] = None,
         java_args: Optional[str] = None,
         cromwell_jar_file: Optional[Union[str, Path]] = None,
@@ -169,12 +169,16 @@ class CromwellExecutor(JavaExecutor):
             ExecutionFailedError: if there was an error executing Cromwell
             AssertionError: if the actual outputs don't match the expected outputs
         """
-        workflow_name = get_workflow_name(
-            wdl_path, import_dirs=self._import_dirs, **kwargs
+        target, is_task = get_target_name(
+            wdl_path=wdl_path, import_dirs=self._import_dirs, **kwargs
         )
+        if is_task:
+            raise ValueError(
+                "Cromwell cannot execute tasks independently of a workflow"
+            )
 
         inputs_dict, inputs_file = read_write_inputs(
-            inputs_dict=inputs, namespace=workflow_name
+            inputs_dict=inputs, namespace=target
         )
 
         imports_file = self._get_workflow_imports(kwargs.get("imports_file"))
@@ -214,7 +218,7 @@ class CromwellExecutor(JavaExecutor):
         else:
             error_kwargs = {
                 "executor": "cromwell",
-                "target": workflow_name,
+                "target": target,
                 "status": "Failed",
                 "inputs": inputs_dict,
                 "executor_stdout": exe.output,
@@ -232,10 +236,10 @@ class CromwellExecutor(JavaExecutor):
                     if failures.num_failed > 1:
                         error_kwargs["msg"] = \
                             f"cromwell failed on {failures.num_failed} instances of " \
-                            f"{failures.failed_task} of {workflow_name}; only " \
+                            f"{failures.failed_task} of {target}; only " \
                             f"showing output from the first failed task"
                 else:
-                    error_kwargs["msg"] = f"cromwell failed on workflow {workflow_name}"
+                    error_kwargs["msg"] = f"cromwell failed on workflow {target}"
             else:
                 error_kwargs["msg"] = \
                     f"Cromwell command failed but did not generate a metadata " \
@@ -244,7 +248,7 @@ class CromwellExecutor(JavaExecutor):
             raise ExecutionFailedError(**error_kwargs)
 
         if expected:
-            self._validate_outputs(outputs, expected, workflow_name)
+            self._validate_outputs(outputs, expected, target)
 
         return outputs
 
