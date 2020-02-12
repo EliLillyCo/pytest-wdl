@@ -122,7 +122,17 @@ def test_dx_input_formatter(request: FixtureRequest):
                     "VWX": "YZ1"
                 }
             }
-        }
+        },
+        "pair_string": {
+            "left": "left_string_val",
+            "right": "right_string_val"
+        },
+        "array_pair_string": [
+            {
+                "left": "left_string_val",
+                "right": "right_string_val"
+            }
+        ]
     }) == {
         "str": "abc",
         "array_str": ["def", "ghi"],
@@ -172,6 +182,20 @@ def test_dx_input_formatter(request: FixtureRequest):
                     }
                 }]
             }
+        },
+        "pair_string": {
+            "___": {
+                "left": "left_string_val",
+                "right": "right_string_val"
+            }
+        },
+        "array_pair_string": {
+            "___": [
+                {
+                    "left": "left_string_val",
+                    "right": "right_string_val"
+                }
+            ]
         }
     }
 
@@ -193,6 +217,40 @@ def test_dxwdl_workflow(workflow_data, workflow_runner):
         }
         workflow_runner(
             "test.wdl",
+            inputs,
+            outputs,
+            executors=["dxwdl"],
+            workflow_folder=workflow_folder
+        )
+
+
+@pytest.mark.integration
+def test_dxwdl_workflow_complex(workflow_data, workflow_runner):
+    """Test with some array of pairs of pairs that access members."""
+    with random_project_folder() as workflow_folder:
+        inputs = {
+            "in_txt": workflow_data["in_txt"],
+            "in_int": 1,
+            "array_pairs": [{
+                "left": "pair_key",
+                "right": "pair_val"
+              }],
+            "array_pair_pair_string": [
+                {
+                  "left": "pair_key",
+                  "right": {
+                    "left": "nested_pair_key",
+                    "right": "nested_pair_value"
+                  }
+                }
+              ]
+        }
+        outputs = {
+            "out_txt": workflow_data["out_txt"],
+            "out_int": 1
+        }
+        workflow_runner(
+            "test_complex.wdl",
             inputs,
             outputs,
             executors=["dxwdl"],
