@@ -83,7 +83,11 @@ def login(logout: bool = False, interactive: bool = True):
     if dxpy.SECURITY_CONTEXT:
         yield
     else:
-        conf = config.get_instance().get_provider_defaults("dxwdl")
+        if config.get_instance():
+            conf = config.get_instance().get_provider_defaults("dxwdl")
+        else:
+            conf = {}
+
         username = conf.get("username")
         token = conf.get("token")
 
