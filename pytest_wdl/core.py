@@ -22,8 +22,9 @@ from pytest_wdl.executors import Executor
 from pytest_wdl.localizers import (
     LinkLocalizer, StringLocalizer, JsonLocalizer, UrlLocalizer
 )
+from pytest_wdl.plugins import plugin_factory_map
 from pytest_wdl.url_schemes import install_schemes
-from pytest_wdl.utils import ensure_path, plugin_factory_map
+from pytest_wdl.utils import ensure_path
 
 
 DATA_TYPES = plugin_factory_map(DataFile, "pytest_wdl.data_types")

@@ -21,7 +21,8 @@ from urllib.request import BaseHandler, Request, build_opener, install_opener
 
 from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, PluginError, PluginFactory, verify_digests
+from pytest_wdl.plugins import PluginError, PluginFactory
+from pytest_wdl.utils import LOG, verify_digests
 
 try:
     from tqdm import tqdm as progress

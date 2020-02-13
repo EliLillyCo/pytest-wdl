@@ -70,7 +70,7 @@ $ pip install pytest-wdl[all]
 
 ## Configuration
 
-Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
  
 * [simple](examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
 * [more complex](examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
@@ -103,6 +103,8 @@ This test will execute a workflow (such as the following one) with the specified
 # variant_caller.wdl
 version 1.0
 
+import "variant_caller.wdl"
+
 struct Index {
   File fasta
   String organism
@@ -115,7 +117,7 @@ workflow call_variants {
     Index index
   }
   
-  call variant_caller {
+  call variant_caller.variant_caller {
     input:
       bam=bam,
       bai=bai,
@@ -126,8 +128,6 @@ workflow call_variants {
     File vcf = variant_caller.vcf
   }
 }
-
-task variant_caller { ... }
 ```
 
 Input and output data are defined in a `test_data.json` file in the same directory as your test script:
