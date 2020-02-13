@@ -14,6 +14,8 @@ workflow test {
     TestStruct struc
     Array[TestStruct] array_struc
     Map[String, TestStruct] map_str_struc
+    Pair[String, String] pair_str_str
+    Array[Pair[String, String]] array_pair_str_str
   }
 
   call test_task {
