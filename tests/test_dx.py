@@ -9,8 +9,9 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 
 from pytest_wdl.executors import parse_wdl
+from pytest_wdl.plugins import PluginError
 from pytest_wdl.url_schemes import Response
-from pytest_wdl.utils import PluginError, tempdir
+from pytest_wdl.utils import tempdir
 
 SKIP_REASON = "dxpy is not installed; DNAnexus URL handler and dxWDL executor will " \
               "not be tested"
