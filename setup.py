@@ -48,7 +48,7 @@ setup(
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
-            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor[miniwdl]",
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
             "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": [
