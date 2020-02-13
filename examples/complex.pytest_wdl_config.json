@@ -17,6 +17,7 @@
       "env": "TOKEN"
     }
   ],
+  "default_executors": ["miniwdl", "cromwell"],
   "executors": {
     "cromwell": {
       "java_bin": "/usr/local/bin/java",

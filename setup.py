@@ -7,7 +7,6 @@ extras_require = {
     "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
     "progress": ["tqdm"],
-    "miniwdl": ["docker>=3.4.0"],
 }
 extras_require["all"] = list(set(
     lib
