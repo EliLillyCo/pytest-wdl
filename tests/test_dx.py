@@ -122,7 +122,17 @@ def test_dx_input_formatter(request: FixtureRequest):
                     "VWX": "YZ1"
                 }
             }
-        }
+        },
+        "pair_str_str": {
+            "left": "A",
+            "right": "B"
+        },
+        "array_pair_str_str": [
+            {
+                "left": "X",
+                "right": "Y"
+            }
+        ]
     }) == {
         "str": "abc",
         "array_str": ["def", "ghi"],
@@ -137,41 +147,48 @@ def test_dx_input_formatter(request: FixtureRequest):
                 "str": "pqr",
                 "array_str": ["stu", "vwx"],
                 "map_str_str": {
-                    "___": {
-                        "keys": ["xy1"],
-                        "values": ["234"]
-                    }
+                    "keys": ["xy1"],
+                    "values": ["234"]
                 }
             }
         },
-        "array_struc": [{
-            "___": {
+        "array_struc": {
+            "___": [{
                 "str": "567",
                 "array_str": ["890", "ABC"],
                 "map_str_str": {
-                    "___": {
-                        "keys": ["DEF"],
-                        "values": ["GHI"]
-                    }
+                    "keys": ["DEF"],
+                    "values": ["GHI"]
                 }
-            }
-        }],
+            }]
+        },
         "map_str_struc": {
             "___": {
                 "keys": ["JKL"],
                 "values": [{
-                    "___": {
-                        "str": "MNO",
-                        "array_str": ["PQR", "STU"],
-                        "map_str_str": {
-                            "___": {
-                                "keys": ["VWX"],
-                                "values": ["YZ1"]
-                            }
-                        }
+                    "str": "MNO",
+                    "array_str": ["PQR", "STU"],
+                    "map_str_str": {
+                        "keys": ["VWX"],
+                        "values": ["YZ1"]
                     }
                 }]
             }
+        },
+        "pair_str_str": {
+            "___": {
+                "left": "A",
+                "right": "B"
+            }
+        },
+        "array_pair_str_str": {
+            "___": [
+                {
+                    "left": "X",
+                    "right": "Y"
+                }
+
+            ]
         }
     }
 
