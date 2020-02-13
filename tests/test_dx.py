@@ -9,15 +9,19 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 
 from pytest_wdl.executors import parse_wdl
+from pytest_wdl.plugins import PluginError
 from pytest_wdl.url_schemes import Response
-from pytest_wdl.utils import PluginError, tempdir
+from pytest_wdl.utils import tempdir
 
-SKIP_REASON = "dxpy is not installed or user is not logged into a DNAnexus account; " \
-              "DNAnexus URL handler and dxWDL executor will not be tested"
+SKIP_REASON = "dxpy is not installed; DNAnexus URL handler and dxWDL executor will " \
+              "not be tested"
 
 try:
     dx = pytest.importorskip("pytest_wdl.providers.dx", reason=SKIP_REASON)
     dxpy = dx.dxpy
+    # Force non-interactive login since we may be running in a CI/CD environment
+    with dx.login(interactive=False):
+        assert dxpy.whoami()
 except PluginError as err:
     dxpy = None
 

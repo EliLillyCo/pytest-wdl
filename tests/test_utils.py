@@ -15,7 +15,6 @@
 import os
 import stat
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -28,7 +27,6 @@ from pytest_wdl.utils import (
     find_executable_path,
     find_project_path,
     env_map,
-    plugin_factory_map,
     safe_string,
 )
 from . import setenv, make_executable
@@ -187,27 +185,6 @@ def test_env_map():
         assert env_map({"http": "FOOVAR1", "https": "FOOVAR2"}) == {
             "http": "http://foo.com"
         }
-
-
-def test_plugin_factory_map():
-    ep1 = Mock()
-    ep1.name = "foo"
-    ep1.module_name = "pytest_wdl.foo"
-    ep2 = Mock()
-    ep2.name = "foo"
-    ep2.module_name = "bar.baz"
-    entry_points = [ep1, ep2]
-    pfmap = plugin_factory_map(None, entry_points=entry_points)
-    assert len(pfmap) == 1
-    assert "foo" in pfmap
-    assert pfmap["foo"].entry_point == ep2
-
-    ep3 = Mock()
-    ep3.name = "foo"
-    ep3.module_name = "blorf.bleep"
-    entry_points.append(ep3)
-    with pytest.raises(RuntimeError):
-        plugin_factory_map(None, entry_points=entry_points)
 
 
 def test_safe_string():

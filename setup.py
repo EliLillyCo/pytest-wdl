@@ -7,7 +7,6 @@ extras_require = {
     "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
     "progress": ["tqdm"],
-    "miniwdl": ["docker>=3.4.0"],
 }
 extras_require["all"] = list(set(
     lib
@@ -49,7 +48,7 @@ setup(
         ],
         "pytest_wdl.executors": [
             "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
-            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor[miniwdl]",
+            "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
             "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": [

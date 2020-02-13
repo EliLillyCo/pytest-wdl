@@ -30,19 +30,17 @@ from pytest_wdl.executors import (
     parse_wdl,
 )
 from pytest_wdl.localizers import UrlLocalizer
+from pytest_wdl.plugins import PluginError
 from pytest_wdl.url_schemes import Method, Request, Response, UrlHandler
-from pytest_wdl.utils import LOG, PluginError, ensure_path, verify_digests
+from pytest_wdl.utils import LOG, ensure_path, verify_digests
 
 try:
     # test whether dxpy is installed and the user is logged in
     import dxpy
-    assert dxpy.SECURITY_CONTEXT
-    assert dxpy.whoami()
-except Exception as err:
+except ImportError as err:
     raise PluginError(
-        "DNAnexus (dx) extensions require that a) you install 'dxpy' "
-        "(try 'pip install dxpy') and b) you log into your DNAnexus account via the "
-        "command line (try 'dx login')."
+        "DNAnexus (dx) extensions require that you install 'dxpy' "
+        "(try 'pip install dxpy')."
     ) from err
 
 from dxpy.scripts import dx
@@ -63,7 +61,19 @@ STDERR_LOG = "STDERR"
 
 
 @contextlib.contextmanager
-def login(logout: bool = False):
+def login(logout: bool = False, interactive: bool = True):
+    """
+    Checks that the user is logged into DNAnexus, otherwise log them in.
+
+    Args:
+        logout: Whether to log out before exiting the context. Ignored if the user is
+            already logged in.
+        interactive: Whether to allow interactive login.
+
+    Raises:
+        PluginError: if `interactive` is `False` and the user cannot be logged in
+            non-interactively
+    """
     if dxpy.SECURITY_CONTEXT:
         try:
             dxpy.whoami()
@@ -73,7 +83,11 @@ def login(logout: bool = False):
     if dxpy.SECURITY_CONTEXT:
         yield
     else:
-        conf = config.get_instance().get_provider_defaults("dxwdl")
+        if config.get_instance():
+            conf = config.get_instance().get_provider_defaults("dxwdl")
+        else:
+            conf = {}
+
         username = conf.get("username")
         token = conf.get("token")
 
@@ -94,13 +108,24 @@ def login(logout: bool = False):
 
         try:
             if not token and "password" in conf:
+                # Use configured credentials to log user in automatically
                 with patch("builtins.input", return_value=username), \
                         patch("getpass.getpass", return_value=conf["password"]):
                     dx.login(args)
+            elif not (token or interactive):
+                raise ValueError(
+                    "User is not logged in, credentials were not provided, and "
+                    "interactive login is not allowed"
+                )
             else:
                 # If token is not specified, this will require interactive login
                 dx.login(args)
+
             yield
+        except Exception as lerr:
+            raise PluginError(
+                "DNAnexus (dx) extensions require you to be logged into your account"
+            ) from lerr
         finally:
             if logout:
                 dx.logout(args)
