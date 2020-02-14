@@ -202,6 +202,7 @@ def test_dx_input_formatter_with_data_files():
 
 
 @pytest.mark.integration
+@pytest.mark.remote
 def test_dxwdl_workflow(workflow_data, workflow_runner):
     with random_project_folder() as workflow_folder:
         inputs = {
@@ -223,6 +224,7 @@ def test_dxwdl_workflow(workflow_data, workflow_runner):
 
 # TODO: implement task support for dxWDL executor
 # @pytest.mark.integration
+# @pytest.mark.remote
 # def test_dxwdl_task(workflow_data, workflow_runner):
 #     with random_project_folder() as workflow_folder:
 #         inputs = {

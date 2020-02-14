@@ -19,5 +19,6 @@ def test_workflow(workflow_data, workflow_runner):
     workflow_runner(
         "workflow.wdl",
         inputs,
-        expected
+        expected,
+        executors=["cromwell"]
     )

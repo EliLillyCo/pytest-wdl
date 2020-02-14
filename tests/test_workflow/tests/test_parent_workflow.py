@@ -28,5 +28,6 @@ def test_hello_world_parent_workflow(workflow_data, workflow_runner):
     workflow_runner(
         "parent_workflow.wdl",
         inputs,
-        expected
+        expected,
+        executors=["cromwell"]
     )
