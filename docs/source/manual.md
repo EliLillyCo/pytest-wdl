@@ -443,12 +443,12 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`
 
 To get started, you can copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
  
-* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
 
 The available configuration options are listed in the following table:
 
