@@ -22,6 +22,8 @@ from typing import Dict, List, Optional, Union
 from pytest_wdl.utils import ensure_path, env_map
 
 
+ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
+DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
 ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
 KEY_CACHE_DIR = "cache_dir"
 ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
@@ -31,6 +33,7 @@ KEY_HTTP_HEADERS = "http_headers"
 KEY_SHOW_PROGRESS = "show_progress"
 ENV_DEFAULT_EXECUTORS = "PYTEST_WDL_EXECUTORS"
 KEY_DEFAULT_EXECUTORS = "default_executors"
+DEFAULT_EXECUTORS = ["miniwdl"]
 KEY_EXECUTORS = "executors"
 
 
@@ -76,6 +79,7 @@ class UserConfiguration:
         show_progress: Optional[bool] = None,
         executors: Optional[str] = None,
         executor_defaults: Optional[Dict[str, dict]] = None,
+        provider_defaults: Optional[Dict[str, dict]] = None,
     ):
         if config_file:
             with open(config_file, "rt") as inp:
@@ -95,6 +99,7 @@ class UserConfiguration:
             self.cache_dir = Path(tempfile.mkdtemp())
             if remove_cache_dir is None:
                 remove_cache_dir = True
+
         self.remove_cache_dir = remove_cache_dir
 
         if not execution_dir:
@@ -103,6 +108,7 @@ class UserConfiguration:
             )
             if execution_dir_str:
                 execution_dir = ensure_path(execution_dir_str)
+
         if execution_dir:
             self.default_execution_dir = ensure_path(
                 execution_dir, is_file=False, create=True
@@ -112,6 +118,7 @@ class UserConfiguration:
 
         if not proxies and KEY_PROXIES in defaults:
             proxies = env_map(defaults[KEY_PROXIES])
+
         self.proxies = proxies or {}
 
         if not http_headers and KEY_HTTP_HEADERS in defaults:
@@ -119,6 +126,7 @@ class UserConfiguration:
             for d in http_headers:
                 if "pattern" in d:
                     d["pattern"] = re.compile(d.pop("pattern"))
+
         self.default_http_headers = http_headers or []
 
         self.show_progress = show_progress
@@ -131,14 +139,25 @@ class UserConfiguration:
             if executors_str:
                 executors = executors_str.split(",")
             else:
-                executors = defaults.get(KEY_DEFAULT_EXECUTORS, ["cromwell"])
+                executors = defaults.get(KEY_DEFAULT_EXECUTORS, DEFAULT_EXECUTORS)
+
         self.executors = executors
 
         self.executor_defaults = executor_defaults or {}
+
         if "executors" in defaults:
             for name, d in defaults["executors"].items():
+                name = name.lower()
                 if name not in self.executor_defaults:
                     self.executor_defaults[name] = d
+
+        self.provider_defaults = provider_defaults or {}
+
+        if "providers" in defaults:
+            for name, d in defaults["providers"].items():
+                name = name.lower()
+                if name not in self.provider_defaults:
+                    self.provider_defaults[name] = d
 
     def get_executor_defaults(self, executor_name: str) -> dict:
         """
@@ -150,7 +169,19 @@ class UserConfiguration:
         Returns:
             A dict with the executor configuration values, if any.
         """
-        return self.executor_defaults.get(executor_name, {})
+        return self.executor_defaults.get(executor_name.lower(), {})
+
+    def get_provider_defaults(self, provider_name: str) -> dict:
+        """
+        Get default configuration values for the given provider.
+
+        Args:
+            provider_name: The provider name
+
+        Returns:
+            A dict with the provider configuration values, if any.
+        """
+        return self.provider_defaults.get(provider_name.lower(), {})
 
     def cleanup(self) -> None:
         """
@@ -159,3 +190,53 @@ class UserConfiguration:
         """
         if self.remove_cache_dir:
             shutil.rmtree(self.cache_dir, ignore_errors=True)
+
+
+_INSTANCE: Optional[UserConfiguration] = None
+
+
+def default_user_config_file() -> Path:
+    config_file = os.environ.get(ENV_USER_CONFIG)
+    config_path = None
+
+    if config_file:
+        config_path = ensure_path(config_file)
+    else:
+        default_config_paths = [
+            Path.home() / DEFAULT_USER_CONFIG_FILE,
+            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
+        ]
+        for default_config_path in default_config_paths:
+            if default_config_path.exists():
+                config_path = default_config_path
+                break
+
+    if config_path and not config_path.exists():
+        raise FileNotFoundError(f"Config file {config_path} does not exist")
+
+    return config_path
+
+
+def set_instance(
+    config: Optional[UserConfiguration] = None,
+    path: Optional[Path] = None,
+):
+    global _INSTANCE
+    if config:
+        _INSTANCE = config
+    else:
+        if not path:
+            path = default_user_config_file()
+        _INSTANCE = UserConfiguration(path)
+
+
+def get_instance() -> UserConfiguration:
+    global _INSTANCE
+    return _INSTANCE
+
+
+def cleanup():
+    global _INSTANCE
+    if _INSTANCE:
+        _INSTANCE.cleanup()
+    _INSTANCE = None

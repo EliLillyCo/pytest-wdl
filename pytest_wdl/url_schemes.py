@@ -21,7 +21,8 @@ from urllib.request import BaseHandler, Request, build_opener, install_opener
 
 from pkg_resources import iter_entry_points
 
-from pytest_wdl.utils import LOG, PluginFactory, verify_digests
+from pytest_wdl.plugins import PluginError, PluginFactory
+from pytest_wdl.utils import LOG, verify_digests
 
 try:
     from tqdm import tqdm as progress
@@ -169,15 +170,18 @@ class UrlHandler(BaseHandler, metaclass=ABCMeta):
 
 
 def install_schemes():
-    def create_handler(entry_point):
-        handler_factory = PluginFactory(entry_point, UrlHandler)
+    def create_handler(_entry_point):
+        handler_factory = PluginFactory(_entry_point, UrlHandler)
         handler = handler_factory()
         handler.alias()
         return handler
 
-    handlers = [
-        create_handler(entry_point)
-        for entry_point in iter_entry_points(group="pytest_wdl.url_schemes")
-    ]
+    handlers = []
+
+    for entry_point in iter_entry_points(group="pytest_wdl.url_schemes"):
+        try:
+            handlers.append(create_handler(entry_point))
+        except PluginError:
+            pass
 
     install_opener(build_opener(*handlers))

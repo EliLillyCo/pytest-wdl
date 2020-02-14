@@ -8,10 +8,13 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 
 ## Dependencies
 
-* Python 3.6 or 3.7 (3.8 is not yet fully supported)
-* Java 1.8+
-* [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
-* [Docker](https://www.docker.com/get-started) daemon (if your WDL tasks depend on Docker images)
+* Python 3.6+
+* At least one of the supported workflow engines:
+    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) - automatically installed as a dependency of pytest-wdl
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
+    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
+* Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
+* If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
 
 Other python dependencies are installed when you install the library.
 
@@ -39,21 +42,18 @@ $ pip install git+https://github.com/elilillyco/pytest-wdl.git
 
 ### Install optional dependencies
 
-Some optional features of pytest-wdl have additional dependencies that are loaded on-demand. For example, to enable comparison of expected and actual BAM file outputs of a workflow, the [pysam](https://pysam.readthedocs.io/) library is required.
+Some optional features of pytest-wdl have additional dependencies that are loaded on-demand.
 
-The following plugins require an "extras" installation:
+The plugins that have extra dependencies are:
 
-- Data types
-    - bam
-- URL schemes
-    - dx (DNAnexus)
-- Other
-    - progress (show progress bars when downloading files)
+* dx: Support for DNAnexus file storage, and for the dxWDL executor.
+* bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
+* progress: Show progress bars when downloading remote files.
 
-To install the dependencies for a data type that has extra dependencies:
+To install a plugin's dependencies:
 
 ```
-$ pip install pytest-wdl[<data_type>]
+$ pip install pytest-wdl[<plugin>]
 ```
 
 To do this locally, you can clone the repo and run:
@@ -67,6 +67,15 @@ To install pytest-wdl and **all** extras dependencies:
 ```
 $ pip install pytest-wdl[all]
 ```
+
+## Configuration
+
+Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+ 
+* [simple](examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+
+See the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configuration) for more details on configuring pytest-wdl.
 
 ## Usage
 
@@ -94,6 +103,8 @@ This test will execute a workflow (such as the following one) with the specified
 # variant_caller.wdl
 version 1.0
 
+import "variant_caller.wdl"
+
 struct Index {
   File fasta
   String organism
@@ -105,7 +116,14 @@ workflow call_variants {
     File bai
     Index index
   }
-  ...
+  
+  call variant_caller.variant_caller {
+    input:
+      bam=bam,
+      bai=bai,
+      index=index
+  }
+
   output {
     File vcf = variant_caller.vcf
   }
@@ -137,11 +155,13 @@ For details, [read the docs](https://pytest-wdl.readthedocs.io).
 
 ## Contributing
 
-To develop pytest-wdl, clone the repository and install all the dependencies:
+If you would like to contribute code to pytest-wdl, please fork the repository and submit your changes via pull request.
+
+To get started developing pytest-wdl, first install all the development requirements:
 
 ```commandline
 $ git clone https://github.com/EliLillyCo/pytest-wdl.git
-$ pip install -r requirements.txt
+$ make install_development_requirements
 ```
 
 To run the full build and unit tests, run:

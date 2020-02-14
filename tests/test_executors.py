@@ -11,21 +11,24 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-
 import json
 from typing import cast
 
 import pytest
 
-from pytest_wdl.core import EXECUTORS, DefaultDataFile, create_executor
+from pytest_wdl.core import DefaultDataFile, create_executor
 from pytest_wdl.executors import (
-    ExecutionFailedError, get_workflow_inputs, make_serializable, validate_outputs
+    Executor, ExecutionFailedError, InputsFormatter, read_write_inputs
 )
 from pytest_wdl.utils import tempdir
 
 
+WORKFLOW_EXECUTORS = ["cromwell", "miniwdl"]
+TASK_EXECUTORS = ["miniwdl"]
+
+
 @pytest.mark.integration
-@pytest.mark.parametrize("executor", EXECUTORS.keys())
+@pytest.mark.parametrize("executor", WORKFLOW_EXECUTORS)
 def test_executors(workflow_data, workflow_runner, executor):
     inputs = {
         "in_txt": workflow_data["in_txt"],
@@ -65,7 +68,7 @@ def test_multiple_executors(workflow_data, workflow_runner):
         "test.wdl",
         inputs,
         outputs,
-        executors=EXECUTORS.keys()
+        executors=WORKFLOW_EXECUTORS
     )
 
 
@@ -90,7 +93,7 @@ def test_multiple_executors(workflow_data, workflow_runner):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("executor", ["miniwdl"])
+@pytest.mark.parametrize("executor", TASK_EXECUTORS)
 def test_task(workflow_data, workflow_runner, executor):
     inputs = {
         "in_txt": workflow_data["in_txt"],
@@ -108,7 +111,7 @@ def test_task(workflow_data, workflow_runner, executor):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("executor", EXECUTORS.keys())
+@pytest.mark.parametrize("executor", WORKFLOW_EXECUTORS)
 def test_execution_failure(workflow_data, workflow_runner, executor):
     inputs = {
         "in_txt": workflow_data["in_txt"],
@@ -133,8 +136,8 @@ def test_execution_failure(workflow_data, workflow_runner, executor):
 
 
 def test_get_workflow_inputs():
-    actual_inputs_dict, inputs_path = get_workflow_inputs(
-        {"bar": 1}, namespace="foo"
+    actual_inputs_dict, inputs_path = read_write_inputs(
+        inputs_dict={"bar": 1}, namespace="foo"
     )
     assert inputs_path.exists()
     with open(inputs_path, "rt") as inp:
@@ -145,8 +148,8 @@ def test_get_workflow_inputs():
 
     with tempdir() as d:
         inputs_file = d / "inputs.json"
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            {"bar": 1}, inputs_file, "foo"
+        actual_inputs_dict, inputs_path = read_write_inputs(
+            inputs_dict={"bar": 1}, namespace="foo", inputs_file=inputs_file
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
@@ -161,8 +164,8 @@ def test_get_workflow_inputs():
         inputs_dict = {"foo.bar": 1}
         with open(inputs_file, "wt") as out:
             json.dump(inputs_dict, out)
-        actual_inputs_dict, inputs_path = get_workflow_inputs(
-            inputs_file=inputs_file, namespace="foo"
+        actual_inputs_dict, inputs_path = read_write_inputs(
+            namespace="foo", inputs_file=inputs_file
         )
         assert inputs_file == inputs_path
         assert inputs_path.exists()
@@ -171,19 +174,21 @@ def test_get_workflow_inputs():
         assert actual_inputs_dict == inputs_dict
 
 
-def test_make_serializable():
-    assert make_serializable(1) == 1
-    assert make_serializable("foo") == "foo"
-    assert make_serializable((1.1, 2.2)) == [1.1, 2.2]
+def test_inputs_formatter():
+    formatter = InputsFormatter.get_instance()
+
+    assert formatter.format_value(1) == 1
+    assert formatter.format_value("foo") == "foo"
+    assert formatter.format_value((1.1, 2.2)) == [1.1, 2.2]
 
     with tempdir() as d:
         foo = d / "foo"
         with open(foo, "wt") as out:
             out.write("foo")
         df = DefaultDataFile(foo)
-        assert make_serializable(df) == foo
-        assert make_serializable([df]) == [foo]
-        assert make_serializable({"a": df}) == {"a": foo}
+        assert formatter.format_value(df) == foo
+        assert formatter.format_value([df]) == [foo]
+        assert formatter.format_value({"a": df}) == {"a": foo}
 
     class Obj:
         def __init__(self, a: str, b: int):
@@ -196,7 +201,7 @@ def test_make_serializable():
                 "b": self.b
             }
 
-    assert make_serializable(Obj("hi", 1)) == {"a": "hi", "b": 1}
+    assert formatter.format_value(Obj("hi", 1)) == {"a": "hi", "b": 1}
 
 
 def test_create_executor():
@@ -206,51 +211,51 @@ def test_create_executor():
 
 def test_validate_outputs():
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": 1}, ""
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"baz": 1}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": None}, {"bar": None}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": None}, {"bar": 1}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": None}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": [1, 2, 3]}, {"bar": [1, 2, 3]}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": [1, 2, 3]}, {"bar": [1, 2]}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": [1, 2, 3]}, {"bar": [3, 2, 1]}, "foo"
         )
-    validate_outputs(
+    Executor._validate_outputs(
         {"foo.bar": {"a": 1}}, {"bar": {"a": 1}}, "foo"
     )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"b": 1}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"a": 1, "b": 2}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": {"a": 1}}, {"bar": {"a": 2}}, "foo"
         )
     with pytest.raises(AssertionError):
-        validate_outputs(
+        Executor._validate_outputs(
             {"foo.bar": 1}, {"bar": 2}, "foo"
         )

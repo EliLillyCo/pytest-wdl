@@ -22,8 +22,9 @@ from pytest_wdl.executors import Executor
 from pytest_wdl.localizers import (
     LinkLocalizer, StringLocalizer, JsonLocalizer, UrlLocalizer
 )
+from pytest_wdl.plugins import plugin_factory_map
 from pytest_wdl.url_schemes import install_schemes
-from pytest_wdl.utils import ensure_path, plugin_factory_map
+from pytest_wdl.utils import ensure_path
 
 
 DATA_TYPES = plugin_factory_map(DataFile, "pytest_wdl.data_types")
@@ -48,17 +49,25 @@ class DataDirs:
         function: Callable,
         cls: Optional[Type] = None
     ):
+        # If there are packages in the tests/ folder (i.e. if there are __init__.py
+        # files), we need to drop any packages from the module_path since they
+        # will conflict with basedir.
         module_path = module.__name__.split(".")
-        if len(module_path) > 1:
-            for mod in reversed(module_path[:-1]):
-                if basedir.name == mod:
-                    basedir = basedir.parent
-                else:
-                    raise RuntimeError(
-                        f"Module path {module_path} does not match basedir {basedir}"
-                    )
+        num_pkgs = len(module_path) - 1
+
+        if num_pkgs > 0:
+            basedir_parts = basedir.parts
+
+            if (
+                len(basedir_parts) < num_pkgs
+                or tuple(basedir_parts[-num_pkgs:]) != tuple(module_path[:num_pkgs])
+            ):
+                raise RuntimeError(
+                    f"Module path {module_path} does not match basedir {basedir}"
+                )
+
         self.basedir = basedir
-        self.module = os.path.join(*module_path)
+        self.module = self.module = module_path[-1]
         self.function = function.__name__
         self.cls = cls.__name__ if cls else None
         self._paths = None
@@ -252,6 +261,6 @@ def create_executor(
     if not executor_class:
         raise RuntimeError(f"{executor_name} executor plugin is not installed")
     return executor_class(
-        import_dirs=import_dirs,
+        import_dirs,
         **user_config.get_executor_defaults(executor_name)
     )

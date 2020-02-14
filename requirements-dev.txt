@@ -1,0 +1,10 @@
+bleach==3.1.0
+coverage==5.0.3
+docutils==0.16
+keyring==21.1.0
+pkginfo==1.5.0.1
+Pygments==2.5.2
+readme-renderer==24.0
+requests-toolbelt==0.9.1
+twine==3.1.1
+webencodings==0.5.1

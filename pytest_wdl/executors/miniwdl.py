@@ -11,14 +11,16 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+import json
 import logging
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional, Sequence, cast
 
 from pytest_wdl.executors import (
-    Executor, ExecutionFailedError, get_workflow_inputs, validate_outputs
+    Executor, ExecutionFailedError, get_target_name, read_write_inputs
 )
 
+import docker
 from WDL import CLI, Error, Tree, runtime, _util
 
 
@@ -26,6 +28,9 @@ class MiniwdlExecutor(Executor):
     """
     Manages the running of WDL workflows using Cromwell.
     """
+
+    def __init__(self, import_dirs: Optional[Sequence[Path]] = None):
+        self._import_dirs = import_dirs
 
     def run_workflow(
         self,
@@ -57,52 +62,49 @@ class MiniwdlExecutor(Executor):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
-        doc = CLI.load(
+        wdl_doc = CLI.load(
             str(wdl_path),
-            path=[str(path) for path in self.import_dirs],
+            path=[str(path) for path in self._import_dirs],
             check_quant=kwargs.get("check_quant", True),
             read_source=CLI.read_source
         )
 
-        task = kwargs.get("task_name")
-        namespace = None
-        if not task:
-            if "workflow_name" in kwargs:
-                namespace = kwargs["workflow_name"]
-            else:
-                namespace = doc.workflow.name
+        namespace, is_task = get_target_name(wdl_doc=wdl_doc, **kwargs)
 
-        inputs_dict, inputs_file = get_workflow_inputs(
-            inputs,
-            kwargs.get("inputs_file"),
-            namespace=namespace
+        inputs_dict, inputs_file = read_write_inputs(
+            inputs_dict=inputs, namespace=namespace if not is_task else None,
         )
 
         target, input_env, input_json = CLI.runner_input(
-            doc=doc,
+            doc=wdl_doc,
             inputs=[],
             input_file=str(inputs_file),
             empty=[],
-            task=task
+            task=namespace if is_task else None
         )
 
         logger = logging.getLogger("miniwdl-run")
         logger.setLevel(CLI.NOTICE_LEVEL)
         CLI.install_coloredlogs(logger)
 
-        _util.ensure_swarm(logger)
+        # initialize Docker
+        client = docker.from_env()
+        try:
+            logger.debug("dockerd :: " + json.dumps(client.version())[1:-1])
+            _util.initialize_local_docker(logger, client)
+        finally:
+            client.close()
 
         try:
             if isinstance(target, Tree.Task):
                 entrypoint = runtime.run_local_task
             else:
                 entrypoint = runtime.run_local_workflow
+
             rundir, output_env = entrypoint(
                 target,
                 input_env,
-                #run_dir=rundir,
-                #copy_input_files=copy_input_files,
-                #max_workers=max_workers,
+                copy_input_files=kwargs.get("copy_input_files", False)
             )
         except Error.EvalError as err:  # TODO: test errors
             MiniwdlExecutor.log_source(logger, err)
@@ -132,7 +134,7 @@ class MiniwdlExecutor(Executor):
 
                 raise ExecutionFailedError(
                     "miniwdl",
-                    namespace or task,
+                    namespace,
                     status="Failed",
                     inputs=task_err.exe.inputs,
                     failed_task=task_err.exe.name,
@@ -145,7 +147,7 @@ class MiniwdlExecutor(Executor):
         outputs = CLI.values_to_json(output_env, namespace=target.name)
 
         if expected:
-            validate_outputs(outputs, expected, target.name)
+            self._validate_outputs(outputs, expected, target.name)
 
         return outputs
 
@@ -153,6 +155,7 @@ class MiniwdlExecutor(Executor):
     def read_miniwdl_command_std(path: Optional[str] = None) -> Optional[str]:
         if path:
             p = Path(path)
+
             if p.exists():
                 with open(path, "rt") as inp:
                     return inp.read()

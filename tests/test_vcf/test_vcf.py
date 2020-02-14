@@ -70,5 +70,6 @@ def test_vcf(workflow_data, workflow_runner):
         wdl_script="tests/test_vcf/test_vcf.wdl",
         workflow_name="test_vcf",
         inputs=workflow_data.get_dict("vcf"),
-        expected=workflow_data.get_dict("output_vcf")
+        expected=workflow_data.get_dict("output_vcf"),
+        executors=["cromwell"]
     )

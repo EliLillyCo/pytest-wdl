@@ -1,0 +1,12 @@
+{
+  "bam": {
+    "url": "https://github.com/ekg/freebayes/raw/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny/NA12878.chr22.tiny.bam"
+  },
+  "reference_fa": {
+    "url": "https://raw.githubusercontent.com/ekg/freebayes/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny/q.fa"
+  },
+  "vcf": {
+    "name": "NA12878.chr22.tiny.vcf",
+    "type": "vcf"
+  }
+}

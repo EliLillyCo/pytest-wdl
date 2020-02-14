@@ -4,7 +4,7 @@ tests = tests
 # Use this option to show full stack trace for errors
 #pytestopts = --full-trace
 #pytestopts = -ra --tb=short
-pytestopts = -s -vv --show-capture=all
+pytestopts =  -s -vv --show-capture=all -m "not remote"
 #pytestopts = -s -vv --show-capture=all -m "not integration"
 
 all: clean install install_extras install_development_requirements test test_release_setup
@@ -15,6 +15,7 @@ install: clean
 
 install_development_requirements:
 	pip install -r requirements.txt
+	pip install -r requirements-dev.txt
 
 install_extras:
 	pip install .[all]
@@ -36,6 +37,7 @@ reformat:
 
 clean:
 	rm -f .coverage
+	rm -f coverage.xml
 	rm -Rf .eggs
 	rm -Rf .pytest_cache
 	rm -Rf __pycache__
@@ -45,6 +47,7 @@ clean:
 	rm -Rf **/*.pyc
 	rm -Rf dist/
 	rm -Rf build/
+	rm -Rf docs/build
 	rm -Rf $(package).egg-info
 	rm -Rf cromwell-workflow-logs
 

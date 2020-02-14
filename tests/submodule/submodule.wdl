@@ -1,9 +1,17 @@
+version 1.0
+
 task foo {
-  String s
+  input {
+    String s
+  }
 
   command <<<
-  echo -e ${s} > output
+  echo -e ~{s} > output
   >>>
+
+  runtime {
+    docker: "frolvlad/alpine-bash:latest"
+  }
 
   output {
     File out = "output"
@@ -11,12 +19,18 @@ task foo {
 }
 
 task foo_fail {
-  String s
+  input {
+    String s
+  }
 
   command <<<
-  echo -e ${s} > output
+  echo -e ~{s} > output
   exit 1
   >>>
+
+  runtime {
+    docker: "frolvlad/alpine-bash:latest"
+  }
 
   output {
     File out = "output"

@@ -20,21 +20,18 @@ instead of string paths. For backward compatibility fixtures that produce a path
 still return string paths, but this support will be dropped in a future version.
 """
 import json
-import os
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
 
 from _pytest.fixtures import FixtureRequest
 from pytest_subtests import SubTests
 
-from pytest_wdl.core import (
-    DataResolver, DataManager, DataDirs, UserConfiguration, create_executor
-)
+from pytest_wdl import config
+from pytest_wdl.config import UserConfiguration
+from pytest_wdl.core import DataResolver, DataManager, DataDirs, create_executor
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
 
-ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
-DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
 DEFAULT_TEST_DATA_FILE = "test_data.json"
 DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
 
@@ -47,27 +44,12 @@ def user_config_file() -> Optional[Path]:
     Returns:
         Path to the confif file, or None if not specified.
     """
-    config_file = os.environ.get(ENV_USER_CONFIG)
-    config_path = None
-    if config_file:
-        config_path = ensure_path(config_file)
-    else:
-        default_config_paths = [
-            Path.home() / DEFAULT_USER_CONFIG_FILE,
-            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
-        ]
-        for default_config_path in default_config_paths:
-            if default_config_path.exists():
-                config_path = default_config_path
-                break
-    if config_path and not config_path.exists():
-        raise FileNotFoundError(f"Config file {config_path} does not exist")
-    return config_path
+    return config.default_user_config_file()
 
 
 def user_config(user_config_file: Optional[Path]) -> UserConfiguration:
-    config = UserConfiguration(user_config_file)
-    yield config
+    config.set_instance(path=user_config_file)
+    yield config.get_instance()
     config.cleanup()
 
 

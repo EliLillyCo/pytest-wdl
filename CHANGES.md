@@ -1,5 +1,14 @@
 # Changes
 
+## v1.3.0 (2020.02.14)
+
+* Added support for testing workflows on DNAnexus using [dxWDL](https://github.com/dnanexus/dxWDL)
+* Using DNAnexus-related features will cause the user to be automatically logged in to their account if not already logged in (log-in is interactive unless account credentials or a token are specified in the config file)
+* Enhanced support for [miniwdl]() and made it the default executor (to configure different default executor(s), see the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configuration))
+* Generate requirements.txt using `pip freeze`. Note that miniwdl is pegged to a specific version (0.6.4) because we depend on internal functionality; this limitation will be fixed in a future release
+* Many improvements to the manual (thanks @mlin for suggestions), including a new "quickstart" example project
+* Bugfix: within-project local data file resolution was implemented incorrectly for the case where there are packages (i.e. `__init__.py` files) in the `tests/` folder - it is now fixed.
+    
 ## v1.2.1 (2019.12.12)
 
 * Fixes #93 - ensures parent directories exist when localizing a file

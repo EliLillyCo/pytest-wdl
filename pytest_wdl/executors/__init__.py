@@ -13,21 +13,32 @@
 #    limitations under the License.
 from abc import ABCMeta, abstractmethod
 import json
+import os
 from pathlib import Path
 import tempfile
 import textwrap
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 from pytest_wdl.data_types import DataFile
-from pytest_wdl.utils import ensure_path, safe_string
+from pytest_wdl.utils import (
+    ensure_path, safe_string, find_executable_path, find_in_classpath
+)
 
-from WDL import Tree
+from WDL import Document, Tree
 
 
+ENV_JAVA_HOME = "JAVA_HOME"
+ENV_JAVA_ARGS = "JAVA_ARGS"
 INDENT = " " * 16
 
 
-class ExecutionFailedError(Exception):
+class ExecutorError(Exception):
+    def __init__(self, executor: str, msg: Optional[str] = None):
+        super().__init__(msg)
+        self.executor = executor
+
+
+class ExecutionFailedError(ExecutorError):
     def __init__(
         self,
         executor: str,
@@ -48,8 +59,7 @@ class ExecutionFailedError(Exception):
                       f"{failed_task} of {target}"
             else:
                 msg = f"{executor} failed with status {status} while running {target}"
-        super().__init__(msg)
-        self.executor = executor
+        super().__init__(executor, msg)
         self.target = target
         self.status = status
         self.inputs = inputs
@@ -89,28 +99,7 @@ class ExecutionFailedError(Exception):
 class Executor(metaclass=ABCMeta):
     """
     Base class for WDL workflow executors.
-
-    Args:
-        import_dirs: Relative or absolute paths to directories containing WDL
-            scripts that should be available as imports.
     """
-    def __init__(self, import_dirs: Optional[List[Path]] = None):
-        self.import_dirs = import_dirs or []
-
-    def _get_workflow_name(self, wdl_path: Path, kwargs: dict):
-        if "workflow_name" in kwargs:
-            return kwargs["workflow_name"]
-        elif Tree:
-            if "check_quant" not in kwargs:
-                kwargs["check_quant"] = False
-            doc = Tree.load(
-                str(wdl_path),
-                path=[str(path) for path in self.import_dirs],
-                **kwargs
-            )
-            return doc.workflow.name
-        else:  # TODO: test this
-            return safe_string(wdl_path.stem)
 
     @abstractmethod
     def run_workflow(
@@ -140,135 +129,290 @@ class Executor(metaclass=ABCMeta):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
+    @classmethod
+    def _validate_outputs(
+        cls: "Executor", outputs: dict, expected: dict, target: str
+    ) -> None:
+        """
+        Validate expected and actual outputs are equal.
 
-def get_workflow_inputs(
-    inputs_dict: Optional[dict] = None,
-    inputs_file: Optional[Path] = None,
-    namespace: Optional[str] = None
-) -> Tuple[dict, Path]:
-    """
-    Persist workflow inputs to a file, or load workflow inputs from a file.
+        Args:
+            outputs: Actual outputs
+            expected: Expected outputs
+            target: Execution target (i.e. workflow name)
 
-    Args:
-        inputs_dict: Dict of input names/values.
-        inputs_file: JSON file with workflow inputs.
-        namespace: Name of the workflow; used to prefix the input parameters when
-            creating the inputs file from the inputs dict.
+        Raises:
+            AssertionError
+        """
+        for name, expected_value in expected.items():
+            key = f"{target}.{name}"
+            if key not in outputs:
+                raise AssertionError(f"Workflow did not generate output {key}")
+            cls._compare_output_values(expected_value, outputs[key], key)
 
-    Returns:
-        A tuple (inputs_dict, inputs_file)
-    """
-    if inputs_file:
-        inputs_file = ensure_path(inputs_file)
-        if inputs_file.exists():
-            with open(inputs_file, "rt") as inp:
-                inputs_dict = json.load(inp)
-                return inputs_dict, inputs_file
+    @classmethod
+    def _compare_output_values(
+        cls: "Executor", expected_value, actual_value, name: str
+    ) -> None:
+        """
+        Compare two values and raise an error if they are not equal.
 
-    if inputs_dict:
-        prefix = f"{namespace}." if namespace else ""
-        inputs_dict = dict(
-            (f"{prefix}{key}", make_serializable(value))
-            for key, value in inputs_dict.items()
-        )
+        Args:
+            expected_value:
+            actual_value:
+            name: Name of the output being compared
 
-        if inputs_file:
-            inputs_file = ensure_path(inputs_file, is_file=True, create=True)
-        else:
-            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out, default=str)
-
-    return inputs_dict, inputs_file
-
-
-def make_serializable(value):
-    """
-    Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
-    Currently, arbitrary objects can be serialized by implementing an `as_dict()`
-    method, otherwise they are converted to strings.
-
-    Args:
-        value: The value to make serializable.
-
-    Returns:
-        The serializable value.
-    """
-    if isinstance(value, str):
-        return value
-    if isinstance(value, DataFile):
-        return value.path
-    if isinstance(value, dict):
-        return dict((k, make_serializable(v)) for k, v in value.items())
-    if isinstance(value, Sequence):
-        return [make_serializable(v) for v in value]
-    if hasattr(value, "as_dict"):
-        return value.as_dict()
-    return value
-
-
-def validate_outputs(outputs: dict, expected: dict, target: str) -> None:
-    """
-    Validate expected and actual outputs are equal.
-
-    Args:
-        outputs: Actual outputs
-        expected: Expected outputs
-        target: Execution target (i.e. workflow name)
-
-    Raises:
-        AssertionError
-    """
-    for name, expected_value in expected.items():
-        key = f"{target}.{name}"
-        if key not in outputs:
-            raise AssertionError(f"Workflow did not generate output {key}")
-        compare_output_values(expected_value, outputs[key], key)
-
-
-def compare_output_values(expected_value, actual_value, name: str) -> None:
-    """
-    Compare two values and raise an error if they are not equal.
-
-    Args:
-        expected_value:
-        actual_value:
-        name: Name of the output being compared
-
-    Raises:
-        AssertionError
-    """
-    if actual_value is None:
-        if expected_value is None:
-            return
-        else:
+        Raises:
+            AssertionError
+        """
+        if actual_value is None:
+            if expected_value is None:
+                return
+            else:
+                raise AssertionError(
+                    f"Expected and actual values differ for {name}: "
+                    f"{expected_value} != {actual_value}"
+                )
+        elif isinstance(expected_value, list):
+            if len(expected_value) != len(actual_value):
+                raise AssertionError(
+                    f"Expected and actual values differ in length for {name}: "
+                    f"{len(expected_value)} != {len(actual_value)}"
+                )
+            for i, (exp, act) in enumerate(zip(expected_value, actual_value)):
+                cls._compare_output_values(exp, act, f"{name}[{i}]")
+        elif isinstance(expected_value, dict):
+            if len(expected_value) != len(actual_value):
+                raise AssertionError(
+                    f"Expected and actual values differ in length for {name}: "
+                    f"{len(expected_value)} != {len(actual_value)}"
+                )
+            for key, exp in expected_value.items():
+                assert key in actual_value
+                cls._compare_output_values(exp, actual_value[key], f"{name}.{key}")
+        elif isinstance(expected_value, DataFile):
+            # TODO: pass name
+            expected_value.assert_contents_equal(actual_value)
+        elif expected_value != actual_value:
             raise AssertionError(
                 f"Expected and actual values differ for {name}: "
                 f"{expected_value} != {actual_value}"
             )
-    elif isinstance(expected_value, list):
-        if len(expected_value) != len(actual_value):
-            raise AssertionError(
-                f"Expected and actual values differ in length for {name}: "
-                f"{len(expected_value)} != {len(actual_value)}"
-            )
-        for i, (exp, act) in enumerate(zip(expected_value, actual_value)):
-            compare_output_values(exp, act, f"{name}[{i}]")
-    elif isinstance(expected_value, dict):
-        if len(expected_value) != len(actual_value):
-            raise AssertionError(
-                f"Expected and actual values differ in length for {name}: "
-                f"{len(expected_value)} != {len(actual_value)}"
-            )
-        for key, exp in expected_value.items():
-            assert key in actual_value
-            compare_output_values(exp, actual_value[key], f"{name}.{key}")
-    elif isinstance(expected_value, DataFile):
-        # TODO: pass name
-        expected_value.assert_contents_equal(actual_value)
-    elif expected_value != actual_value:
-        raise AssertionError(
-            f"Expected and actual values differ for {name}: "
-            f"{expected_value} != {actual_value}"
+
+
+class JavaExecutor(Executor, metaclass=ABCMeta):
+    """
+    Manages the running of WDL workflows using a Java-based executor.
+
+    Args:
+        java_bin: Path to the java executable.
+        java_args: Default Java arguments to use; can be overidden by passing
+            `java_args=...` to `run_workflow`.
+    """
+
+    def __init__(
+        self,
+        java_bin: Optional[Union[str, Path]] = None,
+        java_args: Optional[str] = None
+    ):
+        if not java_bin:
+            java_home = os.environ.get(ENV_JAVA_HOME)
+            if java_home:
+                java_bin = Path(java_home) / "bin" / "java"
+            else:
+                java_bin = find_executable_path("java")
+
+        if not java_bin:
+            raise FileNotFoundError("Could not find java executable")
+
+        self.java_bin = ensure_path(
+            java_bin, exists=True, is_file=True, executable=True
         )
+
+        self.java_args = java_args or os.environ.get(ENV_JAVA_ARGS)
+
+    @staticmethod
+    def resolve_jar_file(
+        file_name_pattern: str, jar_path: Optional[Path] = None,
+        env_var: Optional[str] = None,
+    ):
+        if not jar_path:
+            path_str = None
+            if env_var:
+                path_str = os.environ.get(env_var)
+            if path_str:
+                jar_path = ensure_path(path_str)
+            else:
+                jar_path = find_in_classpath(file_name_pattern)
+
+        if not jar_path:
+            raise FileNotFoundError(f"Could not find JAR file {file_name_pattern}")
+
+        return ensure_path(jar_path, is_file=True, exists=True)
+
+
+class InputsFormatter:
+    @classmethod
+    def get_instance(cls) -> "InputsFormatter":
+        if not hasattr(cls, "__instance"):
+            setattr(cls, "__instance", object.__new__(cls))
+
+        return getattr(cls, "__instance")
+
+    def format_inputs(
+        self, inputs_dict: dict, namespace: Optional[str] = None
+    ) -> dict:
+        prefix = f"{namespace}." if namespace else ""
+        return dict(
+            (f"{prefix}{key}", self.format_value(value))
+            for key, value in inputs_dict.items()
+        )
+
+    def format_value(self, value: Any) -> Any:
+        """
+        Convert a primitive, DataFile, Sequence, or Dict to a JSON-serializable object.
+        Currently, arbitrary objects can be serialized by implementing an `as_dict()`
+        method, otherwise they are converted to strings.
+
+        Args:
+            value: The value to format.
+
+        Returns:
+            The serializable value.
+        """
+        if hasattr(value, "as_dict"):
+            return value.as_dict()
+
+        if isinstance(value, DataFile):
+            return self._format_data_file(cast(DataFile, value))
+
+        if isinstance(value, dict):
+            return self._format_dict(cast(dict, value))
+
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return self._format_sequence(cast(Sequence, value))
+
+        return value
+
+    def _format_sequence(self, s: Sequence) -> list:
+        return [self.format_value(val) for val in s]
+
+    def _format_dict(self, d: dict) -> dict:
+        return dict((key, self.format_value(val)) for key, val in d.items())
+
+    def _format_data_file(self, df: DataFile) -> Union[str, dict]:
+        return df.path
+
+
+def parse_wdl(
+    wdl_path: Path,
+    import_dirs: Optional[Sequence[Path]] = (),
+    check_quant: bool = False,
+    **_
+) -> Document:
+    return Tree.load(
+        str(wdl_path),
+        path=[str(path) for path in import_dirs],
+        check_quant=check_quant
+    )
+
+
+def get_target_name(
+    wdl_path: Optional[Path] = None,
+    wdl_doc: Optional[Document] = None,
+    task_name: Optional[str] = None,
+    workflow_name: Optional[str] = None,
+    **kwargs
+) -> Tuple[str, bool]:
+    """
+    Get the execution target. The order of priority is:
+
+    - task_name
+    - workflow_name
+    - wdl_doc.workflow.name
+    - wdl_doc.task[0].name
+    - wdl_file.stem
+
+    Args:
+        wdl_path: Path to a WDL file
+        wdl_doc: A miniwdl-parsed WDL document
+        task_name: The task name
+        workflow_name: The workflow name
+        **kwargs: Additional keyword arguments to pass to `parse_wdl`
+
+    Returns:
+        A tuple (target, is_task), where `is_task` is a boolean indicating whether
+        the target is a task (True) or a workflow (False).
+
+    Raises:
+        ValueError if 1) neither `task_name` nor `workflow_name` is specified and the
+        WDL document contains no workflow and multiple tasks; or 2) all of the
+        parameters are None.
+    """
+    if task_name:
+        return task_name, True
+
+    if workflow_name:
+        return workflow_name, False
+
+    if not wdl_doc and Tree:
+        wdl_doc = parse_wdl(wdl_path, **kwargs)
+
+    if wdl_doc:
+        if wdl_doc.workflow:
+            return wdl_doc.workflow.name, False
+        elif wdl_doc.tasks and len(wdl_doc.tasks) == 1:
+            return wdl_doc.tasks[0].name, True
+        else:
+            raise ValueError(
+                "WDL document has no workflow and multiple tasks, and 'task_name' "
+                "is not specified"
+            )
+
+    if wdl_path:
+        return safe_string(wdl_path.stem), False
+
+    raise ValueError("At least one parameter must not be None")
+
+
+def read_write_inputs(
+    inputs_file: Optional[Union[str, Path]] = None,
+    inputs_dict: Optional[dict] = None,
+    inputs_formatter: Optional[InputsFormatter] = InputsFormatter.get_instance(),
+    **kwargs
+) -> Tuple[dict, Optional[Path]]:
+    """
+    If `inputs_file` is specified and it exists, read its contents. Otherwise, if
+    `inputs_dict` is specified, format it using `inputs_formatter` (if specified) and
+    write it to `inputs_file` or a temporary file.
+
+    Args:
+        inputs_file:
+        inputs_dict:
+        inputs_formatter:
+        kwargs:
+
+    Returns:
+        The (formatted) inputs dict and the resolved inputs file. If both `inputs_dict`
+        and `inputs_file` are None, returns `({}, None)`.
+    """
+    if inputs_file:
+        inputs_file = ensure_path(inputs_file, is_file=True, create=True)
+
+        if inputs_file.exists():
+            with open(inputs_file, "rt") as inp:
+                inputs_dict_from_file = json.load(inp)
+                return inputs_dict_from_file, inputs_file
+
+    if inputs_dict:
+        if not inputs_file:
+            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
+
+        inputs_dict = inputs_formatter.format_inputs(inputs_dict, **kwargs)
+
+        with open(inputs_file, "wt") as out:
+            json.dump(inputs_dict, out, default=str)
+
+        return inputs_dict, inputs_file
+
+    return {}, None

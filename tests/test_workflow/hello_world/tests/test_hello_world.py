@@ -26,5 +26,6 @@ def test_hello_world(workflow_data, workflow_runner):
     workflow_runner(
         "test_hello_world.wdl",
         inputs=inputs,
-        expected=expected
+        expected=expected,
+        executors=["cromwell"]
     )
