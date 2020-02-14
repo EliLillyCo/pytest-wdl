@@ -10,9 +10,9 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 
 * Python 3.6+
 * At least one of the supported workflow engines:
+    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) - automatically installed as a dependency of pytest-wdl
     * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
-    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
 

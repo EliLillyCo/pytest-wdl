@@ -6,9 +6,9 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 
 * Python 3.6+
 * At least one of the supported workflow engines:
-    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
-    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
-    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
+    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
+    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
 
@@ -318,7 +318,6 @@ An Executor is a wrapper around a WDL workflow execution engine that prepares in
 * [Cromwell](https://cromwell.readthedocs.io/)
 * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
 * [dxWDL](https://github.com/dnanexus/dxWDL)
-    * Note that DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor.
 
@@ -357,6 +356,12 @@ Requires the `dxpy` package to be installed.
 * `force`: Boolean; whether to force the workflow to be built even if the WDL file has not changed since the last build.
 * `archive`: Boolean; whether to archive existing applets/workflows (True) or overwrite them (False) when building the workflow. Defaults to True.
 * `extras`: [Extras file](https://github.com/dnanexus/dxWDL/blob/master/doc/ExpertOptions.md) to use when building the workflow.
+
+### Known limitations
+
+* pytest-wdl is currently pinned to [miniwdl version 0.6.4](https://github.com/chanzuckerberg/miniwdl/releases/tag/v0.6.4), which has the following known limitations:
+    * Task input files are mounted read-only by default; commands to rename or remove them can succeed only with --copy-input-files
+* DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 
 ## Configuration
 
@@ -464,7 +469,7 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (for Cromwell executor, if `cromwell_config_file` is specified) |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 
-####### Cromwell
+###### Cromwell
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
@@ -474,7 +479,7 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 
 Note that if you are doing your development locally and using Docker images you've built yourself, it is recommended to add `-Ddocker.hash-lookup.enabled=false` to `java_args` to disable Docker lookup by hash. Otherwise, you must push your Docker image(s) to a remote repository (e.g. DockerHub) before running your tests.
 
-####### dxWDL
+###### dxWDL
 
 The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus))), otherwise you will be asked to log in interactively.
 
