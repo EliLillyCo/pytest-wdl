@@ -155,7 +155,7 @@ $ pytest -s -vv --show-capture=all
 
 This test should run successfully, and you should see output that looks like this:
 
-![]("output.png")
+![](output.png)
 
 ## Project setup
 
