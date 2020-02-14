@@ -66,7 +66,7 @@ $ pip install pytest-wdl[all]
 
 ## Quick Start
 
-The full code for this quick-start project is available in the [examples](examples/quickstart) directory.
+The full code for this quick-start project is available in the [examples](https://github.com/EliLillyCo/pytest-wdl/tree/develop/examples/quickstart) directory.
 
 To demonstrate how to use pytest-wdl, we will create a simple variant calling workflow and tests with the following project structure:
 
@@ -147,7 +147,7 @@ This test executes a workflow with the specified inputs, and will compare the ou
 }
 ```
 
-To run this test, make sure you have pytest-wdl [installed](installation) and run the following command from within the project folder. The default executor (miniwdl) will be used to execute the workflow. You can configure any of the other supported executors by creating a [configuration file](#configuration).
+To run this test, make sure you have pytest-wdl [installed](#installation) and run the following command from within the project folder. The default executor (miniwdl) will be used to execute the workflow. You can configure any of the other supported executors by creating a [configuration file](#configuration).
 
 ```
 $ pytest -s -vv --show-capture=all
