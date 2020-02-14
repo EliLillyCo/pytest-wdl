@@ -5,7 +5,7 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 ## Dependencies
 
 * Python 3.6+
-* At least one of the supported workflow engines:
+* At least one of the supported workflow engines (see [Limitations](#limitations) for known limitations of these workflow engines):
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
     * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
@@ -147,7 +147,7 @@ This test will execute a workflow with the specified inputs, and will compare th
 
 In the following sections are descriptions of these fixtures and details on how to configure your tests' inputs, exected outputs, and other parameters.
 
-To run this test, make sure you have pytest-wdl [installed](installation) and run the following command from within the project folder:
+To run this test, make sure you have pytest-wdl [installed](installation) and run the following command from within the project folder. The default executor (miniwdl) will be used to execute the workflow. You can configure any of the other supported executors by creating a [configuration file](#configuration).
 
 ```
 $ pytest -s -vv --show-capture=all
@@ -386,9 +386,20 @@ Requires the `dxpy` package to be installed.
 
 ### Known limitations
 
+#### Cromwell
+
+* Cromwell issues are tracked in the [Broad's Jira](https://broadworkbench.atlassian.net/projects/BA/issues).
+
+#### miniwdl
+
 * pytest-wdl is currently pinned to [miniwdl version 0.6.4](https://github.com/chanzuckerberg/miniwdl/releases/tag/v0.6.4), which has the following known limitations:
     * Task input files are mounted read-only by default; commands to rename or remove them can succeed only with --copy-input-files
+* See the [miniwdl open issues](https://github.com/chanzuckerberg/miniwdl/issues) for other potential limitations
+
+#### dxWDL
+
 * DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
+* See the [dxWDL open issues](https://github.com/dnanexus/dxWDL/issues) for other potential limitations
 
 ## Configuration
 
