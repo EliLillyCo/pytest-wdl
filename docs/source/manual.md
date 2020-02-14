@@ -64,14 +64,94 @@ To install pytest-wdl and **all** extras dependencies:
 $ pip install pytest-wdl[all]
 ```
 
-## Configuration
+## Quick Start
 
-Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
- 
-* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+The full code for this quick-start project is available in the [examples](examples/quickstart) directory.
 
-See [Configuration](#configuration) for more details on configuring pytest-wdl.
+To demonstrate how to use pytest-wdl, we will create a simple variant calling workflow with the following project structure:
+
+```
+quickstart
+|_variant_caller.wdl
+|_freebayes.wdl
+|_tests
+  |_test_data.json
+  |_test_variant_caller.py
+```
+
+Our workflow is shown below. It requires a BAM file and a reference sequence, it calls a task to perform variant calling using [Freebayes](https://github.com/ekg/freebayes), and it returns a VCF file with the called variants.
+
+```wdl
+version 1.0
+
+struct Reference {
+  File fasta
+  String organism
+}
+
+workflow call_variants {
+  input {
+    File bam
+    Reference ref
+  }
+
+  call freebayes {
+    input:
+      bam=bam,
+      index=ref
+  }
+  
+  output {
+    File vcf = freebayes.vcf
+  }
+}
+
+task freebayes {...}
+```
+
+Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives with the following test function, which is in the `tests/test_variant_caller.py` file:
+
+```python
+def test_variant_caller(workflow_data, workflow_runner):
+    inputs = {
+        "bam": workflow_data["bam"],
+        "ref": {
+            "fasta": workflow_data["reference_fa"],
+            "organism": "human"
+        }
+    }
+    expected = workflow_data.get_dict("vcf")
+    workflow_runner(
+        "variant_caller.wdl",
+        inputs,
+        expected
+    )
+```
+
+This test will execute a workflow with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. The `workflow_data` fixture provides the test data files based on the following configuration in the `tests/test_data.json` files. Note that the files are stored remotely (in this case, in the [GitHub repository for FreeBayes](https://github.com/ekg/freebayes/tree/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny)) and are downloaded automatically when needed.
+
+```json
+{
+  "bam": {
+    "url": "https://.../NA12878.chr22.tiny.bam"
+  },
+  "reference_fa": {
+    "url": "https://.../q.fa"
+  },
+  "vcf": {
+    "url": "https://.../NA12878.chr22.tiny.giab.vcf",
+    "type": "vcf"
+  }
+}
+```
+
+In the following sections are descriptions of these fixtures and details on how to configure your tests' inputs, exected outputs, and other parameters.
+
+To run this test, make sure you have pytest-wdl [installed](installation) and run the following command from within the project folder:
+
+```
+$ pytest -s -vv --show-capture=all
+```
 
 ## Project setup
 
@@ -124,59 +204,6 @@ By default, pytest-wdl tries to find the files it is expecting relative to one o
 * Test context directory: starting from the directory in which pytest is executing the current test, the test context directory is the first directory up in the directory hierarchy that contains a "tests" subdirectory. The test context directory may differ between test modules, depending on the setup of your project:
     * In the "simple" and "multi-module with single test directory" examples, `myproject` would be the test context directory
     * In the "multi-module with separate test directories" example, the test context directory would be `myproject` when executing `myproject/tests/test_main.py` and `module1` when executing `myproject/module1/tests/test_module1.py`.
-
-## Writing tests
-
-Let's say you have the following workflow defined in a file called `variant_caller.wdl`:
-
-```wdl
-version 1.0
-
-import "variant_caller.wdl"
-
-struct Index {
-  File fasta
-  String organism
-}
-
-workflow call_variants {
-  input {
-    File bam
-    File bai
-    Index index
-  }
-
-  call variant_caller.variant_caller {
-    input:
-      bam=bam,
-      bai=bai,
-      index=index
-  }
-  
-  output {
-    File vcf = variant_caller.vcf
-  }
-}
-```
-
-Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives by creating a `test_variant_caller.py` file containing the following test function:
-
-```python
-def test_variant_caller(workflow_data, workflow_runner):
-    inputs = workflow_data.get_dict("bam", "bai")
-    inputs["index"] = {
-        "fasta": workflow_data["index_fa"],
-        "organism": "human"
-    }
-    expected = workflow_data.get_dict("vcf")
-    workflow_runner(
-        "variant_caller.wdl",
-        inputs,
-        expected
-    )
-```
-
-This test will execute a workflow (such as the following one) with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. In the following sections are descriptions of these fixtures and details on how to configure your tests' inputs, exected outputs, and other parameters.
 
 ## Fixtures
 
@@ -402,6 +429,11 @@ $ env FOO=bar echo "foo is $FOO"
 #### Configuration file
 
 The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
+
+To get started, you can copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+ 
+* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
 
 The available configuration options are listed in the following table:
 
