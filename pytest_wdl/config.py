@@ -33,6 +33,7 @@ KEY_HTTP_HEADERS = "http_headers"
 KEY_SHOW_PROGRESS = "show_progress"
 ENV_DEFAULT_EXECUTORS = "PYTEST_WDL_EXECUTORS"
 KEY_DEFAULT_EXECUTORS = "default_executors"
+DEFAULT_EXECUTORS = ["miniwdl"]
 KEY_EXECUTORS = "executors"
 
 
@@ -138,7 +139,7 @@ class UserConfiguration:
             if executors_str:
                 executors = executors_str.split(",")
             else:
-                executors = defaults.get(KEY_DEFAULT_EXECUTORS, ["miniwdl"])
+                executors = defaults.get(KEY_DEFAULT_EXECUTORS, DEFAULT_EXECUTORS)
 
         self.executors = executors
 
