@@ -26,12 +26,16 @@ task freebayes {
   input {
     File bam
     Reference ref
+    Float? min_alternate_fraction
   }
 
   String prefix = basename(bam, ".bam")
+  Float default_min_alternate_fraction = select_first([min_alternate_fraction, 0.2])
 
   command <<<
-  freebayes -v '~{prefix}.vcf.gz' --strict-vcf -f ~{ref.fasta} ~{bam}
+  freebayes -v '~{prefix}.vcf' -f ~{ref.fasta} \
+    -F ~{default_min_alternate_fraction} \
+    ~{bam}
   >>>
 
   runtime {
@@ -39,6 +43,6 @@ task freebayes {
   }
 
   output {
-    File vcf = "${prefix}.vcf.gz"
+    File vcf = "${prefix}.vcf"
   }
 }
