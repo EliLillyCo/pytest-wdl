@@ -1,11 +1,11 @@
 # User manual
 
-pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl). Test workflow inputs and expected outputs are [configured](#test_data) in a `test_data.json` file. Workflows are run by one or more [executors](#executors). By default, actual and expected outputs are compared by MD5 hash, but data type-specific comparisons are provided. Data types and executors are pluggable and can be provided via third-party packages. 
+pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl). Test workflow inputs and expected outputs are [configured](#test-data) in a `test_data.json` file. Workflows are run by one or more [executors](#executors). By default, actual and expected outputs are compared by MD5 hash, but data type-specific comparisons are provided. Data types and executors are pluggable and can be provided via third-party packages. 
 
 ## Dependencies
 
 * Python 3.6+
-* At least one of the supported workflow engines (see [Limitations](#limitations) for known limitations of these workflow engines):
+* At least one of the supported workflow engines (see [Limitations](#known-limitations) for known limitations of these workflow engines):
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
     * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
@@ -155,7 +155,7 @@ $ pytest -s -vv --show-capture=all
 
 This test should run successfully, and you should see output that looks like this:
 
-![]("output.png")
+![](output.png)
 
 ## Project setup
 
@@ -241,7 +241,7 @@ Test inputs and outputs are configured in a `test_data.json` file that is stored
 
 ### Files
 
-For file inputs and outputs, pytest-wdl offers several different options. Test data files may be located remotely (identified by a URL), located within the test directory (using the folder hierarchy established by the [datadir-ng](https://pypi.org/project/pytest-datadir-ng/) plugin), located at an arbitrary local path, or defined by specifying the file contents directly within the JSON file. Files that do not already exist locally are localized on-demand and stored in the [cache directory](#cache).
+For file inputs and outputs, pytest-wdl offers several different options. Test data files may be located remotely (identified by a URL), located within the test directory (using the folder hierarchy established by the [datadir-ng](https://pypi.org/project/pytest-datadir-ng/) plugin), located at an arbitrary local path, or defined by specifying the file contents directly within the JSON file. Files that do not already exist locally are localized on-demand and stored in the [cache directory](#configuration-file).
 
 Some additional options are available only for expected outputs, in order to specify how they should be compared to the actual outputs.
 
@@ -291,7 +291,7 @@ As a short-cut, the "class" attribute can be omitted and the map describing the 
 The available keys for configuring file inputs/outputs are:
 
 * `name`: Filename to use when localizing the file; when none of `url`, `path`, or `contents` are defined, `name` is also used to search for the data file within the tests directory, using the same directory structure defined by the [datadir-ng](https://pypi.org/project/pytest-datadir-ng/) fixture.
-* `path`: The local path to the file. If the path does not already exist, the file will be localized to this path. Typically, this is defined as a relative path that will be prefixed with the [cache directory](#cache) path. Environment variables can be used to enable the user to configure an environment-specific path.
+* `path`: The local path to the file. If the path does not already exist, the file will be localized to this path. Typically, this is defined as a relative path that will be prefixed with the [cache directory](#configuration-file) path. Environment variables can be used to enable the user to configure an environment-specific path.
 * `env`: The name of an environment variable in which to look up the local path of the file.
 * `url`: A URL that can be resolved by [urllib](https://docs.python.org/3/library/urllib.html).
     * `http_headers`: Optional dict mapping header names to values. These headers are used for file download requests. Keys are header names and values are either strings (environment variable name) or mappings with the following keys:
@@ -340,7 +340,7 @@ The default type if one is not specified.
     - `compare_tag_columns`: Whether to include tag columns (12+) when comparing all columns in the second comparison.
 
 \* requires extra dependencies to be installed, see 
-[Installing Data Type Plugins](#installing-data-type-plugins)
+[Install Optional Dependencies](#install-optional-dependencies)
 
 ## Executors
 
@@ -443,12 +443,10 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
-
-To get started, you can copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. To get started, you can copy one of the following example config files and modify as necessary:
  
-* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
 
 The available configuration options are listed in the following table:
 
@@ -528,7 +526,7 @@ Note that if you are doing your development locally and using Docker images you'
 
 ###### dxWDL
 
-The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus))), otherwise you will be asked to log in interactively.
+The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus)), otherwise you will be asked to log in interactively.
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
