@@ -1,11 +1,11 @@
 # User manual
 
-pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl). Test workflow inputs and expected outputs are [configured](#test_data) in a `test_data.json` file. Workflows are run by one or more [executors](#executors). By default, actual and expected outputs are compared by MD5 hash, but data type-specific comparisons are provided. Data types and executors are pluggable and can be provided via third-party packages. 
+pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit testing framework that enables testing of workflows written in [Workflow Description Language](https://github.com/openwdl). Test workflow inputs and expected outputs are [configured](#test-data) in a `test_data.json` file. Workflows are run by one or more [executors](#executors). By default, actual and expected outputs are compared by MD5 hash, but data type-specific comparisons are provided. Data types and executors are pluggable and can be provided via third-party packages. 
 
 ## Dependencies
 
 * Python 3.6+
-* At least one of the supported workflow engines (see [Limitations](#limitations) for known limitations of these workflow engines):
+* At least one of the supported workflow engines (see [Limitations](#known-limitations) for known limitations of these workflow engines):
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
     * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
@@ -340,7 +340,7 @@ The default type if one is not specified.
     - `compare_tag_columns`: Whether to include tag columns (12+) when comparing all columns in the second comparison.
 
 \* requires extra dependencies to be installed, see 
-[Installing Data Type Plugins](#installing-data-type-plugins)
+[Install Optional Dependencies](#install-optional-dependencies)
 
 ## Executors
 
@@ -526,7 +526,7 @@ Note that if you are doing your development locally and using Docker images you'
 
 ###### dxWDL
 
-The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus))), otherwise you will be asked to log in interactively.
+The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus)), otherwise you will be asked to log in interactively.
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
