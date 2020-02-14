@@ -5,10 +5,10 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 ## Dependencies
 
 * Python 3.6+
-* At least one of the supported workflow engines:
-    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
-    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
-    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
+* At least one of the supported workflow engines (see [Limitations](#limitations) for known limitations of these workflow engines):
+    * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
+    * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
 
@@ -64,14 +64,98 @@ To install pytest-wdl and **all** extras dependencies:
 $ pip install pytest-wdl[all]
 ```
 
-## Configuration
+## Quick Start
 
-Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
- 
-* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+The full code for this quick-start project is available in the [examples](https://github.com/EliLillyCo/pytest-wdl/tree/develop/examples/quickstart) directory.
 
-See [Configuration](#configuration) for more details on configuring pytest-wdl.
+To demonstrate how to use pytest-wdl, we will create a simple variant calling workflow and tests with the following project structure:
+
+```
+quickstart
+|_variant_caller.wdl
+|_tests
+  |_data
+  | |_NA12878.chr22.tiny.vcf
+  |_test_data.json
+  |_test_variant_caller.py
+```
+
+Our workflow is shown below. It requires a BAM file and a reference sequence, it calls a task to perform variant calling using [Freebayes](https://github.com/ekg/freebayes), and it returns a VCF file with the called variants.
+
+```wdl
+version 1.0
+
+struct Reference {
+  File fasta
+  String organism
+}
+
+workflow call_variants {
+  input {
+    File bam
+    Reference ref
+  }
+
+  call freebayes {
+    input:
+      bam=bam,
+      index=ref
+  }
+  
+  output {
+    File vcf = freebayes.vcf
+  }
+}
+
+task freebayes {...}
+```
+
+Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives with the following test function, which is in the `tests/test_variant_caller.py` file:
+
+```python
+def test_variant_caller(workflow_data, workflow_runner):
+    inputs = {
+        "bam": workflow_data["bam"],
+        "ref": {
+            "fasta": workflow_data["reference_fa"],
+            "organism": "human"
+        }
+    }
+    expected = workflow_data.get_dict("vcf")
+    workflow_runner(
+        "variant_caller.wdl",
+        inputs,
+        expected
+    )
+```
+
+This test executes a workflow with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. The `workflow_data` fixture provides the test data files based on the following configuration in the `tests/test_data.json` file. Note that some of the data files are stored remotely (in this case, in the [GitHub repository for FreeBayes](https://github.com/ekg/freebayes/tree/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny)) and are downloaded automatically when needed. Later in the mnaual you'll find [descriptions of these fixtures](#fixtures) and details on how to [configure](#configuration) your tests' inputs, exected outputs, and other parameters.
+
+
+```json
+{
+  "bam": {
+    "url": "https://.../NA12878.chr22.tiny.bam"
+  },
+  "reference_fa": {
+    "url": "https://.../q.fa"
+  },
+  "vcf": {
+    "name": "NA12878.chr22.tiny.vcf",
+    "type": "vcf"
+  }
+}
+```
+
+To run this test, make sure you have pytest-wdl [installed](#installation) and run the following command from within the project folder. The default executor (miniwdl) will be used to execute the workflow. You can configure any of the other supported executors by creating a [configuration file](#configuration).
+
+```
+$ pytest -s -vv --show-capture=all
+```
+
+This test should run successfully, and you should see output that looks like this:
+
+![]("output.png")
 
 ## Project setup
 
@@ -124,59 +208,6 @@ By default, pytest-wdl tries to find the files it is expecting relative to one o
 * Test context directory: starting from the directory in which pytest is executing the current test, the test context directory is the first directory up in the directory hierarchy that contains a "tests" subdirectory. The test context directory may differ between test modules, depending on the setup of your project:
     * In the "simple" and "multi-module with single test directory" examples, `myproject` would be the test context directory
     * In the "multi-module with separate test directories" example, the test context directory would be `myproject` when executing `myproject/tests/test_main.py` and `module1` when executing `myproject/module1/tests/test_module1.py`.
-
-## Writing tests
-
-Let's say you have the following workflow defined in a file called `variant_caller.wdl`:
-
-```wdl
-version 1.0
-
-import "variant_caller.wdl"
-
-struct Index {
-  File fasta
-  String organism
-}
-
-workflow call_variants {
-  input {
-    File bam
-    File bai
-    Index index
-  }
-
-  call variant_caller.variant_caller {
-    input:
-      bam=bam,
-      bai=bai,
-      index=index
-  }
-  
-  output {
-    File vcf = variant_caller.vcf
-  }
-}
-```
-
-Now you want to test that your workflow runs successfully. You also want to test that your workflow always produces the same output with a given input. You can accomplish both of these objectives by creating a `test_variant_caller.py` file containing the following test function:
-
-```python
-def test_variant_caller(workflow_data, workflow_runner):
-    inputs = workflow_data.get_dict("bam", "bai")
-    inputs["index"] = {
-        "fasta": workflow_data["index_fa"],
-        "organism": "human"
-    }
-    expected = workflow_data.get_dict("vcf")
-    workflow_runner(
-        "variant_caller.wdl",
-        inputs,
-        expected
-    )
-```
-
-This test will execute a workflow (such as the following one) with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. In the following sections are descriptions of these fixtures and details on how to configure your tests' inputs, exected outputs, and other parameters.
 
 ## Fixtures
 
@@ -318,7 +349,6 @@ An Executor is a wrapper around a WDL workflow execution engine that prepares in
 * [Cromwell](https://cromwell.readthedocs.io/)
 * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
 * [dxWDL](https://github.com/dnanexus/dxWDL)
-    * Note that DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor.
 
@@ -357,6 +387,23 @@ Requires the `dxpy` package to be installed.
 * `force`: Boolean; whether to force the workflow to be built even if the WDL file has not changed since the last build.
 * `archive`: Boolean; whether to archive existing applets/workflows (True) or overwrite them (False) when building the workflow. Defaults to True.
 * `extras`: [Extras file](https://github.com/dnanexus/dxWDL/blob/master/doc/ExpertOptions.md) to use when building the workflow.
+
+### Known limitations
+
+#### Cromwell
+
+* Cromwell issues are tracked in the [Broad's Jira](https://broadworkbench.atlassian.net/projects/BA/issues).
+
+#### miniwdl
+
+* pytest-wdl is currently pinned to [miniwdl version 0.6.4](https://github.com/chanzuckerberg/miniwdl/releases/tag/v0.6.4), which has the following known limitations:
+    * Task input files are mounted read-only by default; commands to rename or remove them can succeed only with --copy-input-files
+* See the [miniwdl open issues](https://github.com/chanzuckerberg/miniwdl/issues) for other potential limitations
+
+#### dxWDL
+
+* DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
+* See the [dxWDL open issues](https://github.com/dnanexus/dxWDL/issues) for other potential limitations
 
 ## Configuration
 
@@ -397,6 +444,11 @@ $ env FOO=bar echo "foo is $FOO"
 #### Configuration file
 
 The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. Here is an [example](https://github.com/EliLillyCo/pytest-wdl/examples/.pytest_wdl_config.json).
+
+To get started, you can copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+ 
+* [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
 
 The available configuration options are listed in the following table:
 
@@ -464,7 +516,7 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (for Cromwell executor, if `cromwell_config_file` is specified) |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 
-####### Cromwell
+###### Cromwell
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
@@ -474,7 +526,7 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 
 Note that if you are doing your development locally and using Docker images you've built yourself, it is recommended to add `-Ddocker.hash-lookup.enabled=false` to `java_args` to disable Docker lookup by hash. Otherwise, you must push your Docker image(s) to a remote repository (e.g. DockerHub) before running your tests.
 
-####### dxWDL
+###### dxWDL
 
 The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus))), otherwise you will be asked to log in interactively.
 

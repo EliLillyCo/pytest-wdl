@@ -100,12 +100,11 @@ class MiniwdlExecutor(Executor):
                 entrypoint = runtime.run_local_task
             else:
                 entrypoint = runtime.run_local_workflow
+
             rundir, output_env = entrypoint(
                 target,
                 input_env,
-                # run_dir=rundir,
-                # copy_input_files=copy_input_files,
-                # max_workers=max_workers,
+                copy_input_files=kwargs.get("copy_input_files", False)
             )
         except Error.EvalError as err:  # TODO: test errors
             MiniwdlExecutor.log_source(logger, err)

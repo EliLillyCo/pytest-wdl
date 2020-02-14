@@ -5,7 +5,7 @@ from typing import (
     Dict, Generic, Iterable, Optional, Type, TypeVar, cast
 )
 
-from pkg_resources import EntryPoint, iter_entry_points
+from pkg_resources import EntryPoint, ResolutionError, iter_entry_points
 
 
 LOG = logging.getLogger("pytest-wdl")
@@ -90,6 +90,12 @@ def plugin_factory_map(
         try:
             ep.require()
         except ResourceWarning as rerr:
+            LOG.warning(
+                "Plugin %s is not available because it is missing an extra "
+                "dependency: %s", name, str(rerr)
+            )
+            continue
+        except ResolutionError as rerr:
             LOG.warning(
                 "Plugin %s is not available because it is missing an extra "
                 "dependency: %s", name, str(rerr)

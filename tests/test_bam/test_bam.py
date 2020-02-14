@@ -43,7 +43,8 @@ def test_bam(workflow_data, workflow_runner):
         wdl_script="tests/test_bam/test_bam.wdl",
         workflow_name="test_bam",
         inputs={"bam": workflow_data["bam"]},
-        expected={"output_bam": workflow_data["output_bam"]}
+        expected={"output_bam": workflow_data["output_bam"]},
+        executors=["cromwell"]
     )
 
 
