@@ -68,13 +68,14 @@ $ pip install pytest-wdl[all]
 
 The full code for this quick-start project is available in the [examples](examples/quickstart) directory.
 
-To demonstrate how to use pytest-wdl, we will create a simple variant calling workflow with the following project structure:
+To demonstrate how to use pytest-wdl, we will create a simple variant calling workflow and tests with the following project structure:
 
 ```
 quickstart
 |_variant_caller.wdl
-|_freebayes.wdl
 |_tests
+  |_data
+  | |_NA12878.chr22.tiny.vcf
   |_test_data.json
   |_test_variant_caller.py
 ```
@@ -128,7 +129,8 @@ def test_variant_caller(workflow_data, workflow_runner):
     )
 ```
 
-This test will execute a workflow with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. The `workflow_data` fixture provides the test data files based on the following configuration in the `tests/test_data.json` files. Note that the files are stored remotely (in this case, in the [GitHub repository for FreeBayes](https://github.com/ekg/freebayes/tree/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny)) and are downloaded automatically when needed.
+This test executes a workflow with the specified inputs, and will compare the outputs to the specified expected outputs. The `workflow_data` and `workflow_runner` parameters are [fixtures](https://docs.pytest.org/en/latest/fixture.html) that are injected by the pytest framework at runtime. The `workflow_data` fixture provides the test data files based on the following configuration in the `tests/test_data.json` file. Note that some of the data files are stored remotely (in this case, in the [GitHub repository for FreeBayes](https://github.com/ekg/freebayes/tree/65251646f8dd9c60e3db276e3c6386936b7cf60b/test/tiny)) and are downloaded automatically when needed. Later in the mnaual you'll find [descriptions of these fixtures](#fixtures) and details on how to [configure](#configuration) your tests' inputs, exected outputs, and other parameters.
+
 
 ```json
 {
@@ -139,19 +141,21 @@ This test will execute a workflow with the specified inputs, and will compare th
     "url": "https://.../q.fa"
   },
   "vcf": {
-    "url": "https://.../NA12878.chr22.tiny.giab.vcf",
+    "name": "NA12878.chr22.tiny.vcf",
     "type": "vcf"
   }
 }
 ```
-
-In the following sections are descriptions of these fixtures and details on how to configure your tests' inputs, exected outputs, and other parameters.
 
 To run this test, make sure you have pytest-wdl [installed](installation) and run the following command from within the project folder. The default executor (miniwdl) will be used to execute the workflow. You can configure any of the other supported executors by creating a [configuration file](#configuration).
 
 ```
 $ pytest -s -vv --show-capture=all
 ```
+
+This test should run successfully, and you should see output that looks like this:
+
+![]("output.png")
 
 ## Project setup
 
