@@ -7,6 +7,7 @@ extras_require = {
     "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy"],
     "progress": ["tqdm"],
+    "yaml": ["pyyaml"],
 }
 extras_require["all"] = list(set(
     lib

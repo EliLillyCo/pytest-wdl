@@ -21,9 +21,14 @@ from typing import Dict, List, Optional, Union
 
 from pytest_wdl.utils import ensure_path, env_map
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 
 ENV_USER_CONFIG = "PYTEST_WDL_CONFIG"
-DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config.json"
+DEFAULT_USER_CONFIG_FILE = "pytest_wdl_config"
 ENV_CACHE_DIR = "PYTEST_WDL_CACHE_DIR"
 KEY_CACHE_DIR = "cache_dir"
 ENV_EXECUTION_DIR = "PYTEST_WDL_EXECUTION_DIR"
@@ -43,7 +48,7 @@ class UserConfiguration:
     the config file and as arguments to the constructor, the latter take precedence.
 
     Args:
-        config_file: JSON file from which to load default values.
+        config_file: JSON (or YAML) file from which to load default values.
         cache_dir: The directory in which to cache localized files; defaults to using
             a temporary directory that is specific to each module and deleted
             afterwards.
@@ -83,7 +88,10 @@ class UserConfiguration:
     ):
         if config_file:
             with open(config_file, "rt") as inp:
-                defaults = json.load(inp)
+                if yaml and config_file.suffix == ".yaml":
+                    defaults = yaml.load(inp)
+                else:
+                    defaults = json.load(inp)
         else:
             defaults = {}
 
@@ -191,6 +199,17 @@ class UserConfiguration:
         if self.remove_cache_dir:
             shutil.rmtree(self.cache_dir, ignore_errors=True)
 
+    def as_dict(self) -> dict:
+        pass  # TODO
+
+    def save(self, path: Path) -> None:
+        d = self.as_dict()
+        with open(path, "wt") as out:
+            if yaml and path.suffix == ".yaml":
+                yaml.dump(d, out)
+            else:
+                json.dump(d, out)
+
 
 _INSTANCE: Optional[UserConfiguration] = None
 
@@ -203,9 +222,14 @@ def default_user_config_file() -> Path:
         config_path = ensure_path(config_file)
     else:
         default_config_paths = [
-            Path.home() / DEFAULT_USER_CONFIG_FILE,
-            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}"
+            Path.home() / f"{DEFAULT_USER_CONFIG_FILE}.json",
+            Path.home() / f".{DEFAULT_USER_CONFIG_FILE}.json"
         ]
+        if yaml:
+            default_config_paths.extend([
+                Path.home() / f"{DEFAULT_USER_CONFIG_FILE}.yaml",
+                Path.home() / f".{DEFAULT_USER_CONFIG_FILE}.yaml"
+            ])
         for default_config_path in default_config_paths:
             if default_config_path.exists():
                 config_path = default_config_path

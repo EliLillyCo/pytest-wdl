@@ -31,8 +31,13 @@ from pytest_wdl.config import UserConfiguration
 from pytest_wdl.core import DataResolver, DataManager, DataDirs, create_executor
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
-DEFAULT_TEST_DATA_FILE = "test_data.json"
+
+DEFAULT_TEST_DATA_FILE = "test_data"
 DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
 
 
@@ -88,9 +93,18 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     Args:
         request: A FixtureRequest object
     """
+    test_data_files = [f"{DEFAULT_TEST_DATA_FILE}.json"]
+
+    if yaml:
+        test_data_files.append(f"{DEFAULT_TEST_DATA_FILE}.yaml")
+
+    test_data_paths = []
+
+    for f in test_data_files:
+        test_data_paths.extend((Path(f), Path("tests") / f))
+
     return find_project_path(
-        Path(DEFAULT_TEST_DATA_FILE),
-        Path("tests") / DEFAULT_TEST_DATA_FILE,
+        *test_data_files,
         start=Path(request.fspath.dirpath()),
         assert_exists=True
     )
@@ -121,7 +135,10 @@ def workflow_data_descriptors(
         exists=True
     )
     with open(workflow_data_descriptor_path, "rt") as inp:
-        return json.load(inp)
+        if yaml and workflow_data_descriptor_path.suffix == ".yaml":
+            return yaml.load(inp)
+        else:
+            return json.load(inp)
 
 
 def workflow_data_resolver(
@@ -194,6 +211,7 @@ def import_dirs(
     """
     if import_paths:
         import_paths = ensure_path(import_paths, canonicalize=True)
+
         if not import_paths.exists():
             raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
 
@@ -213,6 +231,7 @@ def import_dirs(
         module_dir = find_project_path(
             "tests", start=Path(request.fspath.dirpath()), return_parent=True
         )
+
         if module_dir:
             return [module_dir]
         else:
@@ -267,6 +286,7 @@ def workflow_runner(
         import_dir_paths = [
             ensure_path(d, is_file=False, exists=True) for d in import_dirs
         ]
+        
         if not executors:
             executors = default_executors
 
