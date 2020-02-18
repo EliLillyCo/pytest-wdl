@@ -1,3 +1,4 @@
+from py.path import local
 import pytest
 
 try:
@@ -6,7 +7,7 @@ except ImportError:
     yaml = None
 
 
-def pytest_collect_file(parent, path):
+def pytest_collect_file(parent: local, path: local):
     if path.ext == ".yaml" and path.basename.startswith("test"):
         return YamlFile.from_parent(parent, fspath=path)
 
