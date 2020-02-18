@@ -45,6 +45,7 @@ The plugins that have extra dependencies are:
 * dx: Support for DNAnexus file storage, and for the dxWDL executor.
 * bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
 * progress: Show progress bars when downloading remote files.
+* <a name="yaml">yaml</a>: Support using YAML for configuration and test data files. Note that `.yaml` files are ignored if a `.json` file with the same prefix is present.
 
 To install a plugin's dependencies:
 
@@ -224,7 +225,7 @@ There are also [several additional fixtures](#configuration) used for configurat
 
 Typically, workflows require inputs and generate outputs. Beyond simply ensuring that a workflow runs successfully, we often want to additionally test that it reproducibly generates the same results given the same inputs.
 
-Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object tyep that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
+Test inputs and outputs are configured in a `test_data.json` file (or `test_data.yaml` file if you have the [YAML](#yaml) dependency installed) that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object type that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
 
 ```json
 {
@@ -443,7 +444,7 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. To get started, you can copy one of the following example config files and modify as necessary:
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json` (or `$HOME/.pytest_wdl_config.yaml` if you have the [YAML](#yaml) dependency installed). To get started, you can copy one of the following example config files and modify as necessary:
  
 * [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
 * [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository

@@ -1,5 +1,9 @@
 # Changes
 
+## Development
+
+* Add support for YAML data and configuration files (#116)
+
 ## v1.3.0 (2020.02.14)
 
 * Added support for testing workflows on DNAnexus using [dxWDL](https://github.com/dnanexus/dxWDL)
