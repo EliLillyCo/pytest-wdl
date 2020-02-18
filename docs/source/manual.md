@@ -225,7 +225,7 @@ There are also [several additional fixtures](#configuration) used for configurat
 
 Typically, workflows require inputs and generate outputs. Beyond simply ensuring that a workflow runs successfully, we often want to additionally test that it reproducibly generates the same results given the same inputs.
 
-Test inputs and outputs are configured in a `test_data.json` file (or `test_data.yaml` file if you have the [YAML](#yaml) dependency installed) that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object tyep that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
+Test inputs and outputs are configured in a `test_data.json` file (or `test_data.yaml` file if you have the [YAML](#yaml) dependency installed) that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object type that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
 
 ```json
 {
