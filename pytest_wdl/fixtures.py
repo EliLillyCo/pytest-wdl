@@ -173,13 +173,13 @@ def workflow_data(
         def test_workflow(workflow_data):
             print(workflow_data["myfile"])
     """
-    datadirs = DataDirs(
+    data_dirs = DataDirs(
         ensure_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
         request.function,
         request.cls
     )
-    return DataManager(workflow_data_resolver, datadirs)
+    return DataManager(workflow_data_resolver, data_dirs)
 
 
 def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
@@ -286,14 +286,17 @@ def workflow_runner(
         import_dir_paths = [
             ensure_path(d, is_file=False, exists=True) for d in import_dirs
         ]
-        
+
         if not executors:
             executors = default_executors
 
         def _run_test(_executor_name):
             executor = create_executor(_executor_name, import_dir_paths, user_config)
-            with context_dir(user_config.default_execution_dir, change_dir=True):
-                executor.run_workflow(
+
+            with context_dir(
+                user_config.default_execution_dir, change_dir=True
+            ) as execution_dir:
+                outputs = executor.run_workflow(
                     wdl_path,
                     inputs=inputs,
                     expected=expected,
@@ -335,14 +338,19 @@ def _reformat_args(
     if args:
         if isinstance(args[0], str):
             kwargs["workflow_name"] = args.pop(0)
+
         if args:
             if inputs:
                 raise TypeError("Multiple values for argument 'inputs'")
+
             inputs = args.pop(0)
+
             if args:
                 if expected:
                     raise TypeError("Multiple values for argument 'expected'")
+
                 expected = args.pop(0)
+
                 if args:
                     raise TypeError("Too many arguments")
 

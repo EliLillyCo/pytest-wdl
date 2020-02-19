@@ -109,7 +109,8 @@ def tempdir(
 
 @contextlib.contextmanager
 def context_dir(
-    path: Optional[Path] = None, change_dir: bool = False,
+    path: Optional[Path] = None,
+    change_dir: bool = False,
     cleanup: Optional[bool] = None
 ) -> Path:
     """
@@ -128,6 +129,7 @@ def context_dir(
     """
     if cleanup is None:
         cleanup = path is None
+
     if not path:
         path = Path(tempfile.mkdtemp())
     elif not path.exists():

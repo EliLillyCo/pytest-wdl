@@ -9,6 +9,7 @@
     {
       "name": "test_workflow",
       "wdl": "workflow.wdl",
+      "tags": ["integration"],
       "inputs": {
         "input_files": [
             "test_file",
@@ -17,7 +18,8 @@
       },
       "expected": {
         "single_file": "test_file"
-      }
+      },
+      "executors": ["cromwell"]
     }
   ]
 }
