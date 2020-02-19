@@ -158,8 +158,7 @@ def test_get_workflow_imports(user_config):
         wdl_dir.mkdir()
         with open(wdl, "wt") as out:
             out.write("foo")
-        executor = CromwellExecutor([wdl_dir],  **cromwell_config)
-        zip_path = executor._get_workflow_imports()
+        zip_path = CromwellExecutor._get_workflow_imports([wdl_dir])
         assert zip_path.exists()
         with zipfile.ZipFile(zip_path, "r") as import_zip:
             names = import_zip.namelist()
@@ -175,8 +174,7 @@ def test_get_workflow_imports(user_config):
         with open(wdl, "wt") as out:
             out.write("foo")
         imports_file = d / "imports.zip"
-        executor = CromwellExecutor([wdl_dir], **cromwell_config)
-        zip_path = executor._get_workflow_imports(imports_file)
+        zip_path = CromwellExecutor._get_workflow_imports(import_dirs=[wdl_dir], imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
         with zipfile.ZipFile(zip_path, "r") as import_zip:
@@ -195,8 +193,7 @@ def test_get_workflow_imports(user_config):
         imports_file = d / "imports.zip"
         with open(imports_file, "wt") as out:
             out.write("foo")
-        executor = CromwellExecutor(**cromwell_config)
-        zip_path = executor._get_workflow_imports(imports_file=imports_file)
+        zip_path = CromwellExecutor._get_workflow_imports(imports_file=imports_file)
         assert zip_path.exists()
         assert zip_path == imports_file
 

@@ -36,8 +36,8 @@ from pytest_wdl.utils import LOG, ensure_path
 ENV_CROMWELL_JAR = "CROMWELL_JAR"
 ENV_CROMWELL_CONFIG = "CROMWELL_CONFIG"
 ENV_CROMWELL_ARGS = "CROMWELL_ARGS"
+ENV_JAVA_HOME = "JAVA_HOME"
 UNSAFE_RE = re.compile(r"[^\w.-]")
-
 
 class Failures:
     def __init__(
@@ -171,7 +171,7 @@ class CromwellHelperMixin():
             error_kwargs["msg"] = f"cromwell failed on workflow {target}"
 
     @classmethod
-    def _get_workflow_imports(cls,import_dirs: Optional[Union[Path,str]], imports_file: Optional[Path] = None) -> Path:
+    def _get_workflow_imports(cls, import_dirs: Optional[Sequence[Path]] = None, imports_file: Optional[Path] = None) -> Path:
         """
         Creates a ZIP file with all WDL files to be imported.
 
@@ -183,12 +183,10 @@ class CromwellHelperMixin():
         """
         write_imports = bool(import_dirs)
         imports_path = None
-
         if imports_file:
             imports_path = ensure_path(imports_file)
             if imports_path.exists():
                 write_imports = False
-
         if write_imports and import_dirs:
             imports = [
                 wdl
@@ -210,6 +208,7 @@ class CromwellHelperMixin():
                     stdout=imports_path,
                     raise_on_error=False
                 )
+
                 if not exe.ok:
                     raise Exception(
                         f"Error creating imports zip file; stdout={exe.output}; "
@@ -343,8 +342,8 @@ class CromwellServerExecutor(Executor,CromwellHelperMixin):
         }
 
         if inputs_dict:
-            if isinstance(inputs_dict,dict):
-                files["workflowInputs"] = json.dumps(inputs_dict)
+            if isinstance(inputs_dict, dict):
+                files["workflowInputs"] = json.dumps(inputs_dict,default=str)
             else:
                 files["workflowInputs"] = open(inputs_dict,"r",encoding="utf-8")
 
@@ -353,7 +352,7 @@ class CromwellServerExecutor(Executor,CromwellHelperMixin):
 
         if self._cromwell_runtime_options:
             if isinstance(inputs_dict, dict):
-                files["workflowOptions"] = json.dumps(self._cromwell_runtime_options)
+                files["workflowOptions"] = json.dumps(self._cromwell_runtime_options,default=str)
             else:
                 files["workflowOptions"] = open(self._cromwell_runtime_options,"r")
 
