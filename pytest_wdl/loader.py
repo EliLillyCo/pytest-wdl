@@ -84,7 +84,7 @@ class TestItem(pytest.Item):
         self._wdl = wdl
         self._inputs = inputs
         self._expected = expected
-        self._tags = tags
+        self._tags = tags  # TODO: add tags as marks
         self._workflow_runner_kwargs = kwargs
         self._data = data
         self._fixture_request = None

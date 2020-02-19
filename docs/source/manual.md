@@ -436,7 +436,7 @@ JSON tests are defined in a file that starts with `test` and ends with `.json`. 
 A test has two required keys:
 
 * `name`: The test name; must be unique within the file.
-* `"wdl"`: A path to a WDL file (equivalent to the first parameter to `workflow_runner` described above).
+* `wdl`: A path to a WDL file (equivalent to the first parameter to `workflow_runner` described above).
 
 Any of the other parameters to `workflow_runner` can be specified as keys as well. To refer to `workflow_data` entries, simply use the entry key as a value. For example, "test_file1", "test_file2", and "expected_file" in the example above are defined in the `test_data.json` file. If a string value is not found in the `workflow_data`, it is treated as a string literal. For example, the value of the "organism" key ("human") is treated as a string literal because there is no "human" key defined in `test_data.json`.
 
