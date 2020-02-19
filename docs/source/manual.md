@@ -594,7 +594,7 @@ The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
-| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory to use to cache downloaded results | A temporary directory is used and deleted after each test |
 
 ##### Provider-specific configuration
 
@@ -625,7 +625,7 @@ pytest-wdl provides the ability to implement plugins for data types, executors, 
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-Your plugin should subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
+Your plugin must subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` and raise a PluginError with an informative message, and to add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -664,7 +664,7 @@ In this example, the extra dependencies can be installed with `pip install pytes
 
 To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
 
-Your plugin should subclass `pytest_wdl.executors.Executor` and implement an initalizer and the `run_workflow()` method. The initalizer must take `import_dirs: Optional[Sequence[Path]]` as its first argument, and may take additional executor-specific keyword arguments.
+Your plugin must subclass `pytest_wdl.executors.Executor` and implement an initalizer and the `run_workflow()` method. The initalizer must take `import_dirs: Optional[Sequence[Path]]` as its first argument, and may take additional executor-specific keyword arguments.
 
 ```python
 from pathlib import Path
@@ -711,7 +711,7 @@ setup(
 
 If you want to use test data files that are available via a service that does not support http/https/ftp downloads, you can implement a custom URL scheme.
 
-Your plugin should subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
+Your plugin must subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
 
 Next, add an entry point in setup.py. If the schem requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 
