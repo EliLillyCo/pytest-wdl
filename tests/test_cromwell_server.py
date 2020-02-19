@@ -29,7 +29,8 @@ from pytest_wdl.executors.cromwell import (
 import time
 from . import setenv, make_executable
 
-
+@pytest.mark.integration
+@pytest.mark.remote
 def test_cromwell_server_workflow(user_config, workflow_data, workflow_runner):
     cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
         "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
