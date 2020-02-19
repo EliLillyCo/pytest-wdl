@@ -187,10 +187,12 @@ class CromwellExecutor(JavaExecutor):
         java_args = kwargs.get("java_args", self.java_args) or ""
         cromwell_args = kwargs.get("cromwell_args", self._cromwell_args) or ""
         metadata_file = Path.cwd() / "metadata.json"
+        output_file = Path.cwd() / "output.json"
+
 
         cmd = (
             f"{self.java_bin} {java_args} -jar {self._cromwell_jar_file} run "
-            f"-m {metadata_file} {cromwell_args} {inputs_arg} {imports_zip_arg} "
+            f"-m {metadata_file} -w {output_file} {cromwell_args} {inputs_arg} {imports_zip_arg} "
             f"{wdl_path}"
         )
         LOG.info(
@@ -201,18 +203,22 @@ class CromwellExecutor(JavaExecutor):
         exe = subby.run(cmd, raise_on_error=False)
 
         metadata = None
+        output = None
+
         if metadata_file.exists():
             with open(metadata_file, "rt") as inp:
                 metadata = json.load(inp)
 
+        if output_file.exists():
+            with open(output_file, "rt") as inp:
+                output = json.load(inp)
+
         if exe.ok:
-            if metadata:
-                assert metadata["status"] == "Succeeded"
-                outputs = metadata["outputs"]
+            if output:
+                outputs = output
             else:
-                LOG.warning(
-                    f"Cromwell command completed successfully but did not generate "
-                    f"a metadata file at {metadata_file}"
+                LOG.warning(f"Cromwell command completed successfully but did not generate "
+                            f"an outputs file at {output_file}"
                 )
                 outputs = self._get_cromwell_outputs(exe.output)
         else:
