@@ -52,7 +52,7 @@ class WdlTestsModule(pytest.Module, metaclass=ABCMeta):
             if "name" not in spec:
                 raise ValueError("Test case missing 'name' key")
 
-            yield TestItem(self, data, **spec)
+            yield TestItem(self, data=data, **spec)
 
 
 class YamlWdlTestsModule(WdlTestsModule):
@@ -69,7 +69,7 @@ class TestItem(pytest.Item):
     def __init__(
         self,
         parent,
-        data: Optional[dict],
+        data: Optional[dict] = None,
         name: Optional[str] = None,
         wdl: Optional[str] = None,
         inputs: Optional[dict] = None,
