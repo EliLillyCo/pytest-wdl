@@ -246,7 +246,6 @@ class CromwellServerExecutor(Executor,CromwellHelperMixin):
 
         if cromwell_api_username and cromwell_api_password:
             self._auth = HTTPBasicAuth(cromwell_api_username, cromwell_api_password)
-            print(self._auth)
         else:
             self._auth = None
 
@@ -548,7 +547,6 @@ class CromwellExecutor(JavaExecutor,CromwellHelperMixin):
             self._validate_outputs(outputs, expected, target)
 
         return outputs
-
 
 
 
