@@ -73,18 +73,21 @@ def test_cromwell_config(user_config):
     )
 
     with tempdir() as d:
-        assert  CromwellLocalExecutor(
-            [d], cromwell_jar_file=cromwell_jar_file
-        )._cromwell_args is None
+        executor = CromwellLocalExecutor([d], cromwell_jar_file=cromwell_jar_file)
+        assert executor._cromwell_args is None
+        assert executor.java_args is None
+
         config = d / "config"
         with setenv({ENV_CROMWELL_CONFIG: str(config)}):
             with pytest.raises(FileNotFoundError):
                  CromwellLocalExecutor([d], cromwell_jar_file=cromwell_jar_file)
             with open(config, "wt") as out:
                 out.write("foo")
-            assert  CromwellLocalExecutor(
+            executor =  CromwellLocalExecutor(
                 [d], cromwell_jar_file=cromwell_jar_file
-            )._cromwell_args == f"-Dconfig.file={config}"
+            )
+            assert executor._cromwell_args is None
+            assert executor.java_args == f"-Dconfig.file={config}"
 
 
 def test_java_args(user_config):

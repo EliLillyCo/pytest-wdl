@@ -391,6 +391,7 @@ def read_write_inputs(
         inputs_file:
         inputs_dict:
         inputs_formatter:
+        write_formatted_inputs:
         kwargs:
 
     Returns:

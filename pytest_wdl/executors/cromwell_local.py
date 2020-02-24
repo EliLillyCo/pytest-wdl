@@ -139,7 +139,7 @@ class CromwellLocalExecutor(JavaExecutor, CromwellHelperMixin):
             )
 
         inputs_dict, inputs_file = read_write_inputs(
-            input_file=kwargs.get("inputs_file"), inputs_dict=inputs, namespace=target
+            inputs_file=kwargs.get("inputs_file"), inputs_dict=inputs, namespace=target
         )
         imports_file = self._get_workflow_imports(
             self._import_dirs, kwargs.get("imports_file")
