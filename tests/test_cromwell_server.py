@@ -12,35 +12,30 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import json
 import os
-from pathlib import Path
-import zipfile
+import time
 
 import subby
-from pytest_wdl.utils import tempdir
 import pytest
 
-from pytest_wdl.utils import ENV_PATH, ENV_CLASSPATH
 from pytest_wdl.executors import ENV_JAVA_HOME
-from pytest_wdl.executors.cromwell import (
-    ENV_CROMWELL_CONFIG, ENV_CROMWELL_JAR, CromwellExecutor
-)
-import time
-from . import setenv, make_executable
+from pytest_wdl.executors.cromwell_local import ENV_CROMWELL_JAR
+
 
 @pytest.mark.integration
 @pytest.mark.remote
 def test_cromwell_server_workflow(user_config, workflow_data, workflow_runner):
     cromwell_jar_file = user_config.get_executor_defaults("cromwell").get(
         "cromwell_jar_file", os.environ.get(ENV_CROMWELL_JAR)
-    );
+    )
 
     java_jar = user_config.get_executor_defaults("cromwell").get(
         "java_bin", os.environ.get(ENV_JAVA_HOME) + "/bin/java"
-    );
+    )
 
-    p = subby.run(f"{java_jar} -jar {cromwell_jar_file} server | tee /dev/stderr", block=False)
+    p = subby.run(
+        f"{java_jar} -jar {cromwell_jar_file} server | tee /dev/stderr", block=False
+    )
     time.sleep(10)
     inputs = {
         "in_txt": workflow_data["in_txt"],
