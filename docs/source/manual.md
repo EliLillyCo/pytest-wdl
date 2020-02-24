@@ -347,8 +347,7 @@ The default type if one is not specified.
 
 An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, the following executors are supported (but aternative executors can be implemented as [plugins](#plugins)):
 
-* [Cromwell](https://cromwell.readthedocs.io/)
-* [Cromwell Server](https://cromwell.readthedocs.io/)
+* [Cromwell](https://cromwell.readthedocs.io/): Can be run locally or in client/server-mode
 * [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
 * [dxWDL](https://github.com/dnanexus/dxWDL)
 
@@ -377,10 +376,11 @@ You can also pass executor-specific keyword arguments.
 #### Cromwell Server
 
 * `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
-* `cromwell_api_url`: The full path to the cromwell API (ie http://localhost:8000/api/workflows/v1).
+* `cromwell_api_url`: The full path to the cromwell API (i.e. http://localhost:8000/api/workflows/v1).
 * `cromwell_api_username`: The username to authenticate against the cromwell api if protected
 * `cromwell_api_password`: The password to authenticate against the cromwell api if protected 
 * `cromwell_runtime_options`: Runtime options to pass to cromwell when submitting run requests.
+
 #### Miniwdl
 
 * `task_name`: Name of the task to run, e.g. for a WDL file that does not have a workflow. This takes precedence over `workflow_name`.

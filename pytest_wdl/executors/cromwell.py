@@ -21,8 +21,9 @@ import time
 from typing import Optional, Sequence, Union, cast
 
 import requests
-import subby
 from requests.auth import HTTPBasicAuth
+import subby
+
 from pytest_wdl.executors import (
     ExecutionFailedError,
     JavaExecutor,
@@ -38,6 +39,7 @@ ENV_CROMWELL_CONFIG = "CROMWELL_CONFIG"
 ENV_CROMWELL_ARGS = "CROMWELL_ARGS"
 ENV_JAVA_HOME = "JAVA_HOME"
 UNSAFE_RE = re.compile(r"[^\w.-]")
+
 
 class Failures:
     def __init__(
@@ -90,10 +92,7 @@ class Failures:
                     return inp.read()
 
 
-
-
-
-class CromwellHelperMixin():
+class CromwellHelperMixin:
     """
     Mixin for performing common tasks for cromwell executors
     """

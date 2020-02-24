@@ -48,10 +48,10 @@ setup(
             "json = pytest_wdl.data_types.json:JsonDataFile",
         ],
         "pytest_wdl.executors": [
-            "cromwell = pytest_wdl.executors.cromwell:CromwellExecutor",
             "miniwdl = pytest_wdl.executors.miniwdl:MiniwdlExecutor",
-            "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
+            "cromwell = pytest_wdl.executors.cromwell:CromwellLocalExecutor",
             "cromwell-server = pytest_wdl.executors.cromwell:CromwellServerExecutor"
+            "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": [
             "dx = pytest_wdl.providers.dx:DxUrlHandler[dx]",
@@ -78,6 +78,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Software Development :: Testing",
         "Topic :: Software Development :: Libraries :: Python Modules",
