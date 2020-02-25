@@ -1,0 +1,25 @@
+{
+  "data": {
+    "test_file": {
+      "url": "https://raw.githubusercontent.com/EliLillyCo/pytest-wdl/master/README.md",
+      "path": "pytest_wdl_readme.md"
+    }
+  },
+  "tests": [
+    {
+      "name": "test_workflow",
+      "wdl": "workflow.wdl",
+      "tags": ["integration"],
+      "inputs": {
+        "input_files": [
+            "test_file",
+            "test_file"
+        ]
+      },
+      "expected": {
+        "single_file": "test_file"
+      },
+      "executors": ["cromwell"]
+    }
+  ]
+}

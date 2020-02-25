@@ -406,6 +406,68 @@ Requires the `dxpy` package to be installed.
 * DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 * See the [dxWDL open issues](https://github.com/dnanexus/dxWDL/issues) for other potential limitations
 
+## Writing tests in JSON
+
+Rather than writing test cases in Python, in most instances it is possible to define your tests completely in JSON (or in YAML, if you have the [YAML](#yaml) dependency installed). Python- and JSON-based tests can co-exist.
+
+JSON tests are defined in a file that starts with `test` and ends with `.json`. There is one required top-level key, `"test"`, whose value is an array of hashes. Each hash defines a single test.
+
+```json
+{
+  "tests": [
+    {
+      "name": "mytest",
+      "wdl": "mytest.wdl",
+      "inputs": {
+        "input_files": [
+            "test_file1",
+            "test_file2"
+        ],
+        "organism": "human"
+      },
+      "expected": {
+        "output_file": "expected_file"
+      }
+    }
+  ]
+}
+```
+
+A test has two required keys:
+
+* `name`: The test name; must be unique within the file.
+* `wdl`: A path to a WDL file (equivalent to the first parameter to `workflow_runner` described above).
+
+Any of the other parameters to `workflow_runner` can be specified as keys as well. To refer to `workflow_data` entries, simply use the entry key as a value. For example, "test_file1", "test_file2", and "expected_file" in the example above are defined in the `test_data.json` file. If a string value is not found in the `workflow_data`, it is treated as a string literal. For example, the value of the "organism" key ("human") is treated as a string literal because there is no "human" key defined in `test_data.json`.
+
+Instead of using a separate `test_data.json` file, you may instead put your test data definitions directly in the test JSON file as the value of the "data" key. Note that it is either/or - if you put your test data definitions in your tests JSON file, then any definitions in `test_data.json` will not be ignored.
+
+```json
+{
+  "data": {
+    "test_file": {
+      "url": "https://foo.com/input.txt"
+    },
+    "expected_file": {
+      "url": "https://foo.com/output.txt"
+    }
+  },
+  "tests": [
+    {
+      "name": "mytest",
+      "wdl": "mytest.wdl",
+      "inputs": {
+        "input_file": "test_file",
+        "organism": "human"
+      },
+      "expected": {
+        "output_file": "expected_file"
+      }
+    }
+  ]
+}
+```
+
 ## Configuration
 
 pytest-wdl has two levels of configuration: 
@@ -532,7 +594,7 @@ The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
-| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory to use to cache downloaded results | A temporary directory is used and deleted after each test |
 
 ##### Provider-specific configuration
 
@@ -563,7 +625,7 @@ pytest-wdl provides the ability to implement plugins for data types, executors, 
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-Your plugin should subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
+Your plugin must subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` and raise a PluginError with an informative message, and to add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -602,7 +664,30 @@ In this example, the extra dependencies can be installed with `pip install pytes
 
 To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
 
-Your plugin should subclass `pytest_wdl.executors.Executor` and implement the `run_workflow()` method.
+Your plugin must subclass `pytest_wdl.executors.Executor` and implement an initalizer and the `run_workflow()` method. The initalizer must take `import_dirs: Optional[Sequence[Path]]` as its first argument, and may take additional executor-specific keyword arguments.
+
+```python
+from pathlib import Path
+from pytest_wdl.executors import Executor
+from typing import Optional, Sequence
+
+class MyExecutor(Executor):
+    def __init__(
+        self,
+        import_dirs: Optional[Sequence[Path]],
+        myarg: str = "hello"
+    ):
+        ...
+
+    def run_workflow(
+        self,
+        wdl_path: Path,
+        inputs: Optional[dict] = None,
+        expected: Optional[dict] = None,
+        **kwargs
+    ) -> dict:
+        ...
+```
 
 Next, add an entry point in setup.py. If the executor requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 
@@ -626,7 +711,7 @@ setup(
 
 If you want to use test data files that are available via a service that does not support http/https/ftp downloads, you can implement a custom URL scheme.
 
-Your plugin should subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
+Your plugin must subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
 
 Next, add an entry point in setup.py. If the schem requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 

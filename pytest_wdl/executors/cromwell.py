@@ -201,6 +201,7 @@ class CromwellExecutor(JavaExecutor):
         exe = subby.run(cmd, raise_on_error=False)
 
         metadata = None
+
         if metadata_file.exists():
             with open(metadata_file, "rt") as inp:
                 metadata = json.load(inp)

@@ -3,6 +3,7 @@
 ## Development
 
 * Add support for YAML data and configuration files (#116)
+* Add ability to specify tests in JSON/WDL (#117)
 
 ## v1.3.0 (2020.02.14)
 

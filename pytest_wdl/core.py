@@ -14,7 +14,7 @@
 import os
 from pathlib import Path
 import tempfile
-from typing import Callable, List, Optional, Sequence, Type, Union, cast
+from typing import Any, Callable, List, Optional, Sequence, Type, Union, cast
 
 from pytest_wdl.config import UserConfiguration
 from pytest_wdl.data_types import DEFAULT_TYPE, DataFile, DefaultDataFile
@@ -45,58 +45,86 @@ class DataDirs:
     def __init__(
         self,
         basedir: Path,
-        module,  # TODO: no Module type in typelib yet
-        function: Callable,
-        cls: Optional[Type] = None
+        module: Optional[Union[str, Any]] = None,  # TODO: no Module type in typelib yet
+        function: Optional[Union[str, Callable]] = None,
+        cls: Optional[Union[str, Type]] = None
     ):
+        self.basedir = basedir
+
         # If there are packages in the tests/ folder (i.e. if there are __init__.py
         # files), we need to drop any packages from the module_path since they
         # will conflict with basedir.
-        module_path = module.__name__.split(".")
-        num_pkgs = len(module_path) - 1
+        if module:
+            if isinstance(module, str):
+                module_name = cast(str, module)
+            else:
+                module_name = module.__name__
 
-        if num_pkgs > 0:
-            basedir_parts = basedir.parts
+            module_path = module_name.split(".")
+            num_pkgs = len(module_path) - 1
 
-            if (
-                len(basedir_parts) < num_pkgs
-                or tuple(basedir_parts[-num_pkgs:]) != tuple(module_path[:num_pkgs])
-            ):
-                raise RuntimeError(
-                    f"Module path {module_path} does not match basedir {basedir}"
-                )
+            if num_pkgs > 0:
+                basedir_parts = basedir.parts
 
-        self.basedir = basedir
-        self.module = self.module = module_path[-1]
-        self.function = function.__name__
-        self.cls = cls.__name__ if cls else None
+                if (
+                    len(basedir_parts) < num_pkgs
+                    or tuple(basedir_parts[-num_pkgs:]) != tuple(module_path[:num_pkgs])
+                ):
+                    raise RuntimeError(
+                        f"Module path {module_path} does not match basedir {basedir}"
+                    )
+
+            self.module = self.module = module_path[-1]
+        else:
+            self.module = None
+
+        if not function:
+            self.function = None
+        elif isinstance(function, str):
+            self.function = function
+        else:
+            self.function = cast(Callable, function).__name__
+
+        if not cls:
+            self.cls = None
+        elif isinstance(cls, str):
+            self.cls = cast(str, cls)
+        else:
+            self.cls = cast(Type, cls).__name__
+
         self._paths = None
 
     @property
     def paths(self) -> List[Path]:
         if self._paths is None:
             def add_datadir_paths(root: Path):
-                testdir = root / self.module
-                if testdir.exists():
+                if root.exists():
                     if self.cls:
-                        clsdir = testdir / self.cls
+                        clsdir = root / self.cls
+
                         if clsdir.exists():
-                            fndir = clsdir / self.function
-                            if fndir.exists():
-                                self._paths.append(fndir)
+                            if self.function:
+                                fndir = clsdir / self.function
+
+                                if fndir.exists():
+                                    self._paths.append(fndir)
+
                             self._paths.append(clsdir)
-                    else:
-                        fndir = testdir / self.function
+                    elif self.function:
+                        fndir = root / self.function
+
                         if fndir.exists():
                             self._paths.append(fndir)
-                    self._paths.append(testdir)
+
+                    self._paths.append(root)
 
             self._paths = []
-            add_datadir_paths(self.basedir)
-            data_root = self.basedir / "data"
-            if data_root.exists():
-                add_datadir_paths(data_root)
-                self._paths.append(data_root)
+
+            if self.module:
+                add_datadir_paths(self.basedir / self.module)
+                add_datadir_paths(self.basedir / "data" / self.module)
+
+            add_datadir_paths(self.basedir / "data")
 
         return self._paths
 
@@ -190,6 +218,7 @@ def create_data_file(
         type = data_file_opts.pop("name")
     else:
         data_file_opts = {}
+
     data_file_opts.update(kwargs)
 
     local_path = None
@@ -238,6 +267,7 @@ def create_data_file(
                 f"File {name} not found in any of the following datadirs: "
                 f"{datadirs.paths}"
             )
+
         if not local_path:
             local_path = dd_path
         else:

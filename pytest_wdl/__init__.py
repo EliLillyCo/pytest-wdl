@@ -19,6 +19,7 @@ module.
 """
 from pytest_wdl import fixtures
 from pytest_wdl.executors import ExecutionFailedError
+from pytest_wdl.loader import pytest_collection, pytest_collect_file
 
 import pytest
 
