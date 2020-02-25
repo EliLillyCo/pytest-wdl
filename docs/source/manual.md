@@ -44,8 +44,9 @@ The plugins that have extra dependencies are:
 
 * dx: Support for DNAnexus file storage, and for the dxWDL executor.
 * bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
-* progress: Show progress bars when downloading remote files.
+* http: Support for executors that use HTTPS protocol to communicate with a remote server (e.g. Cromwell Server)
 * <a name="yaml">yaml</a>: Support using YAML for configuration and test data files. Note that `.yaml` files are ignored if a `.json` file with the same prefix is present.
+* progress: Show progress bars when downloading remote files.
 
 To install a plugin's dependencies:
 
