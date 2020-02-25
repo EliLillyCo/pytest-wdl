@@ -12,6 +12,7 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 * At least one of the supported workflow engines:
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) - automatically installed as a dependency of pytest-wdl
     * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/38) JAR file
+        * **Cromwell Server**: Any Cromwell instance remotely running in Server mode
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
@@ -48,6 +49,8 @@ The plugins that have extra dependencies are:
 
 * dx: Support for DNAnexus file storage, and for the dxWDL executor.
 * bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
+* http: Support for executors that use HTTPS protocol to communicate with a remote server (e.g. Cromwell Server)
+* yaml: Support using YAML for configuration and test data files.
 * progress: Show progress bars when downloading remote files.
 
 To install a plugin's dependencies:
@@ -79,25 +82,7 @@ See the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configu
 
 ## Usage
 
-The pytest-wdl plugin provides a set of fixtures for use with pytest. Here is a quick example:
-
-```python
-# test_variant_caller.py
-def test_variant_caller(workflow_data, workflow_runner):
-    inputs = workflow_data.get_dict("bam", "bai")
-    inputs["index"] = {
-        "fasta": workflow_data["index_fa"],
-        "organism": "human"
-    }
-    expected = workflow_data.get_dict("vcf")
-    workflow_runner(
-        "variant_caller.wdl",
-        inputs,
-        expected
-    )
-```
-
-This test will execute a workflow (such as the following one) with the specified inputs, and will compare the outputs to the specified expected outputs.
+The pytest-wdl plugin provides a set of fixtures for use with pytest. Here is a quick example that tests the following workflow.
 
 ```wdl
 # variant_caller.wdl
@@ -130,7 +115,7 @@ workflow call_variants {
 }
 ```
 
-Input and output data are defined in a `test_data.json` file in the same directory as your test script:
+Inputs and expected outputs are defined in a `test_data.json` file in the same directory as your test script:
 
 ```json
 {
@@ -148,6 +133,47 @@ Input and output data are defined in a `test_data.json` file in the same directo
     "type": "vcf",
     "allowed_diff_lines": 2
   }
+}
+```
+
+You can write the test code in Python, or - in most cases - you can define the test in a JSON or YAML file instead. The following Python and JSON code define exactly the same test. This test will cause the workflow to be run with the specified inputs, and the outputs will be compared to the specified expected outputs.
+
+```python
+# test_variant_caller.py
+def test_variant_caller(workflow_data, workflow_runner):
+    inputs = workflow_data.get_dict("bam", "bai")
+    inputs["index"] = {
+        "fasta": workflow_data["index_fa"],
+        "organism": "human"
+    }
+    expected = workflow_data.get_dict("vcf")
+    workflow_runner(
+        "variant_caller.wdl",
+        inputs,
+        expected
+    )
+```
+
+```json
+# test_variant_caller.json
+{
+  "tests": [
+    {
+      "name": "test_variant_caller",
+      "wdl": "variant_caller.wdl",
+      "inputs": {
+        "bam": "bam",
+        "bai": "bai",
+        "index": {
+          "fasta": "index_fa",
+          "organism": "human"
+        }
+      },
+      "outputs": {
+        "vcf": "vcf"
+      }
+    }
+  ]
 }
 ```
 

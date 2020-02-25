@@ -393,6 +393,7 @@ def read_write_inputs(
     inputs_file: Optional[Union[str, Path]] = None,
     inputs_dict: Optional[dict] = None,
     inputs_formatter: Optional[InputsFormatter] = InputsFormatter.get_instance(),
+    write_formatted_inputs: bool = True,
     **kwargs
 ) -> Tuple[dict, Optional[Path]]:
     """
@@ -404,6 +405,7 @@ def read_write_inputs(
         inputs_file:
         inputs_dict:
         inputs_formatter:
+        write_formatted_inputs:
         kwargs:
 
     Returns:
@@ -419,13 +421,14 @@ def read_write_inputs(
                 return inputs_dict_from_file, inputs_file
 
     if inputs_dict:
-        if not inputs_file:
-            inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
-
         inputs_dict = inputs_formatter.format_inputs(inputs_dict, **kwargs)
 
-        with open(inputs_file, "wt") as out:
-            json.dump(inputs_dict, out, default=str)
+        if write_formatted_inputs:
+            if not inputs_file:
+                inputs_file = Path(tempfile.mkstemp(suffix=".json")[1])
+
+            with open(inputs_file, "wt") as out:
+                json.dump(inputs_dict, out, default=str)
 
         return inputs_dict, inputs_file
 

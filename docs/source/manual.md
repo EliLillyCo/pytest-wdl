@@ -44,8 +44,9 @@ The plugins that have extra dependencies are:
 
 * dx: Support for DNAnexus file storage, and for the dxWDL executor.
 * bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
-* progress: Show progress bars when downloading remote files.
+* http: Support for executors that use HTTPS protocol to communicate with a remote server (e.g. Cromwell Server)
 * <a name="yaml">yaml</a>: Support using YAML for configuration and test data files. Note that `.yaml` files are ignored if a `.json` file with the same prefix is present.
+* progress: Show progress bars when downloading remote files.
 
 To install a plugin's dependencies:
 
@@ -348,8 +349,10 @@ The default type if one is not specified.
 An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, the following executors are supported (but aternative executors can be implemented as [plugins](#plugins)):
 
 * [Cromwell](https://cromwell.readthedocs.io/)
-* [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
-* [dxWDL](https://github.com/dnanexus/dxWDL)
+    * Local: run Cromwell locally (`executor="cromwell"`)
+    * Server: run Cromwell via a remote Cromwell server instance (`executor="cromwell-server"`)
+* [Miniwdl](https://github.com/chanzuckerberg/miniwdl): run miniwdl locally in the same process as pytest-wdl (`executor="miniwdl"`)
+* [dxWDL](https://github.com/dnanexus/dxWDL): compile tasks/workflows using dxWDL and run them remotely on DNAnexus (`executor="dxwdl"`)
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor.
 
@@ -367,11 +370,16 @@ You can also pass executor-specific keyword arguments.
 
 ### Executor-specific `workflow_runner` arguments
 
-#### Cromwell
+#### Cromwell Local
 
 * `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
+
+#### Cromwell Server
+
+* `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
+* `timeout`: Number of seconds to allow a workflow to run before timing out with an error; defaults to 3600 (1hr).
 
 #### Miniwdl
 
@@ -577,15 +585,22 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (for Cromwell executor, if `cromwell_config_file` is specified) |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 
-###### Cromwell
+###### Cromwell Local
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
-| `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
+| `cromwell_configuration` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; |
 
 Note that if you are doing your development locally and using Docker images you've built yourself, it is recommended to add `-Ddocker.hash-lookup.enabled=false` to `java_args` to disable Docker lookup by hash. Otherwise, you must push your Docker image(s) to a remote repository (e.g. DockerHub) before running your tests.
+
+###### Cromwell Server
+
+* `cromwell_api_url`: The full path to the cromwell API (i.e. http://localhost:8000/api/workflows/v1).
+* `cromwell_api_username`: The username to authenticate against the cromwell api if protected
+* `cromwell_api_password`: The password to authenticate against the cromwell api if protected 
+* `cromwell_configuration`: Configuration (file or dict) to pass to cromwell when submitting run requests.
 
 ###### dxWDL
 
