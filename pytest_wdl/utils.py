@@ -131,6 +131,7 @@ def context_dir(
     """
     if cleanup is None:
         cleanup = path is None
+
     if not path:
         path = Path(tempfile.mkdtemp())
     elif not path.exists():
