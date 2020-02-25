@@ -25,7 +25,8 @@ import re
 import shutil
 import stat
 import tempfile
-from typing import Optional, Sequence, Union, cast
+import time
+from typing import Callable, Optional, Sequence, Union, cast
 
 from py._path.local import LocalPath
 
@@ -83,8 +84,9 @@ def chdir(todir: Path):
 
 @contextlib.contextmanager
 def tempdir(
-    change_dir: bool = False, tmproot: Optional[Path] = None,
-    cleanup: Optional[bool] = True
+    change_dir: bool = False,
+    tmproot: Optional[Path] = None,
+    cleanup: Optional[bool] = True,
 ) -> Path:
     """
     Context manager that creates a temporary directory, yields it, and then
@@ -111,7 +113,7 @@ def tempdir(
 def context_dir(
     path: Optional[Path] = None,
     change_dir: bool = False,
-    cleanup: Optional[bool] = None
+    cleanup: Optional[bool] = None,
 ) -> Path:
     """
     Context manager that looks for a specific environment variable to specify a
@@ -153,7 +155,7 @@ def ensure_path(
     exists: Optional[bool] = None,
     is_file: Optional[bool] = None,
     executable: Optional[bool] = None,
-    create: bool = False
+    create: bool = False,
 ) -> Path:
     """
     Converts a string path or :class:`py.path.local.LocalPath` to a
@@ -268,7 +270,7 @@ def find_project_path(
     *filenames: Union[str, Path],
     start: Optional[Path] = None,
     return_parent: bool = False,
-    assert_exists: bool = False
+    assert_exists: bool = False,
 ) -> Optional[Path]:
     """
     Starting from `path` folder and moving upwards, search for any of `filenames` and
@@ -378,7 +380,9 @@ def find_in_classpath(glob: str) -> Optional[Path]:
                     if len(matches) > 1:
                         LOG.warning(
                             "Found multiple jar files matching pattern %s: %s;"
-                            "returning the first one.", glob, matches
+                            "returning the first one.",
+                            glob,
+                            matches,
                         )
                     return matches[0]
             elif path.exists() and fnmatch.fnmatch(path.name, glob):
@@ -413,9 +417,7 @@ def resolve_value_descriptor(value_descriptor: Union[str, dict]) -> Optional:
     if isinstance(value_descriptor, str):
         return os.environ.get(value_descriptor)
     elif "env" in value_descriptor:
-        return os.environ.get(
-            value_descriptor["env"], value_descriptor.get("value")
-        )
+        return os.environ.get(value_descriptor["env"], value_descriptor.get("value"))
     else:
         return value_descriptor.get("value")
 
@@ -449,7 +451,8 @@ def verify_digests(path: Path, digests: dict):
         except AssertionError:  # TODO: test this
             LOG.warning(
                 "Hash algorithm %s is not supported; cannot verify file %s",
-                hash_name, path
+                hash_name,
+                path,
             )
             continue
         if actual_digest != expected_digest:
@@ -457,3 +460,113 @@ def verify_digests(path: Path, digests: dict):
                 f"{hash_name} digest {actual_digest} of file "
                 f"{path} does match expected value {expected_digest}"
             )
+
+
+class PollingException(Exception):
+    """Base exception that stores the last result seen."""
+    def __init__(self, last=None):
+        self.last = last
+
+
+class TimeoutException(PollingException):
+    """Exception raised if polling function times out"""
+
+
+class MaxCallException(PollingException):
+    """Exception raised if maximum number of iterations is exceeded"""
+
+
+def poll(
+    target: Callable,
+    step: int = 1,
+    args: Optional[Sequence] = None,
+    kwargs: Optional[dict] = None,
+    timeout: Optional[int] = None,
+    max_tries: Optional[int] = None,
+    check_success: Callable = bool,
+    step_function: Optional[Callable[[int, int], int]] = None,
+    ignore_exceptions: Sequence = (),
+):
+    """
+    Poll by calling a target function until a certain condition is met. You must specify
+    at least a target function to be called and the step -- base wait time between
+    each function call.
+
+    Vendored from the [polling](https://github.com/justiniso/polling) package.
+
+    Args:
+        target: The target callable
+        step: Step defines the amount of time to wait (in seconds)
+        args: Arguments to be passed to the target function
+        kwargs: Keyword arguments to be passed to the target function
+        timeout: The target function will be called until the time elapsed is greater
+            than the maximum timeout (in seconds). NOTE that the actual execution
+            time of the function *can* exceed the time specified in the timeout. For
+            instance, if the target function takes 10 seconds to execute and the timeout
+            is 21 seconds, the polling function will take a total of 30 seconds (two
+            iterations of the target --20s which is less than the timeout--21s,
+            and a final iteration)
+        max_tries: Maximum number of times the target function will be called before
+            failing
+        check_success: A callback function that accepts the return value of the target
+            function. It must return true if you want the polling function to stop
+            and return this value. It must return false if you want to continue
+            polling. You may also use this function to collect non-success values. The
+            default is a callback that tests for truthiness (anything not False, 0,
+            or empty collection).
+        step_function: A callback function that accepts two arguments: current_step,
+            num_tries; and returns the next step value. By default, this is constant,
+            but you can also pass a function that will increase or decrease the step.
+            As an example, you can increase the wait time between calling the target
+            function by 10 seconds every iteration until the step is 100 seconds--at
+            which point it should remain constant at 100 seconds
+
+            >>> def my_step_function(current_step: int, num_tries: int) -> int:
+            >>>     return max(current_step + 10, 100)
+
+        ignore_exceptions: You can specify a tuple of exceptions that should be caught
+            and ignored on every iteration. If the target function raises one of
+            these exceptions, it will be caught and the exception instance will be
+            pushed to the queue of values collected during polling. Any other exceptions
+            raised will be raised as normal.
+
+    Returns:
+        The first value from the target function that meets the condions of the
+        check_success callback. By default, this will be the first value that is not
+        None, 0, False, '', or an empty collection.
+    """
+    max_time = time.time() + timeout if timeout else None
+    tries = 0
+    last_item = None
+
+    if args is None:
+        args = ()
+
+    if kwargs is None:
+        kwargs = {}
+
+    while True:
+        if max_tries and tries >= max_tries:
+            raise MaxCallException(last_item)
+
+        try:
+            val = target(*args, **kwargs)
+            last_item = val
+        except ignore_exceptions as e:
+            last_item = e
+        else:
+            # Condition passes, this is the only "successful" exit from the
+            # polling function
+            if check_success(val):
+                return val
+
+        tries += 1
+
+        # Check the time after to make sure the poll function is called at least once
+        if max_time and time.time() >= max_time:
+            raise TimeoutException(last_item)
+
+        time.sleep(step)
+
+        if step_function:
+            step = step_function(step, tries)
