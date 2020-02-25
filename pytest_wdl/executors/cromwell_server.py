@@ -97,7 +97,7 @@ class CromwellServerExecutor(Executor, CromwellHelperMixin):
             )
 
         inputs_dict, _ = read_write_inputs(
-            input_file=kwargs.get("inputs_file"),
+            inputs_file=kwargs.get("inputs_file"),
             inputs_dict=inputs,
             namespace=target,
             write_formatted_inputs=False
