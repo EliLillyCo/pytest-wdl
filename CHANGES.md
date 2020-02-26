@@ -1,10 +1,13 @@
 # Changes
 
-## Development
+## v1.4.0 (2020.02.26)
 
-* Add support for YAML data and configuration files (#116)
-* Add a Cromwell Server executor (thanks @pamagee!)
-* Add ability to specify tests in JSON/WDL (#117)
+* Added support for YAML data and configuration files (#116)
+* Added a Cromwell Server executor (thanks @pamagee!)
+* Added ability to specify tests in JSON/WDL (#117)
+* Updated docs and testing to latest version of Cromwell (v48)
+* Added an optional `callback` parameter to `workflow_runner`
+* Fix miniwdl executor when there are no inputs (thanks @mlin!)
 
 ## v1.3.0 (2020.02.14)
 
