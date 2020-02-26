@@ -21,7 +21,7 @@ still return string paths, but this support will be dropped in a future version.
 """
 import json
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import Callable, List, Optional, Sequence, Tuple, Union
 
 from _pytest.fixtures import FixtureRequest
 from pytest_subtests import SubTests
@@ -31,8 +31,13 @@ from pytest_wdl.config import UserConfiguration
 from pytest_wdl.core import DataResolver, DataManager, DataDirs, create_executor
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
-DEFAULT_TEST_DATA_FILE = "test_data.json"
+
+DEFAULT_TEST_DATA_FILE = "test_data"
 DEFAULT_IMPORT_PATHS_FILE = "import_paths.txt"
 
 
@@ -88,18 +93,25 @@ def workflow_data_descriptor_file(request: FixtureRequest) -> Union[str, Path]:
     Args:
         request: A FixtureRequest object
     """
+    test_data_files = [f"{DEFAULT_TEST_DATA_FILE}.json"]
+
+    if yaml:
+        test_data_files.append(f"{DEFAULT_TEST_DATA_FILE}.yaml")
+
+    test_data_paths = []
+
+    for f in test_data_files:
+        test_data_paths.extend((Path(f), Path("tests") / f))
+
     return find_project_path(
-        Path(DEFAULT_TEST_DATA_FILE),
-        Path("tests") / DEFAULT_TEST_DATA_FILE,
-        start=Path(request.fspath.dirpath()),
-        assert_exists=True
+        *test_data_files, start=Path(request.fspath.dirpath()), assert_exists=True
     )
 
 
 def workflow_data_descriptors(
     request: FixtureRequest,
     project_root: Union[str, Path],
-    workflow_data_descriptor_file: Union[str, Path]
+    workflow_data_descriptor_file: Union[str, Path],
 ) -> dict:
     """
     Fixture that provides a mapping of test data names to values. If
@@ -118,15 +130,17 @@ def workflow_data_descriptors(
         workflow_data_descriptor_file,
         search_paths=search_paths,
         is_file=True,
-        exists=True
+        exists=True,
     )
     with open(workflow_data_descriptor_path, "rt") as inp:
-        return json.load(inp)
+        if yaml and workflow_data_descriptor_path.suffix == ".yaml":
+            return yaml.load(inp)
+        else:
+            return json.load(inp)
 
 
 def workflow_data_resolver(
-    workflow_data_descriptors: dict,
-    user_config: UserConfiguration
+    workflow_data_descriptors: dict, user_config: UserConfiguration
 ) -> DataResolver:
     """
     Provides access to test data files for tests in a module.
@@ -156,13 +170,13 @@ def workflow_data(
         def test_workflow(workflow_data):
             print(workflow_data["myfile"])
     """
-    datadirs = DataDirs(
+    data_dirs = DataDirs(
         ensure_path(request.fspath.dirpath(), canonicalize=True),
         request.module,
         request.function,
-        request.cls
+        request.cls,
     )
-    return DataManager(workflow_data_resolver, datadirs)
+    return DataManager(workflow_data_resolver, data_dirs)
 
 
 def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
@@ -179,7 +193,7 @@ def import_paths(request: FixtureRequest) -> Union[str, Path, None]:
 def import_dirs(
     request: FixtureRequest,
     project_root: Union[str, Path],
-    import_paths: Optional[Union[str, Path]]
+    import_paths: Optional[Union[str, Path]],
 ) -> List[Union[str, Path]]:
     """
     Fixture that provides a list of directories containing WDL scripts to make
@@ -194,6 +208,7 @@ def import_dirs(
     """
     if import_paths:
         import_paths = ensure_path(import_paths, canonicalize=True)
+
         if not import_paths.exists():
             raise FileNotFoundError(f"import_paths file {import_paths} does not exist")
 
@@ -213,6 +228,7 @@ def import_dirs(
         module_dir = find_project_path(
             "tests", start=Path(request.fspath.dirpath()), return_parent=True
         )
+
         if module_dir:
             return [module_dir]
         else:
@@ -229,7 +245,7 @@ def workflow_runner(
     import_dirs: List[Union[str, Path]],
     user_config: UserConfiguration,
     default_executors: Sequence[str],
-    subtests: SubTests
+    subtests: SubTests,
 ):
     """
     Provides a callable that runs a workflow. The callable has the same signature as
@@ -247,83 +263,143 @@ def workflow_runner(
         default_executors: Names of executors to use when executor name isn't passed to
             the `workflow_runner` callable.
         subtests: A SubTests object.
+
+    Returns:
+        A generator over the results of calling the workflow with each executor. Each
+        value is a tuple `(executor_name, execution_dir, outputs)`, where
+        `execution_dir` is the root directory where the task/workflow was run (the
+        structure of the directory is executor-dependent) and `outputs` is a dict of
+        the task/workflow outputs.
     """
-    def _run_workflow(
+    return WorkflowRunner(
+        default_executors=default_executors,
+        wdl_search_paths=[Path(request.fspath.dirpath()), project_root],
+        import_dirs=[ensure_path(d, is_file=False, exists=True) for d in import_dirs],
+        user_config=user_config,
+        subtests=subtests,
+    )
+
+
+class WorkflowRunner:
+    """
+    Callable object that runs tests.
+    """
+    def __init__(
+        self,
+        wdl_search_paths: Sequence[Path],
+        import_dirs: Sequence[Path],
+        user_config: UserConfiguration,
+        subtests: SubTests,
+        default_executors: Optional[Sequence[str]] = None
+    ):
+        """
+        Base class for test runners.
+        """
+        self._wdl_search_paths = wdl_search_paths
+        self._import_dirs = import_dirs
+        self._user_config = user_config
+        self._subtests = subtests
+        self._default_executors = default_executors or ()
+
+    def __call__(self, *args, **kwargs) -> dict:
+        executors, call_args = self._args(*args, **kwargs)
+
+        outputs = {}
+
+        if len(executors) == 1:
+            outputs[executors[0]] = self._run_test(executors[0], **call_args)
+        else:
+            for executor_name in executors:
+                with self._subtests.test(executor_name=executor_name):
+                    outputs[executor_name] = self._run_test(executor_name, **call_args)
+
+        return outputs
+
+    def _args(
+        self,
         wdl_script: Union[str, Path],
         *args,
         inputs: Optional[dict] = None,
         expected: Optional[dict] = None,
         executors: Optional[Sequence[str]] = None,
-        **kwargs
-    ):
-        inputs, expected, kwargs = _reformat_args(
-            list(args),
-            inputs=inputs,
-            expected=expected,
-            **kwargs
-        )
-        search_paths = [Path(request.fspath.dirpath()), project_root]
-        wdl_path = ensure_path(wdl_script, search_paths, is_file=True, exists=True)
-        import_dir_paths = [
-            ensure_path(d, is_file=False, exists=True) for d in import_dirs
-        ]
-        if not executors:
-            executors = default_executors
+        **kwargs,
+    ) -> Tuple[Sequence[str], dict]:
+        """
+        Handle multiple different call signatures.
 
-        def _run_test(_executor_name):
-            executor = create_executor(_executor_name, import_dir_paths, user_config)
-            with context_dir(user_config.default_execution_dir, change_dir=True):
-                executor.run_workflow(
-                    wdl_path,
-                    inputs=inputs,
-                    expected=expected,
-                    **kwargs
-                )
+        Args:
+            wdl_script:
+            args: Positional arguments. Supports backward-compatibility for workflows
+                using the old `run_workflow` signature in which the second argument
+                was the workflow name. This will be removed in the next major version.
+            inputs:
+            expected:
+            executors:
+            kwargs: Additional keyword arguments
+
+        Returns:
+            Tuple of (executors, call_kwargs).
+        """
+        wdl_path = ensure_path(
+            wdl_script, self._wdl_search_paths, is_file=True, exists=True
+        )
+
+        if args:
+            args_list = list(args)
+
+            if isinstance(args_list[0], str):
+                kwargs["workflow_name"] = args_list.pop(0)
+
+            if args_list:
+                if inputs:
+                    raise TypeError("Multiple values for argument 'inputs'")
+
+                inputs = args_list.pop(0)
+
+                if args_list:
+                    if expected:
+                        raise TypeError("Multiple values for argument 'expected'")
+
+                    expected = args_list.pop(0)
+
+                    if args_list:
+                        raise TypeError("Too many arguments")
+
+        if not executors:
+            executors = self._default_executors
 
         if len(executors) == 0:
             raise RuntimeError("At least one executor must be specified")
-        elif len(executors) == 1:
-            _run_test(executors[0])
-        else:
-            for executor_name in executors:
-                with subtests.test(msg=executor_name, executor_name=executor_name):
-                    _run_test(executor_name)
 
-    return _run_workflow
+        call_args = {
+            "wdl_path": wdl_path,
+            "inputs": inputs,
+            "expected": expected,
+        }
 
+        call_args.update(kwargs)
 
-def _reformat_args(
-    args: list,
-    inputs: Optional[dict] = None,
-    expected: Optional[dict] = None,
-    **kwargs
-):
-    """
-    This is to support backward-compatibility for workflows using the old
-    `run_workflow` signature in which the second argument was the workflow
-    name. This will be removed in the next major version.
+        return executors, call_args
 
-    Args:
-        args: Positional arguments
-        inputs: Inputs dict
-        expected: Expected dict
-        **kwargs: Additional keyword arguments
+    def _run_test(
+        self,
+        executor_name: str,
+        wdl_path: Path,
+        inputs: Optional[dict] = None,
+        expected: Optional[dict] = None,
+        callback: Optional[Callable[[str, Path, dict], None]] = None,
+        **kwargs
+    ) -> dict:
+        executor = create_executor(executor_name, self._import_dirs, self._user_config)
 
-    Returns:
-        Tuple of (inputs, expected, kwargs)
-    """
-    if args:
-        if isinstance(args[0], str):
-            kwargs["workflow_name"] = args.pop(0)
-        if args:
-            if inputs:
-                raise TypeError("Multiple values for argument 'inputs'")
-            inputs = args.pop(0)
-            if args:
-                if expected:
-                    raise TypeError("Multiple values for argument 'expected'")
-                expected = args.pop(0)
-                if args:
-                    raise TypeError("Too many arguments")
+        with context_dir(
+            self._user_config.default_execution_dir, change_dir=True
+        ) as execution_dir:
+            outputs = executor.run_workflow(
+                wdl_path, inputs=inputs, expected=expected, **kwargs
+            )
 
-    return inputs, expected, kwargs
+            if callback:
+                callback(executor_name, execution_dir, outputs)
+
+            return outputs

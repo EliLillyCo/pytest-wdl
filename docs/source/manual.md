@@ -7,7 +7,7 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 * Python 3.6+
 * At least one of the supported workflow engines (see [Limitations](#known-limitations) for known limitations of these workflow engines):
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
-    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v45)
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v48)
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running
@@ -44,6 +44,8 @@ The plugins that have extra dependencies are:
 
 * dx: Support for DNAnexus file storage, and for the dxWDL executor.
 * bam: More intelligent comparison of expected and actual BAM file outputs of a workflow than just comparing MD5 checksums.
+* http: Support for executors that use HTTPS protocol to communicate with a remote server (e.g. Cromwell Server)
+* <a name="yaml">yaml</a>: Support using YAML for configuration and test data files. Note that `.yaml` files are ignored if a `.json` file with the same prefix is present.
 * progress: Show progress bars when downloading remote files.
 
 To install a plugin's dependencies:
@@ -224,7 +226,7 @@ There are also [several additional fixtures](#configuration) used for configurat
 
 Typically, workflows require inputs and generate outputs. Beyond simply ensuring that a workflow runs successfully, we often want to additionally test that it reproducibly generates the same results given the same inputs.
 
-Test inputs and outputs are configured in a `test_data.json` file that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object tyep that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
+Test inputs and outputs are configured in a `test_data.json` file (or `test_data.yaml` file if you have the [YAML](#yaml) dependency installed) that is stored in the same directory as the test module. This file has one entry for each input/output. Primitive types map as expected from JSON to Python to WDL. Object types (e.g. structs) have a special syntax. For example, the following `test_data.json` file defines an integer input that is loaded as a Python `int` and then maps to the WDL `Integer` type when passed as an input parameter to a workflow, and an object type that is loaded as a Python dict and then maps to a user-defined type (struct) in WDL:
 
 ```json
 {
@@ -347,8 +349,10 @@ The default type if one is not specified.
 An Executor is a wrapper around a WDL workflow execution engine that prepares inputs, runs the tool, captures outputs, and handles errors. Currently, the following executors are supported (but aternative executors can be implemented as [plugins](#plugins)):
 
 * [Cromwell](https://cromwell.readthedocs.io/)
-* [Miniwdl](https://github.com/chanzuckerberg/miniwdl)
-* [dxWDL](https://github.com/dnanexus/dxWDL)
+    * Local: run Cromwell locally (`executor="cromwell"`)
+    * Server: run Cromwell via a remote Cromwell server instance (`executor="cromwell-server"`)
+* [Miniwdl](https://github.com/chanzuckerberg/miniwdl): run miniwdl locally in the same process as pytest-wdl (`executor="miniwdl"`)
+* [dxWDL](https://github.com/dnanexus/dxWDL): compile tasks/workflows using dxWDL and run them remotely on DNAnexus (`executor="dxwdl"`)
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor.
 
@@ -361,16 +365,30 @@ The remaining arguments to `workflow_runner` are optional:
 * `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, the name of the workflow is extracted from the WDL file.
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 * `imports_file`: Specify the imports file to use. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
+* `executors`: Optional list of executors to use to run the workflow. Each executor will be run in a [subtest](https://github.com/pytest-dev/pytest-subtests). If not specified the [default_executors](#configuration) are used.
+* `callback`: An optional function that is called after each successful workflow execution. Take three arguments:
+
+    ```python
+    from pathlib import Path
+    
+    def callback(executor_name: str, execution_dir: Path, outputs: dict):
+      ...
+    ```
 
 You can also pass executor-specific keyword arguments. 
 
 ### Executor-specific `workflow_runner` arguments
 
-#### Cromwell
+#### Cromwell Local
 
 * `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
 * `java_args`: Override the default Java arguments.
 * `cromwell_args`: Override the default Cromwell arguments.
+
+#### Cromwell Server
+
+* `imports_file`: Instead of specifying the imports file, this can also be the path to the imports zip file to write, instead of a temp file.
+* `timeout`: Number of seconds to allow a workflow to run before timing out with an error; defaults to 3600 (1hr).
 
 #### Miniwdl
 
@@ -404,6 +422,68 @@ Requires the `dxpy` package to be installed.
 
 * DNAnexus (and thus the dxWDL executor) does not support optional collection types (e.g. `Array[String]?`, `Map[String, File]?`).
 * See the [dxWDL open issues](https://github.com/dnanexus/dxWDL/issues) for other potential limitations
+
+## Writing tests in JSON
+
+Rather than writing test cases in Python, in most instances it is possible to define your tests completely in JSON (or in YAML, if you have the [YAML](#yaml) dependency installed). Python- and JSON-based tests can co-exist.
+
+JSON tests are defined in a file that starts with `test` and ends with `.json`. There is one required top-level key, `"test"`, whose value is an array of hashes. Each hash defines a single test.
+
+```json
+{
+  "tests": [
+    {
+      "name": "mytest",
+      "wdl": "mytest.wdl",
+      "inputs": {
+        "input_files": [
+            "test_file1",
+            "test_file2"
+        ],
+        "organism": "human"
+      },
+      "expected": {
+        "output_file": "expected_file"
+      }
+    }
+  ]
+}
+```
+
+A test has two required keys:
+
+* `name`: The test name; must be unique within the file.
+* `wdl`: A path to a WDL file (equivalent to the first parameter to `workflow_runner` described above).
+
+Any of the other parameters to `workflow_runner` can be specified as keys as well. To refer to `workflow_data` entries, simply use the entry key as a value. For example, "test_file1", "test_file2", and "expected_file" in the example above are defined in the `test_data.json` file. If a string value is not found in the `workflow_data`, it is treated as a string literal. For example, the value of the "organism" key ("human") is treated as a string literal because there is no "human" key defined in `test_data.json`.
+
+Instead of using a separate `test_data.json` file, you may instead put your test data definitions directly in the test JSON file as the value of the "data" key. Note that it is either/or - if you put your test data definitions in your tests JSON file, then any definitions in `test_data.json` will not be ignored.
+
+```json
+{
+  "data": {
+    "test_file": {
+      "url": "https://foo.com/input.txt"
+    },
+    "expected_file": {
+      "url": "https://foo.com/output.txt"
+    }
+  },
+  "tests": [
+    {
+      "name": "mytest",
+      "wdl": "mytest.wdl",
+      "inputs": {
+        "input_file": "test_file",
+        "organism": "human"
+      },
+      "expected": {
+        "output_file": "expected_file"
+      }
+    }
+  ]
+}
+```
 
 ## Configuration
 
@@ -443,7 +523,7 @@ $ env FOO=bar echo "foo is $FOO"
 
 #### Configuration file
 
-The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json`. To get started, you can copy one of the following example config files and modify as necessary:
+The pytest-wdl configuration file is a JSON-format file. Its default location is `$HOME/.pytest_wdl_config.json` (or `$HOME/.pytest_wdl_config.yaml` if you have the [YAML](#yaml) dependency installed). To get started, you can copy one of the following example config files and modify as necessary:
  
 * [simple](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
 * [more complex](https://github.com/EliLillyCo/pytest-wdl/blob/develop/examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
@@ -514,15 +594,22 @@ These options apply to all Java-based executors (currently Cromwell and dxWDL):
 | `java_args` | `JAVA_ARGS` | Arguments to add to the `java` command | `-Dconfig.file=<cromwell_config_file>` (for Cromwell executor, if `cromwell_config_file` is specified) |
 | N/A | `CLASSPATH` | Java classpath; searched for a file matching "cromwell*.jar" if `cromwell_jar` is not specified | None |
 
-###### Cromwell
+###### Cromwell Local
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `cromwell_jar_file` | `CROMWELL_JAR` | Path to Cromwell JAR file | None |
-| `cromwell_config_file` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
+| `cromwell_configuration` | `CROMWELL_CONFIG` | Path to Cromwell configuration file | None |
 | `cromwell_args` | `CROMWELL_ARGS`  | Arguments to add to the `cromwell run` command | None; |
 
 Note that if you are doing your development locally and using Docker images you've built yourself, it is recommended to add `-Ddocker.hash-lookup.enabled=false` to `java_args` to disable Docker lookup by hash. Otherwise, you must push your Docker image(s) to a remote repository (e.g. DockerHub) before running your tests.
+
+###### Cromwell Server
+
+* `cromwell_api_url`: The full path to the cromwell API (i.e. http://localhost:8000/api/workflows/v1).
+* `cromwell_api_username`: The username to authenticate against the cromwell api if protected
+* `cromwell_api_password`: The password to authenticate against the cromwell api if protected 
+* `cromwell_configuration`: Configuration (file or dict) to pass to cromwell when submitting run requests.
 
 ###### dxWDL
 
@@ -531,7 +618,7 @@ The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
 | `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
-| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory that should be used to cache downloaded results | A temporary directory is used and deleted after each test |
+| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory to use to cache downloaded results | A temporary directory is used and deleted after each test |
 
 ##### Provider-specific configuration
 
@@ -562,7 +649,7 @@ pytest-wdl provides the ability to implement plugins for data types, executors, 
 
 To create a new data type plugin, add a module in the `data_types` package of pytest-wdl, or create it in your own 3rd party package.
 
-Your plugin should subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
+Your plugin must subclass the `pytest_wdl.data_types.DataFile` class and override its methods for `_assert_contents_equal()` and/or `_diff()` to define the behavior for this file type.
 
 Next, add an entry point in setup.py. If the data type requires more dependencies to be installed, make sure to use a `try/except ImportError` and raise a PluginError with an informative message, and to add the extra dependencies under the setup.py's `extras_require`. For example:
 
@@ -601,7 +688,30 @@ In this example, the extra dependencies can be installed with `pip install pytes
 
 To create a new executor, add a module in the `executors` package, or in your own 3rd party package.
 
-Your plugin should subclass `pytest_wdl.executors.Executor` and implement the `run_workflow()` method.
+Your plugin must subclass `pytest_wdl.executors.Executor` and implement an initalizer and the `run_workflow()` method. The initalizer must take `import_dirs: Optional[Sequence[Path]]` as its first argument, and may take additional executor-specific keyword arguments.
+
+```python
+from pathlib import Path
+from pytest_wdl.executors import Executor
+from typing import Optional, Sequence
+
+class MyExecutor(Executor):
+    def __init__(
+        self,
+        import_dirs: Optional[Sequence[Path]],
+        myarg: str = "hello"
+    ):
+        ...
+
+    def run_workflow(
+        self,
+        wdl_path: Path,
+        inputs: Optional[dict] = None,
+        expected: Optional[dict] = None,
+        **kwargs
+    ) -> dict:
+        ...
+```
 
 Next, add an entry point in setup.py. If the executor requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 
@@ -625,7 +735,7 @@ setup(
 
 If you want to use test data files that are available via a service that does not support http/https/ftp downloads, you can implement a custom URL scheme.
 
-Your plugin should subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
+Your plugin must subclass `pytest_wdl.url_schemes.UrlScheme` and implement the `scheme`, `handles`, and any of the `urlopen`, `request`, and `response` methods that are required.
 
 Next, add an entry point in setup.py. If the schem requires more dependencies to be installed, make sure to use a `try/except ImportError` to warn about this and add the extra dependencies under the setup.py's `extras_require` (see example under [Creating new data types](#creating-new-data-types)). For example:
 

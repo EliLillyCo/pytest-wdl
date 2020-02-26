@@ -31,7 +31,7 @@ def test_user_config_file():
             assert user_config_file() == config
 
     with tempdir() as d, setenv({"HOME": str(d)}):
-        config = d / DEFAULT_USER_CONFIG_FILE
+        config = d / f"{DEFAULT_USER_CONFIG_FILE}.json"
         with open(config, "wt") as out:
             out.write("foo")
         assert user_config_file() == config
