@@ -365,6 +365,15 @@ The remaining arguments to `workflow_runner` are optional:
 * `workflow_name`: The name of the workflow to execute in the WDL script. If not specified, the name of the workflow is extracted from the WDL file.
 * `inputs_file`: Specify the inputs.json file to use, or the path to the inputs.json file to write, instead of a temp file.
 * `imports_file`: Specify the imports file to use. By default, all WDL files under the test context directory are imported if an `import_paths.txt` file is not provided.
+* `executors`: Optional list of executors to use to run the workflow. Each executor will be run in a [subtest](https://github.com/pytest-dev/pytest-subtests). If not specified the [default_executors](#configuration) are used.
+* `callback`: An optional function that is called after each successful workflow execution. Take three arguments:
+
+    ```python
+    from pathlib import Path
+    
+    def callback(executor_name: str, execution_dir: Path, outputs: dict):
+      ...
+    ```
 
 You can also pass executor-specific keyword arguments. 
 
