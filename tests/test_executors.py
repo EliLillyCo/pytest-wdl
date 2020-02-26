@@ -12,6 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 import json
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -34,14 +35,14 @@ def test_executors(workflow_data, workflow_runner, executor):
         "in_txt": workflow_data["in_txt"],
         "in_int": 1
     }
-    outputs = {
+    expected = {
         "out_txt": workflow_data["out_txt"],
         "out_int": 1
     }
     workflow_runner(
         "test.wdl",
         inputs,
-        outputs,
+        expected,
         executors=[executor]
     )
     # Test with the old workflow_runner signature
@@ -49,7 +50,7 @@ def test_executors(workflow_data, workflow_runner, executor):
         "test.wdl",
         "cat_file",
         inputs,
-        outputs,
+        expected,
         executors=[executor]
     )
 
@@ -60,15 +61,23 @@ def test_multiple_executors(workflow_data, workflow_runner):
         "in_txt": workflow_data["in_txt"],
         "in_int": 1
     }
-    outputs = {
+    expected = {
         "out_txt": workflow_data["out_txt"],
         "out_int": 1
     }
+
+    def callback(executor: str, execution_dir: Path, outputs: dict):
+        assert executor in WORKFLOW_EXECUTORS
+        assert execution_dir.exists()
+        for param in ("cat_file.out_txt", "cat_file.out_int"):
+            assert param in outputs
+
     workflow_runner(
         "test.wdl",
         inputs,
-        outputs,
-        executors=WORKFLOW_EXECUTORS
+        expected,
+        executors=WORKFLOW_EXECUTORS,
+        callback=callback
     )
 
 

@@ -4,8 +4,8 @@ tests = tests
 # Use this option to show full stack trace for errors
 #pytestopts = --full-trace
 #pytestopts = -ra --tb=short
-pytestopts =  -s -vv --show-capture=all -m "not remote"
-#pytestopts = -s -vv --show-capture=all -m "not integration"
+pytestopts =  -vv  -m "not remote"
+#pytestopts = -vv --show-capture=all -m "not integration"
 
 all: clean install install_extras install_development_requirements test test_release_setup
 
