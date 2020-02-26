@@ -7,6 +7,7 @@
 * Added ability to specify tests in JSON/WDL (#117)
 * Updated docs and testing to latest version of Cromwell (v48)
 * Added an optional `callback` parameter to `workflow_runner`
+* Fix miniwdl executor when there are no inputs (thanks @mlin!)
 
 ## v1.3.0 (2020.02.14)
 
