@@ -53,7 +53,7 @@ setup(
     py_modules=["pytest_wdl"],
     packages=find_packages(),
     install_requires=[
-        "pytest>=5.1",
+        "pytest==5.3.5",
         "subby>=0.1.6",
         "miniwdl==0.7.0",
         "pytest-subtests",
