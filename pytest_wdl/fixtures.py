@@ -305,13 +305,23 @@ class WorkflowRunner:
         executors, call_args = self._args(*args, **kwargs)
 
         outputs = {}
+        failed = []
 
         if len(executors) == 1:
             outputs[executors[0]] = self._run_test(executors[0], **call_args)
         else:
             for executor_name in executors:
                 with self._subtests.test(executor_name=executor_name):
-                    outputs[executor_name] = self._run_test(executor_name, **call_args)
+                    try:
+                        outputs[executor_name] = self._run_test(
+                            executor_name, **call_args
+                        )
+                    except:
+                        failed.append(executor_name)
+                        raise
+
+        if failed:
+            raise AssertionError(f"One or more sub-tests failed: {failed}")
 
         return outputs
 
