@@ -6,7 +6,7 @@ certifi==2019.11.28
 cffi==1.14.0
 chardet==3.0.4
 coloredlogs==10.0
-cryptography==2.2.2
+cryptography==2.3
 docker==4.2.0
 dxpy==0.290.1
 humanfriendly==6.0

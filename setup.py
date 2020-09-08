@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam>=0.15.4"],
-    "dx": ["dxpy"],
+    "dx": ["dxpy>=0.297.1"],
     "http": ["requests"],
     "progress": ["tqdm"],
     "yaml": ["pyyaml"],
