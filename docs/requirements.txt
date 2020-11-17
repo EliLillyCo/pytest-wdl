@@ -1,5 +1,5 @@
-Sphinx>=2.1.2
-recommonmark>=0.5.0
-sphinx_rtd_theme>=0.4.3
-sphinx-markdown-tables>=0.0.9
-sphinxcontrib-apidoc>=0.3.0
+Sphinx==2.1.2
+recommonmark==0.5.0
+sphinx_rtd_theme==0.4.3
+sphinx-markdown-tables==0.0.9
+sphinxcontrib-apidoc==0.3.0
