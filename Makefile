@@ -74,4 +74,4 @@ release: clean tag
 		-H "Content-Type:application/json" \
 		-H "Authorization: token $(token)" \
 		https://api.github.com/repos/$(repo)/releases \
-		-d '{"tag_name":"$(version)","target_commitish": "master","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'
+		-d '{"tag_name":"$(version)","target_commitish": "main","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'
