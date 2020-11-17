@@ -175,7 +175,7 @@ For details, [read the docs](https://pytest-wdl.readthedocs.io).
 You can get started with pytest-wdl with no configuration required. However, some advanced features can be configured via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
  
 * [simple](examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+* [more complex](examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
 
 See the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configuration) for more details on configuring pytest-wdl.
 
