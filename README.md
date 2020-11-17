@@ -1,5 +1,5 @@
-[![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=master)](https://travis-ci.com/EliLillyCo/pytest-wdl)
-[![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
+[![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=main)](https://travis-ci.com/EliLillyCo/pytest-wdl)
+[![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/main/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
 [![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
 
 <img width="200" alt="logo" src="docs/source/logo.png"/>
