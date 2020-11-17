@@ -4,7 +4,7 @@ tests = tests
 # Use this option to show full stack trace for errors
 #pytestopts = --full-trace
 #pytestopts = -ra --tb=short
-pytestopts =  -vv  -m "not remote"
+pytestopts =  -vv --show-capture=all -m "not remote"
 #pytestopts = -vv --show-capture=all -m "not integration"
 
 all: clean install install_extras install_development_requirements test test_release_setup
@@ -74,4 +74,4 @@ release: clean tag
 		-H "Content-Type:application/json" \
 		-H "Authorization: token $(token)" \
 		https://api.github.com/repos/$(repo)/releases \
-		-d '{"tag_name":"$(version)","target_commitish": "master","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'
+		-d '{"tag_name":"$(version)","target_commitish": "main","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'

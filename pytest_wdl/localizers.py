@@ -175,7 +175,7 @@ def download_file(
     req = request.Request(url)
     if http_headers:
         for name, value in http_headers.items():
-            req.add_header(name, value)
+            req.add_unredirected_header(name, value)
     if proxies:
         # TODO: Should we only set the proxy associated with the URL scheme?
         #  Should we raise an exception if there is not a proxy defined for

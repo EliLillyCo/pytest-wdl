@@ -1,10 +1,20 @@
 # Changes
 
+## Development
+
+
+## v1.4.1 (2020.11.17)
+* Replaces remote file localization method for adding HTTP headers to only add headers on initial request and not redirects.
+* Updated `dxpy` minimum to `0.297.1` to be able to use `cryptography` version `2.3` ([#106](https://github.com/EliLillyCo/pytest-wdl/pull/106))
+* Upgraded `bleach` to `3.1.5` ([#138](https://github.com/EliLillyCo/pytest-wdl/pull/138))
+* Constrains `pytest` version `<=5.3.5` to avoid breaking changes in `pytest` ([#139](https://github.com/EliLillyCo/pytest-wdl/pull/139))
+* Upgrades `Cromwell` to version `53.1` in test setup and documentation.
+
 ## v1.4.0 (2020.02.26)
 
 * Added support for YAML data and configuration files (#116)
 * Added a Cromwell Server executor (thanks @pamagee!)
-* Added ability to specify tests in JSON/WDL (#117)
+* Added ability to specify tests in JSON/YAML (#117)
 * Updated docs and testing to latest version of Cromwell (v48)
 * Added an optional `callback` parameter to `workflow_runner`
 * Fix miniwdl executor when there are no inputs (thanks @mlin!)

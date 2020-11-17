@@ -20,8 +20,8 @@ install:
 - make install_development_requirements
 - make install
 before_script:
-- wget https://github.com/broadinstitute/cromwell/releases/download/48/cromwell-48.jar -O /tmp/cromwell-48.jar
-- export CROMWELL_JAR=/tmp/cromwell-48.jar
+- wget https://github.com/broadinstitute/cromwell/releases/download/53.1/cromwell-53.1.jar -O /tmp/cromwell-53.1.jar
+- export CROMWELL_JAR=/tmp/cromwell-53.1.jar
 script:
 - make test
 - make test_release_setup
@@ -35,4 +35,4 @@ deploy:
   skip_existing: true
   on:
     tags: true
-    branch: master
+    branch: main

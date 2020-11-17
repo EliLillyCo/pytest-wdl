@@ -11,7 +11,6 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-import json
 import logging
 from pathlib import Path
 from typing import Optional, Sequence, cast
@@ -20,8 +19,7 @@ from pytest_wdl.executors import (
     Executor, ExecutionFailedError, get_target_name, read_write_inputs
 )
 
-import docker
-from WDL import CLI, Error, Tree, runtime, _util
+from WDL import CLI, Error, Tree, runtime
 
 
 class MiniwdlExecutor(Executor):
@@ -62,6 +60,10 @@ class MiniwdlExecutor(Executor):
             AssertionError: if the actual outputs don't match the expected outputs
         """
 
+        logger = logging.getLogger("miniwdl-run")
+        logger.setLevel(CLI.NOTICE_LEVEL)
+        CLI.install_coloredlogs(logger)
+
         wdl_doc = CLI.load(
             str(wdl_path),
             path=[str(path) for path in self._import_dirs],
@@ -83,29 +85,18 @@ class MiniwdlExecutor(Executor):
             task=namespace if is_task else None
         )
 
-        logger = logging.getLogger("miniwdl-run")
-        logger.setLevel(CLI.NOTICE_LEVEL)
-        CLI.install_coloredlogs(logger)
+        # Create config
+        cfg = runtime.config.Loader(logger)
+        cfg.override({
+            "copy_input_files": kwargs.get("copy_input_files", False)
+        })
+        cfg.log_all()
 
         # initialize Docker
-        client = docker.from_env()
-        try:
-            logger.debug("dockerd :: " + json.dumps(client.version())[1:-1])
-            _util.initialize_local_docker(logger, client)
-        finally:
-            client.close()
+        runtime.task.LocalSwarmContainer.global_init(cfg, logger)
 
         try:
-            if isinstance(target, Tree.Task):
-                entrypoint = runtime.run_local_task
-            else:
-                entrypoint = runtime.run_local_workflow
-
-            rundir, output_env = entrypoint(
-                target,
-                input_env,
-                copy_input_files=kwargs.get("copy_input_files", False)
-            )
+            rundir, output_env = runtime.run(cfg, target, input_env, run_dir=None)
         except Error.EvalError as err:  # TODO: test errors
             MiniwdlExecutor.log_source(logger, err)
             raise

@@ -7,7 +7,7 @@ pytest-wdl is a plugin for the [pytest](https://docs.pytest.org/en/latest/) unit
 * Python 3.6+
 * At least one of the supported workflow engines (see [Limitations](#known-limitations) for known limitations of these workflow engines):
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) (v0.6.4 is automatically installed as a dependency of pytest-wdl)
-    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v48)
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/) JAR file (pytest-wdl is currently tested with Cromwell v53.1)
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file (pytest-wdl is currently tested with dxWDL v1.42)
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
 * If your WDL tasks depend on Docker images, make sure to have the [Docker](https://www.docker.com/get-started) daemon running

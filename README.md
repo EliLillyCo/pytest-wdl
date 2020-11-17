@@ -1,5 +1,5 @@
-[![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=master)](https://travis-ci.com/EliLillyCo/pytest-wdl)
-[![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/master/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
+[![Travis CI](https://travis-ci.com/EliLillyCo/pytest-wdl.svg?branch=main)](https://travis-ci.com/EliLillyCo/pytest-wdl)
+[![Code Coverage](https://codecov.io/gh/elilillyco/pytest-wdl/branch/main/graph/badge.svg)](https://codecov.io/gh/elilillyco/pytest-wdl)
 [![Documentation Status](https://readthedocs.org/projects/pytest-wdl/badge/?version=latest)](https://pytest-wdl.readthedocs.io/en/latest/?badge=latest)
 
 <img width="200" alt="logo" src="docs/source/logo.png"/>
@@ -11,7 +11,7 @@ This package is a plugin for the [pytest](https://docs.pytest.org/en/latest/) un
 * Python 3.6+
 * At least one of the supported workflow engines:
     * [Miniwdl](https://github.com/chanzuckerberg/miniwdl) - automatically installed as a dependency of pytest-wdl
-    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/48) JAR file
+    * [Cromwell](https://github.com/broadinstitute/cromwell/releases/tag/53.1) JAR file
         * **Cromwell Server**: Any Cromwell instance remotely running in Server mode
     * [dxWDL](https://github.com/dnanexus/dxWDL) JAR file
 * Java-based workflow engines (e.g. Cromwell and dxWDL) require a Java runtime (typically 1.8+)
@@ -70,15 +70,6 @@ To install pytest-wdl and **all** extras dependencies:
 ```
 $ pip install pytest-wdl[all]
 ```
-
-## Configuration
-
-Some minimal configuration is required to get started with pytest-wdl. Configuration can be provided via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
- 
-* [simple](examples/simple.pytest_wdl_config.json): Uses only the miniwdl executor
-* [more complex](examples/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
-
-See the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configuration) for more details on configuring pytest-wdl.
 
 ## Usage
 
@@ -178,6 +169,15 @@ def test_variant_caller(workflow_data, workflow_runner):
 ```
 
 For details, [read the docs](https://pytest-wdl.readthedocs.io).
+
+## Configuration
+
+You can get started with pytest-wdl with no configuration required. However, some advanced features can be configured via environment variables, fixture functions, and/or a config file. To get started, copy one of the following example config files to `$HOME/.pytest_wdl_config.json` and modify as necessary:
+ 
+* [simple](examples/config/simple.pytest_wdl_config.json): Uses only the miniwdl executor
+* [more complex](examples/config/complex.pytest_wdl_config.json): Uses both miniwdl and Cromwell; shows how to configure proxies and headers for accessing remote data files in a private repository
+
+See the [manual](https://pytest-wdl.readthedocs.io/en/stable/manual.html#configuration) for more details on configuring pytest-wdl.
 
 ## Contributing
 
