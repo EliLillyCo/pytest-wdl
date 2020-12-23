@@ -2,6 +2,8 @@
 
 ## Development
 
+* Updated `miniwdl` dependency to 0.9.0
+* Fix #144 - Pair type not supported by miniwdl executor
 
 ## v1.4.1 (2020.11.17)
 * Replaces remote file localization method for adding HTTP headers to only add headers on initial request and not redirects.

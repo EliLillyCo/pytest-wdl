@@ -28,8 +28,10 @@ except PluginError as err:
 pytestmark = pytest.mark.skipif(dxpy is None, reason=SKIP_REASON)
 
 
-DX_FILE_ID = "file-BgY4VzQ0bvyg22pfZQpXfzgK"
 DX_PROJECT_ID = "project-BQbJpBj0bvygyQxgQ1800Jkk"
+DX_FILE_ID = "file-BgY4VzQ0bvyg22pfZQpXfzgK"
+TEST_FILE_START = "README.1st.txt"
+TEST_FILE_END = "SRR100022: Full exome to use as input to your analyses."
 
 
 @contextlib.contextmanager
@@ -71,10 +73,8 @@ def test_dx_scheme():
         assert outfile.exists()
         with open(outfile, "rt") as inp:
             txt = inp.read()
-        assert txt.startswith("README.1st.txt")
-        assert txt.rstrip().endswith(
-            "SRR100022: Full exome to use as input to your analyses."
-        )
+        assert txt.startswith(TEST_FILE_START)
+        assert txt.rstrip().endswith(TEST_FILE_END)
 
 
 def test_dx_scheme_with_project():
@@ -88,10 +88,8 @@ def test_dx_scheme_with_project():
         assert outfile.exists()
         with open(outfile, "rt") as inp:
             txt = inp.read()
-        assert txt.startswith("README.1st.txt")
-        assert txt.rstrip().endswith(
-            "SRR100022: Full exome to use as input to your analyses."
-        )
+        assert txt.startswith(TEST_FILE_START)
+        assert txt.rstrip().endswith(TEST_FILE_END)
 
 
 def test_dx_input_formatter(request: FixtureRequest):
