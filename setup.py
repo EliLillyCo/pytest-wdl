@@ -55,7 +55,7 @@ setup(
     install_requires=[
         "pytest<=5.3.5",
         "subby>=0.1.6",
-        "miniwdl==0.9.0",
+        "miniwdl>=0.9.0",
         "pytest-subtests",
         "xphyle>=4.1.3",
     ],
