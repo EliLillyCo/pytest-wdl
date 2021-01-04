@@ -54,7 +54,9 @@ def diff_vcf_columns(file1: Path, file2: Path, compare_phase: bool = False) -> i
     with tempdir() as temp:
         def make_comparable(infile, outfile):
             cmd = ["grep -vE '^#'", "cut -f 1-5,7,10", "cut -d ':' -f 1"]
-            output = subby.sub(cmd, stdin=infile)
+            # if the VCF file is empty or (for some reason) has no headers,
+            # grep will exit with return code 1
+            output = subby.sub(cmd, stdin=infile, allowed_return_codes=(0, 1))
             with open(outfile, "wt") as out:
                 if compare_phase:
                     out.write(output)
