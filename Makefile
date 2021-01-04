@@ -75,3 +75,6 @@ release: clean tag
 		-H "Authorization: token $(token)" \
 		https://api.github.com/repos/$(repo)/releases \
 		-d '{"tag_name":"$(version)","target_commitish": "main","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'
+
+quickstart:
+	cd examples/quickstart && pytest -s -vv --show-capture=all

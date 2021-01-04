@@ -24,6 +24,7 @@ before_script:
 - export CROMWELL_JAR=/tmp/cromwell-53.1.jar
 script:
 - make test
+- make quickstart
 - make test_release_setup
 after_success:
 - bash <(curl -s https://codecov.io/bash)
