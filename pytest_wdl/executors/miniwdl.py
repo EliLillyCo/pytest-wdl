@@ -75,7 +75,11 @@ class MiniwdlExecutor(Executor):
         task_arg = f"--task {namespace}" if is_task else ""
         quant_arg = "--no-quant-check" if not check_quant else ""
         path_arg = " ".join(f"-p {p}" for p in self._import_dirs)
-        # TODO: we shouldn't need --copy-input-files, but
+        # TODO: we shouldn't need --copy-input-files, but without it sometimes the staged
+        # input files are not available in the container.
+        # Another fix is https://github.com/chanzuckerberg/miniwdl/issues/145#issuecomment-733435644
+        # but we will leave --copy-input-files, so the user doesn't have to muck with Docker setings,
+        # until the fissue is addressed: https://github.com/chanzuckerberg/miniwdl/issues/461
         cmd = (
             f"miniwdl run --error-json --copy-input-files {input_arg} {task_arg} "
             f"{quant_arg} {path_arg} {wdl_path}"
