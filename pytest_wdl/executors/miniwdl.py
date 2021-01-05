@@ -11,24 +11,26 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-import logging
+import json
+import os
 from pathlib import Path
-from typing import Optional, Sequence, cast
+from typing import Optional, Sequence
+
+import subby
+import WDL
 
 from pytest_wdl.executors import (
     Executor, ExecutionFailedError, get_target_name, read_write_inputs
 )
 
-from WDL import CLI, Error, Tree, runtime
-
 
 class MiniwdlExecutor(Executor):
     """
-    Manages the running of WDL workflows using Cromwell.
+    Manages the running of WDL workflows using miniwdl.
     """
 
     def __init__(self, import_dirs: Optional[Sequence[Path]] = None):
-        self._import_dirs = import_dirs
+        self._import_dirs = import_dirs or []
 
     def run_workflow(
         self,
@@ -43,129 +45,115 @@ class MiniwdlExecutor(Executor):
 
         Args:
             wdl_path: The WDL script to execute.
-            inputs: Object that will be serialized to JSON and provided to Cromwell
+            inputs: Object that will be serialized to JSON and provided to miniwdl
                 as the workflow inputs.
             expected: Dict mapping output parameter names to expected values.
             kwargs: Additional keyword arguments, mostly for debugging:
                 * workflow_name: Name of the workflow to run.
                 * task_name: Name of the task to run if a workflow isn't defined.
-                * inputs_file: Path to the Cromwell inputs file to use. Inputs are
+                * inputs_file: Path to the miniwdl inputs file to use. Inputs are
                     written to this file only if it doesn't exist.
 
         Returns:
             Dict of outputs.
 
         Raises:
-            Exception: if there was an error executing Cromwell
+            Exception: if there was an error executing miniwdl
             AssertionError: if the actual outputs don't match the expected outputs
         """
-
-        logger = logging.getLogger("miniwdl-run")
-        logger.setLevel(CLI.NOTICE_LEVEL)
-        CLI.install_coloredlogs(logger)
-
-        wdl_doc = CLI.load(
+        check_quant = kwargs.get("check_quant", True)
+        wdl_doc = WDL.load(
             str(wdl_path),
             path=[str(path) for path in self._import_dirs],
-            check_quant=kwargs.get("check_quant", True),
-            read_source=CLI.read_source
+            check_quant=check_quant
         )
-
         namespace, is_task = get_target_name(wdl_doc=wdl_doc, **kwargs)
-
         inputs_dict, inputs_file = read_write_inputs(
             inputs_dict=inputs, namespace=namespace if not is_task else None,
         )
-
-        target, input_env, input_json = CLI.runner_input(
-            doc=wdl_doc,
-            inputs=[],
-            input_file=str(inputs_file) if inputs_file else None,
-            empty=[],
-            task=namespace if is_task else None
+        input_arg = f"-i {inputs_file}" if inputs_file else ""
+        task_arg = f"--task {namespace}" if is_task else ""
+        quant_arg = "--no-quant-check" if not check_quant else ""
+        path_arg = " ".join(f"-p {p}" for p in self._import_dirs)
+        # TODO: we shouldn't need --copy-input-files, but without it sometimes the staged
+        # input files are not available in the container.
+        # Another fix is https://github.com/chanzuckerberg/miniwdl/issues/145#issuecomment-733435644
+        # but we will leave --copy-input-files, so the user doesn't have to muck with Docker setings,
+        # until the fissue is addressed: https://github.com/chanzuckerberg/miniwdl/issues/461
+        cmd = (
+            f"miniwdl run --error-json --copy-input-files {input_arg} {task_arg} "
+            f"{quant_arg} {path_arg} {wdl_path}"
         )
+        exe = subby.run(cmd, raise_on_error=False)
 
-        # Create config
-        cfg = runtime.config.Loader(logger)
-        cfg.override({
-            "copy_input_files": kwargs.get("copy_input_files", False)
-        })
-        cfg.log_all()
+        # miniwdl writes out either outputs or error in json format to stdout
+        results = json.loads(exe.output)
+        if exe.ok:
+            outputs = results["outputs"]
 
-        # initialize Docker
-        runtime.task.LocalSwarmContainer.global_init(cfg, logger)
+            if expected:
+                self._validate_outputs(outputs, expected, namespace)
 
-        try:
-            rundir, output_env = runtime.run(cfg, target, input_env, run_dir=None)
-        except Error.EvalError as err:  # TODO: test errors
-            MiniwdlExecutor.log_source(logger, err)
-            raise
-        except Error.RuntimeError as err:
-            MiniwdlExecutor.log_source(logger, err)
+            return outputs
+        else:
+            error = json.loads(exe.output)
+            print(error)
 
-            if isinstance(err, runtime.error.RunFailed):
-                # This will be a workflow- or a task-level failure, depending on
-                # whether a workflow or task was executed. If it is workflow-level,
-                # we need to get the task-level error that caused the workflow to fail.
-                if isinstance(err.exe, Tree.Workflow):
-                    err = err.__cause__
+            pos = error.get("pos")
+            if pos:
+                source = f"at {pos['line']}:{pos['column']} in {pos['source']}"
+            else:
+                source = f"in {wdl_path}"
 
-                task_err = cast(runtime.error.RunFailed, err)
-                cause = task_err.__cause__
+            failure_attrs = [error.get(x) for x in ("task", "workflow", "exit_status")]
+            if any(failure_attrs):
+                # RunFailed or CommandFailed
+                target = failure_attrs[0] or failure_attrs[1]
+                failure_dir = error.get("dir")
+                failed_task = failure_attrs[0]
                 failed_task_exit_status = None
                 failed_task_stderr = None
-                if isinstance(cause, runtime.error.CommandFailed):
-                    # If the task failed due to an error in the command, populate the
-                    # command exit status and stderr.
-                    cmd_err = cast(runtime.error.CommandFailed, cause)
-                    failed_task_exit_status = cmd_err.exit_status
-                    failed_task_stderr = MiniwdlExecutor.read_miniwdl_command_std(
-                        cmd_err.stderr_file
-                    )
+                cause = error if failure_attrs[2] else error.get("cause")
+
+                if cause:
+                    if "dir" in cause:
+                        failure_dir = cause["dir"]
+                    failed_task_exit_status = cause["exit_status"]
+                    failed_task_stderr_path = cause["stderr_file"]
+                    if failed_task_stderr_path:
+                        p = Path(failed_task_stderr_path)
+                        if p.exists:
+                            with open(p, "rt") as inp:
+                                failed_task_stderr = inp.read()
+
+                if failure_dir is not None:
+                    inputs_json = Path(os.path.join(failure_dir, "inputs.json"))
+                    if inputs_json.exists():
+                        with open(inputs_json, "r") as inp:
+                            failed_inputs = json.load(inp)
+
+                    if failed_task is None:
+                        cause_error_file = Path(os.path.join(failure_dir, "error.json"))
+                        if cause_error_file.exists():
+                            with open(cause_error_file, "r") as inp:
+                                cause_error_json = json.load(inp)
+                            if "task" in cause_error_json:
+                                failed_task = cause_error_json["task"]
+                else:
+                    failed_inputs = None
 
                 raise ExecutionFailedError(
-                    "miniwdl",
-                    namespace,
+                    executor="miniwdl",
+                    target=target,
                     status="Failed",
-                    inputs=task_err.exe.inputs,
-                    failed_task=task_err.exe.name,
+                    inputs=failed_inputs,
+                    executor_stderr=exe.error,
+                    failed_task=failed_task,
                     failed_task_exit_status=failed_task_exit_status,
-                    failed_task_stderr=failed_task_stderr
-                ) from err
-            else:
-                raise
-
-        outputs = CLI.values_to_json(output_env, namespace=target.name)
-
-        if expected:
-            self._validate_outputs(outputs, expected, target.name)
-
-        return outputs
-
-    @staticmethod
-    def read_miniwdl_command_std(path: Optional[str] = None) -> Optional[str]:
-        if path:
-            p = Path(path)
-
-            if p.exists():
-                with open(path, "rt") as inp:
-                    return inp.read()
-
-    @staticmethod
-    def log_source(logger: logging.Logger, exn: Exception):
-        if isinstance(exn, runtime.error.RunFailed):
-            pos = cast(runtime.error.RunFailed, exn).exe.pos
-        elif hasattr(exn, "pos"):
-            pos = cast(Error.SourcePosition, getattr(exn, "pos"))
-        else:
-            return
-        if pos:
-            logger.error(
-                "({} Ln {} Col {}) {}{}".format(
-                    pos.uri,
-                    pos.line,
-                    pos.column,
-                    exn.__class__.__name__,
-                    (", " + str(exn) if str(exn) else ""),
+                    # failed_task_stdout=TODO,
+                    failed_task_stderr=failed_task_stderr,
+                    msg=error.get("message")
                 )
-            )
+            else:
+                message = error.get("message", "unknown")
+                raise RuntimeError(f"Error {source}: {message}")

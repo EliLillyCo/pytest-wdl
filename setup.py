@@ -5,10 +5,10 @@ from setuptools import setup, find_packages
 
 extras_require = {
     "bam": ["pysam>=0.15.4"],
-    "dx": ["dxpy>=0.297.1"],
-    "http": ["requests"],
+    "dx": ["dxpy>=0.303.1"],
+    "http": ["requests<2.24.0"],
     "progress": ["tqdm"],
-    "yaml": ["pyyaml"],
+    "yaml": ["ruamel.yaml>=0.15.37"],
 }
 extras_require["all"] = list(
     set(lib for lib_array in extras_require.values() for lib in lib_array)
@@ -55,7 +55,7 @@ setup(
     install_requires=[
         "pytest<=5.3.5",
         "subby>=0.1.6",
-        "miniwdl==0.7.0",
+        "miniwdl>=0.9.0",
         "pytest-subtests",
         "xphyle>=4.1.3",
     ],

@@ -24,6 +24,7 @@ from pytest_wdl.utils import (
     ensure_path, safe_string, find_executable_path, find_in_classpath
 )
 
+import WDL
 from WDL import Document, Error, Tree
 
 
@@ -317,7 +318,7 @@ def parse_wdl(
     check_quant: bool = False,
     **_
 ) -> Document:
-    return Tree.load(
+    return WDL.load(
         str(wdl_path),
         path=[str(path) for path in import_dirs],
         check_quant=check_quant
