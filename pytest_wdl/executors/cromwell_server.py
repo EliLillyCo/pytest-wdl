@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import time
 from typing import IO, Optional, Sequence, Union
 
 import requests
@@ -206,12 +207,35 @@ class CromwellServerExecutor(Executor, CromwellHelperMixin):
         run_id: str,
         target: str,
         inputs_dict: Optional[dict] = None,
-        timeout: int = DEFAULT_POLLING_TIMEOUT
+        timeout: int = DEFAULT_POLLING_TIMEOUT,
+        num_retries: int = 5,
+        retry_interval: int = 1
     ):
         def get_status(status_url):
-            with requests.get(status_url, auth=self._auth) as rsp:
-                status_dict = self._resp_to_json(rsp, target, inputs_dict)
-                return status_dict.get("status") in TERMINAL_STATES
+            # Cromwell may return a 404 error, especially right after
+            # calling the run API endpoint - retry here several times
+            # and wait after each 404 error
+            # see https://github.com/EliLillyCo/pytest-wdl/issues/155#issuecomment-750438858
+            for i in range(num_retries):
+                with requests.get(status_url, auth=self._auth) as rsp:
+                    if rsp.status_code == 404:
+                        time.sleep(retry_interval)
+                    else:
+                        status_dict = self._resp_to_json(rsp, target, inputs_dict)
+                        return status_dict.get("status") in TERMINAL_STATES
+            else:
+                status_err = (
+                    f"Failed to get response from {status_url} within "
+                    f"{num_retries * retry_interval} seconds"
+                )
+                LOG.error(status_err)
+                raise ExecutionFailedError(
+                    executor="cromwell-server",
+                    target=target,
+                    status="Failed",
+                    inputs=inputs_dict,
+                    msg=status_err
+                )
 
         try:
             poll(
@@ -221,14 +245,12 @@ class CromwellServerExecutor(Executor, CromwellHelperMixin):
                 timeout=timeout
             )
         except PollingException:
-            LOG.exception(f"Encountered timeout for run with id {run_id}")
-
-            error_kwargs = {
-                "executor": "cromwell-server",
-                "target": target,
-                "status": "Failed",
-                "inputs": inputs_dict,
-                "msg": f"Encountered timeout for run with id {run_id}",
-            }
-
-            raise ExecutionFailedError(**error_kwargs)
+            polling_err = f"Encountered timeout for run with id {run_id}"
+            LOG.exception(polling_err)
+            raise ExecutionFailedError(
+                executor="cromwell-server",
+                target=target,
+                status="Failed",
+                inputs=inputs_dict,
+                msg=polling_err
+            )
