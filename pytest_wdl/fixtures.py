@@ -32,7 +32,7 @@ from pytest_wdl.core import DataResolver, DataManager, DataDirs, create_executor
 from pytest_wdl.utils import ensure_path, context_dir, find_project_path
 
 try:
-    import yaml
+    from ruamel import yaml
 except ImportError:
     yaml = None
 
@@ -134,7 +134,9 @@ def workflow_data_descriptors(
     )
     with open(workflow_data_descriptor_path, "rt") as inp:
         if yaml and workflow_data_descriptor_path.suffix == ".yaml":
-            return yaml.load(inp)
+            yaml_loader = yaml.YAML(typ="safe")
+            yaml_loader.default_flow_style = False
+            return yaml_loader.load(inp)
         else:
             return json.load(inp)
 

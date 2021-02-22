@@ -22,7 +22,7 @@ from typing import Dict, List, Optional, Union
 from pytest_wdl.utils import ensure_path, env_map
 
 try:
-    import yaml
+    from ruamel import yaml
 except ImportError:
     yaml = None
 
@@ -89,7 +89,9 @@ class UserConfiguration:
         if config_file:
             with open(config_file, "rt") as inp:
                 if yaml and config_file.suffix == ".yaml":
-                    defaults = yaml.load(inp)
+                    yaml_loader = yaml.YAML(typ="safe")
+                    yaml_loader.default_flow_style = False
+                    defaults = yaml_loader.load(inp)
                 else:
                     defaults = json.load(inp)
         else:
@@ -206,7 +208,9 @@ class UserConfiguration:
         d = self.as_dict()
         with open(path, "wt") as out:
             if yaml and path.suffix == ".yaml":
-                yaml.dump(d, out)
+                yaml_dumper = yaml.YAML(typ="safe")
+                yaml_dumper.default_flow_style = False
+                yaml_dumper.dump(d, out)
             else:
                 json.dump(d, out)
 
