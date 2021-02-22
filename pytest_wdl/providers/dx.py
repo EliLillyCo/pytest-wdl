@@ -51,6 +51,7 @@ from WDL import Document, Type
 
 ENV_JAVA_HOME = "JAVA_HOME"
 ENV_DXWDL_JAR = "DXWDL_JAR"
+ENV_DXCOMPILER_JAR = "DXCOMPILER_JAR"
 ENV_DX_USERNAME = "DX_USERNAME"
 OUTPUT_STAGE = "stage-outputs"
 DX_LINK_KEY = "$dnanexus_link"
@@ -84,7 +85,11 @@ def login(logout: bool = False, interactive: bool = True):
         yield
     else:
         if config.get_instance():
-            conf = config.get_instance().get_provider_defaults("dxwdl")
+            inst = config.get_instance()
+            conf = (
+                inst.get_provider_defaults("dxwdl") or
+                inst.get_provider_defaults("dxcompiler")
+            )
         else:
             conf = {}
 
@@ -194,17 +199,27 @@ class DxWdlExecutor(JavaExecutor):
         java_args: Optional[str] = None,
         dxwdl_jar_file: Optional[Union[str, Path]] = None,
         dxwdl_cache_dir: Optional[Union[str, Path]] = None,
+        dxcompiler_jar_file: Optional[Union[str, Path]] = None,
+        dxcompiler_cache_dir: Optional[Union[str, Path]] = None,
     ):
         super().__init__(java_bin, java_args)
         self._import_dirs = import_dirs
-        self._dxwdl_jar_file = self.resolve_jar_file(
-            "dxWDL*.jar", dxwdl_jar_file, ENV_DXWDL_JAR
-        )
+        try:
+            self._jar_file = self.resolve_jar_file(
+                "dxWDL*.jar", dxwdl_jar_file, ENV_DXWDL_JAR
+            )
+        except:
+            self._jar_file = self.resolve_jar_file(
+                "dxCompiler*.jar", dxcompiler_jar_file, ENV_DXCOMPILER_JAR
+            )
         if dxwdl_cache_dir:
-            self._dxwdl_cache_dir = ensure_path(dxwdl_cache_dir)
+            self._cache_dir = ensure_path(dxwdl_cache_dir)
+            self._cleanup_cache = False
+        elif dxcompiler_cache_dir:
+            self._cache_dir = ensure_path(dxcompiler_cache_dir)
             self._cleanup_cache = False
         else:
-            self._dxwdl_cache_dir = ensure_path(tempfile.mkdtemp())
+            self._cache_dir = ensure_path(tempfile.mkdtemp())
             self._cleanup_cache = True
 
     def run_workflow(
@@ -277,7 +292,7 @@ class DxWdlExecutor(JavaExecutor):
                     )
                 finally:
                     if self._cleanup_cache:
-                        shutil.rmtree(self._dxwdl_cache_dir)
+                        shutil.rmtree(self._cache_dir)
         except dxpy.exceptions.InvalidAuthentication as ierr:
             raise ExecutorError("dxwdl", "Invalid DNAnexus credentials/token") from ierr
         except dxpy.exceptions.ResourceNotFound as rerr:
@@ -351,7 +366,7 @@ class DxWdlExecutor(JavaExecutor):
             archive_arg = "-a" if archive else "-f"
 
             cmd = (
-                f"{self.java_bin} {java_args} -jar {self._dxwdl_jar_file} compile "
+                f"{self.java_bin} {java_args} -jar {self._jar_file} compile "
                 f"{wdl_path} -destination {project_id}:{folder} {imports_args} "
                 f"{extras_arg} {archive_arg}"
             )
@@ -453,7 +468,7 @@ class DxWdlExecutor(JavaExecutor):
             if file_id not in DxWdlExecutor._data_cache:
                 # Store each file in a subdirectory named by it's ID to avoid
                 # naming collisions
-                cache_dir = self._dxwdl_cache_dir / file_id
+                cache_dir = self._cache_dir / file_id
                 cache_dir.mkdir(parents=True)
                 filename = cache_dir / dxfile.describe()["name"]
                 dxpy.download_dxfile(dxfile, filename)

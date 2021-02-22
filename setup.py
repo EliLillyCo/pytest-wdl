@@ -47,6 +47,7 @@ setup(
             "cromwell-server = pytest_wdl.executors.cromwell_server:"
             "CromwellServerExecutor[http]",
             "dxwdl = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
+            "dxcompiler = pytest_wdl.providers.dx:DxWdlExecutor[dx]",
         ],
         "pytest_wdl.url_schemes": ["dx = pytest_wdl.providers.dx:DxUrlHandler[dx]"],
     },
