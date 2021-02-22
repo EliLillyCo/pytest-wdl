@@ -187,40 +187,25 @@ class DxUrlHandler(UrlHandler):
         return DxResponse(file_id, project_id)
 
 
-class DxWdlExecutor(JavaExecutor):
+class BaseDxExecutor(JavaExecutor):
     # TODO: not thread safe - tests cannot be parallelized
     _workflow_cache: Dict[Path, dxpy.DXWorkflow] = {}
     _data_cache = {}
 
     def __init__(
         self,
-        import_dirs: Optional[Sequence[Path]] = None,
-        java_bin: Optional[Union[str, Path]] = None,
-        java_args: Optional[str] = None,
-        dxwdl_jar_file: Optional[Union[str, Path]] = None,
-        dxwdl_cache_dir: Optional[Union[str, Path]] = None,
-        dxcompiler_jar_file: Optional[Union[str, Path]] = None,
-        dxcompiler_cache_dir: Optional[Union[str, Path]] = None,
+        import_dirs: Optional[Sequence[Path]],
+        java_bin: Optional[Union[str, Path]],
+        java_args: Optional[str],
+        jar_file: Union[str, Path],
+        cache_dir: Union[str, Path],
+        cleanup_cache: bool
     ):
         super().__init__(java_bin, java_args)
         self._import_dirs = import_dirs
-        try:
-            self._jar_file = self.resolve_jar_file(
-                "dxWDL*.jar", dxwdl_jar_file, ENV_DXWDL_JAR
-            )
-        except:
-            self._jar_file = self.resolve_jar_file(
-                "dxCompiler*.jar", dxcompiler_jar_file, ENV_DXCOMPILER_JAR
-            )
-        if dxwdl_cache_dir:
-            self._cache_dir = ensure_path(dxwdl_cache_dir)
-            self._cleanup_cache = False
-        elif dxcompiler_cache_dir:
-            self._cache_dir = ensure_path(dxcompiler_cache_dir)
-            self._cleanup_cache = False
-        else:
-            self._cache_dir = ensure_path(tempfile.mkdtemp())
-            self._cleanup_cache = True
+        self._jar_file = jar_file
+        self._cache_dir = cache_dir
+        self._cleanup_cache = cleanup_cache
 
     def run_workflow(
         self,
@@ -308,8 +293,8 @@ class DxWdlExecutor(JavaExecutor):
         workflow_name: str,
         kwargs: dict,
     ) -> dxpy.DXWorkflow:
-        if wdl_path in DxWdlExecutor._workflow_cache:
-            return DxWdlExecutor._workflow_cache[wdl_path]
+        if wdl_path in BaseDxExecutor._workflow_cache:
+            return BaseDxExecutor._workflow_cache[wdl_path]
 
         project_id = (
             kwargs.get("workflow_project_id") or
@@ -383,7 +368,7 @@ class DxWdlExecutor(JavaExecutor):
                 ) from perr
 
         workflow = dxpy.DXWorkflow(workflow_id)
-        DxWdlExecutor._workflow_cache[wdl_path] = workflow
+        BaseDxExecutor._workflow_cache[wdl_path] = workflow
         return workflow
 
     @classmethod
@@ -465,15 +450,15 @@ class DxWdlExecutor(JavaExecutor):
         if dxpy.is_dxlink(value):
             dxfile = dxpy.DXFile(value)
             file_id = dxfile.get_id()
-            if file_id not in DxWdlExecutor._data_cache:
+            if file_id not in BaseDxExecutor._data_cache:
                 # Store each file in a subdirectory named by it's ID to avoid
                 # naming collisions
                 cache_dir = self._cache_dir / file_id
                 cache_dir.mkdir(parents=True)
                 filename = cache_dir / dxfile.describe()["name"]
                 dxpy.download_dxfile(dxfile, filename)
-                DxWdlExecutor._data_cache[file_id] = filename
-            return DxWdlExecutor._data_cache[file_id]
+                BaseDxExecutor._data_cache[file_id] = filename
+            return BaseDxExecutor._data_cache[file_id]
         elif isinstance(value, dict):
             return {
                 key: self._resolve_output(val)
@@ -483,6 +468,52 @@ class DxWdlExecutor(JavaExecutor):
             return [self._resolve_output(val) for val in cast(Sequence, value)]
         else:
             return value
+
+
+class DxWdlExecutor(BaseDxExecutor):
+    def __init__(
+        self,
+        import_dirs: Optional[Sequence[Path]] = None,
+        java_bin: Optional[Union[str, Path]] = None,
+        java_args: Optional[str] = None,
+        dxwdl_jar_file: Optional[Union[str, Path]] = None,
+        dxwdl_cache_dir: Optional[Union[str, Path]] = None,
+    ):
+        jar_file = self.resolve_jar_file(
+            "dxWDL*.jar", dxwdl_jar_file, ENV_DXWDL_JAR
+        )
+        if dxwdl_cache_dir:
+            cache_dir = ensure_path(dxwdl_cache_dir)
+            cleanup_cache = False
+        else:
+            cache_dir = ensure_path(tempfile.mkdtemp())
+            cleanup_cache = True
+        super().__init__(
+            import_dirs, java_bin, java_args, jar_file, cache_dir, cleanup_cache
+        )
+
+
+class DxCompilerExecutor(BaseDxExecutor):
+    def __init__(
+        self,
+        import_dirs: Optional[Sequence[Path]] = None,
+        java_bin: Optional[Union[str, Path]] = None,
+        java_args: Optional[str] = None,
+        dxcompiler_jar_file: Optional[Union[str, Path]] = None,
+        dxcompiler_cache_dir: Optional[Union[str, Path]] = None,
+    ):
+        jar_file = self.resolve_jar_file(
+            "dxCompiler*.jar", dxcompiler_jar_file, ENV_DXWDL_JAR
+        )
+        if dxcompiler_cache_dir:
+            cache_dir = ensure_path(dxcompiler_cache_dir)
+            cleanup_cache = False
+        else:
+            cache_dir = ensure_path(tempfile.mkdtemp())
+            cleanup_cache = True
+        super().__init__(
+            import_dirs, java_bin, java_args, jar_file, cache_dir, cleanup_cache
+        )
 
 
 class DxInputsFormatter:
