@@ -503,7 +503,7 @@ class DxCompilerExecutor(BaseDxExecutor):
         dxcompiler_cache_dir: Optional[Union[str, Path]] = None,
     ):
         jar_file = self.resolve_jar_file(
-            "dxCompiler*.jar", dxcompiler_jar_file, ENV_DXWDL_JAR
+            "dxCompiler*.jar", dxcompiler_jar_file, ENV_DXCOMPILER_JAR
         )
         if dxcompiler_cache_dir:
             cache_dir = ensure_path(dxcompiler_cache_dir)
