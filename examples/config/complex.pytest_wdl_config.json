@@ -22,7 +22,7 @@
     "cromwell": {
       "java_bin": "/usr/local/bin/java",
       "java_args": "-Xmx8g -Ddocker.hash-lookup.enabled=false",
-      "cromwell_jar_file": "/usr/local/opt/cromwell/Cromwell-48.jar"
+      "cromwell_jar_file": "/usr/local/opt/cromwell/Cromwell-54.jar"
     }
   }
 }

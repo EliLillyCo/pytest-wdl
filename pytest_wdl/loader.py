@@ -10,7 +10,7 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 
 try:
-    import yaml
+    from ruamel import yaml
 except ImportError:
     yaml = None
 
@@ -57,7 +57,9 @@ class WdlTestsModule(pytest.Module, metaclass=ABCMeta):
 
 class YamlWdlTestsModule(WdlTestsModule):
     def _load(self, fp: IO) -> dict:
-        return yaml.safe_load(fp)
+        yaml_loader = yaml.YAML(typ="safe")
+        yaml_loader.default_flow_style = False
+        return yaml_loader.load(fp)
 
 
 class JsonWdlTestsModule(WdlTestsModule):
