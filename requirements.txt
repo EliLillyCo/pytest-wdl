@@ -38,7 +38,7 @@ six==1.15.0
 subby==0.1.7
 tqdm==4.54.1
 typing-extensions==3.7.4.3
-urllib3==1.25.11
+urllib3==1.26.5
 wcwidth==0.2.5
 websocket-client==0.53.0
 xdg==5.0.1
