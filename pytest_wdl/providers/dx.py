@@ -219,7 +219,7 @@ class BaseDxExecutor(JavaExecutor):
 
         if not wdl_doc.workflow:
             raise ValueError(
-                "Currently, the dxWDL executor only supports executing "
+                "Currently, the dxWDL/dxCompiler executor only supports executing "
                 "workflows, not individual tasks"
             )
 
