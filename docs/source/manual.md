@@ -352,7 +352,7 @@ An Executor is a wrapper around a WDL workflow execution engine that prepares in
     * Local: run Cromwell locally (`executor="cromwell"`)
     * Server: run Cromwell via a remote Cromwell server instance (`executor="cromwell-server"`)
 * [Miniwdl](https://github.com/chanzuckerberg/miniwdl): run miniwdl locally in the same process as pytest-wdl (`executor="miniwdl"`)
-* [dxWDL](https://github.com/dnanexus/dxWDL): compile tasks/workflows using dxWDL and run them remotely on DNAnexus (`executor="dxwdl"`)
+* [dxWDL](https://github.com/dnanexus/dxWDL) or [dxCompiler](https://github.com/dnanexus/dxCompiler): compile tasks/workflows using dxWDL and run them remotely on DNAnexus (`executor="dxwdl"` or `executor="dxcompiler"`)
 
 The `workflow_runner` fixture is a callable that runs the workflow using the executor.
 
@@ -611,14 +611,14 @@ Note that if you are doing your development locally and using Docker images you'
 * `cromwell_api_password`: The password to authenticate against the cromwell api if protected 
 * `cromwell_configuration`: Configuration (file or dict) to pass to cromwell when submitting run requests.
 
-###### dxWDL
+###### dxWDL / dxCompiler  
 
-The dxWDL executor (as well as URLs using the `dx://` scheme) require you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus)), otherwise you will be asked to log in interactively.
+The dxWDL executor (as well as URLs using the `dx://` scheme) requires you to be logged into DNAnexus. You can configure either a username and password or an auth token in the config file to log in automatically (see [provider configuration](#dnanexus)), otherwise you will be asked to log in interactively. Also supports the new dxCompiler.
 
 | configuration file key | environment variable | description | default |
 | -------------| ------------- | ----------- | ----------- |
-| `dxwdl_jar_file` | `DXWDL_JAR` | Path to dxWDL JAR file | None |
-| `dxwdl_cache_dir` | `DXWDL_CACHE_DIR` | Directory to use to cache downloaded results | A temporary directory is used and deleted after each test |
+| `dxwdl_jar_file` or `dxcompiler_jar_file` | `DXWDL_JAR` or `DXCOMPILER_JAR` | Path to dxWDL/dxCompiler JAR file | None |
+| `dxwdl_cache_dir` or `dxcompiler_cache_dir` | `DXWDL_CACHE_DIR` or `DXCOMPILER_CACHE_DIR` | Directory to use to cache downloaded results | A temporary directory is used and deleted after each test |
 
 ##### Provider-specific configuration
 
