@@ -30,7 +30,7 @@ python-dateutil==2.8.1
 python-json-logger==2.0.1
 python-magic==0.4.6
 regex==2020.11.13
-requests==2.23.0
+requests==2.31.0
 ruamel.yaml==0.16.12
 ruamel.yaml.clib==0.2.2
 setuptools~=40.6.2
