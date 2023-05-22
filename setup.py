@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 extras_require = {
     "bam": ["pysam>=0.15.4"],
     "dx": ["dxpy>=0.303.1"],
-    "http": ["requests<2.24.0"],
+    "http": ["requests<2.32.0"],
     "progress": ["tqdm"],
     "yaml": ["ruamel.yaml>=0.15.37"],
 }
