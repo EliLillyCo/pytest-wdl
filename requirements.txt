@@ -1,7 +1,7 @@
 argcomplete==1.12.2
 attrs==20.3.0
 beautifulsoup4==4.4.1
-certifi==2020.12.5
+certifi==2023.7.22
 cffi==1.14.4
 chardet==3.0.4
 coloredlogs==15.0
